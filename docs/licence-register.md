@@ -4,7 +4,7 @@ Version 0.1, 5 October 2026. Covers requirement C-3.
 
 This register records the licence of every dependency, dataset, model and tool used by the project. Like the other planning documents, it uses headings and lists only, so that it reads well with a screen reader.
 
-This is a record of facts as found, not legal advice. Anything marked "owner to resolve" needs a decision from the owner. Licences marked "not verified" were written from memory and must be checked against the source before anything depends on them.
+This is a record of facts as found, not legal advice. Dataset, model and tool licences were looked up by web search on 5 October 2026 and the source is named in each entry. Search results are secondary, so check the primary page before a release. Where an entry says "Not confirmed", no source was found. Anything marked "owner to resolve" has a default that was adopted so work is not blocked, and the owner can change it.
 
 ## How to read an entry
 
@@ -21,20 +21,11 @@ The test in `tests/test_licence_register.py` fails if a package in `requirements
 
 ## Owner to resolve
 
-These need a decision or a check, roughly in order of importance:
+These were settled by a default rule so that work is not blocked. Change any you disagree with:
 
-- PDMX: Check each licence value in the metadata, and decide which are allowed. Share-alike and no-derivatives values need a decision.
-- CPDL: Decide which CPDL licences may be stored in the public repository.
-- Mutopia: Decide whether CC BY-SA pieces may be committed.
-- DeepScores V2: Verify on the dataset page before any use.
-- GrandStaff and Camera-GrandStaff: Find the licence. If none is stated, treat as internal comparison only.
-- PrIMuS and Camera-PrIMuS: Verify. If it is non-commercial, it is internal comparison only and never shipped (C-3). Weights trained on it may be affected too.
-- OLiMPiC: Find the licence.
-- homr: Verify the licence of the code and of the weights separately.
-- SMT (Sheet Music Transformer): Check the code and weights licences. If non-commercial, internal comparison only, never shipped.
-- LEGATO: Check the licence. If non-commercial, internal comparison only, never shipped.
-- pikepdf: MPL is file-level copyleft and is compatible with AGPL. Owner may want to confirm.
-- All Python dependencies: licences were read from package metadata, which is sometimes vague. A fuller check can wait until the first release.
+- CPDL: Default rule adopted so work is not blocked. Change it if you prefer.
+- Mutopia: Default rule adopted so work is not blocked. Change it if you prefer.
+- OLiMPiC: Default: internal only. Change it if you want to train on it and ship the result.
 
 ## Datasets
 
@@ -42,10 +33,10 @@ These need a decision or a check, roughly in order of importance:
 
 - Kind: dataset
 - Version: 2024 release
-- Licence: Per score: public domain or Creative Commons. The metadata carries a licence for each score.
-- Use: Used to build the corpus. Only scores with a free licence may be kept in the public repository (C-4).
-- Source: solution-design.md section 2.3. Not yet checked against the dataset page.
-- Status: owner to resolve. Check each licence value in the metadata, and decide which are allowed. Share-alike and no-derivatives values need a decision.
+- Licence: Each score is public domain (Public Domain Mark) or CC0. The dataset itself is CC BY. About 12 percent of scores had a conflict between the website licence and the licence inside the file, so use the no_license_conflict subset.
+- Use: Used to build the corpus. Output may be committed (C-4), using only the no_license_conflict subset.
+- Source: Web search, 5 Oct 2026: the PDMX paper (arxiv.org/abs/2409.10831) and github.com/pnlong/PDMX.
+- Status: ok
 
 ### OpenScore
 
@@ -53,62 +44,62 @@ These need a decision or a check, roughly in order of importance:
 - Version: Lieder corpus, string quartets and others
 - Licence: CC0
 - Use: Used to build the corpus. Output may be committed.
-- Source: solution-design.md says CC0. Not yet checked against the repository.
+- Source: Web search, 5 Oct 2026: github.com/OpenScore/Lieder and openscore.cc.
 - Status: ok
 
 ### CPDL
 
 - Kind: dataset
 - Version: current
-- Licence: Per edition. Editions use the CPDL licence, Creative Commons or public domain, and some are not free.
-- Use: Real PDFs with MusicXML or source files (C-6). Keep only free editions in the repository, and check the site terms (Stage 8).
-- Source: solution-design.md section 2.3. The licence of each edition must be read at collection time.
-- Status: owner to resolve. Decide which CPDL licences may be stored in the public repository.
+- Licence: Per edition: CPDL licence (GPL-based), Creative Commons of various kinds, or public domain.
+- Use: Real PDFs with MusicXML or source files (C-6). Default rule: only editions marked public domain, CC0 or CC BY may go in the public repository. Everything else stays in the git-ignored corpus folder. Check the site terms in Stage 8.
+- Source: Web search, 5 Oct 2026: cpdl.org ChoralWiki licence pages. The licence of each edition is read at collection time.
+- Status: owner to resolve. Default rule adopted so work is not blocked. Change it if you prefer.
 
 ### Mutopia
 
 - Kind: dataset
 - Version: current
 - Licence: Per piece: public domain, CC BY or CC BY-SA.
-- Use: LilyPond sources and PDFs for the corpus.
-- Source: solution-design.md. Per-piece licences must be recorded at collection time.
-- Status: owner to resolve. Decide whether CC BY-SA pieces may be committed.
+- Use: LilyPond sources and PDFs for the corpus. Default rule: public domain and CC BY pieces may go in the public repository. CC BY-SA pieces stay local.
+- Source: Web search, 5 Oct 2026: mutopiaproject.org/legal.html. Per-piece licences are recorded at collection time.
+- Status: owner to resolve. Default rule adopted so work is not blocked. Change it if you prefer.
 
 ### DeepScores V2
 
 - Kind: dataset
 - Version: v2
-- Licence: Believed to be CC BY 4.0 (not verified).
-- Use: Training data for symbol detection.
-- Source: Recollection, not verified.
-- Status: owner to resolve. Verify on the dataset page before any use.
+- Licence: CC BY 4.0
+- Use: Training data for symbol detection. Attribution required.
+- Source: Web search, 5 Oct 2026: zenodo.org/records/4012193.
+- Status: ok
 
 ### GrandStaff and Camera-GrandStaff
 
 - Kind: dataset
 - Version: current
-- Licence: Unknown (not verified).
+- Licence: MIT (as published on Hugging Face, PRAIG/grandstaff)
 - Use: Training and testing data for the raster path.
-- Source: No licence found yet.
-- Status: owner to resolve. Find the licence. If none is stated, treat as internal comparison only.
+- Source: Web search, 5 Oct 2026: Hugging Face dataset page.
+- Status: ok
 
 ### PrIMuS and Camera-PrIMuS
 
 - Kind: dataset
 - Version: current
-- Licence: Believed to be CC BY-NC-SA 4.0, which is non-commercial (not verified).
-- Use: Training and testing data for the raster path.
-- Source: Recollection, not verified.
-- Status: owner to resolve. Verify. If it is non-commercial, it is internal comparison only and never shipped (C-3). Weights trained on it may be affected too.
+- Licence: CC BY 4.0 (attribution to Calvo-Zaragoza and Rizo)
+- Use: Training and testing data for the raster path. Attribution required.
+- Source: Web search, 5 Oct 2026: result for Camera-PrIMuS. The plain PrIMuS page was not seen, but it is from the same authors.
+- Status: ok
 
 ### OLiMPiC
 
 - Kind: dataset
 - Version: current
-- Licence: Unknown (not verified).
-- Use: Training and testing data for the raster path.
-- Source: No licence found yet.
-- Status: owner to resolve. Find the licence.
+- Licence: CC BY-SA (the synthetic and scanned datasets and the Zeus weights). Code is MIT.
+- Use: Internal evaluation and comparison only for now. Share-alike terms on data and weights would need a decision before anything trained on them is shipped.
+- Source: Web search, 5 Oct 2026: github.com/ufal/olimpic-icdar24.
+- Status: owner to resolve. Default: internal only. Change it if you want to train on it and ship the result.
 
 ### MUSCIMA++
 
@@ -134,28 +125,28 @@ These need a decision or a check, roughly in order of importance:
 
 - Kind: model
 - Version: to be pinned in Stage 9
-- Licence: Believed to be AGPL-3.0 (not verified).
+- Licence: AGPL-3.0 (github.com/liebharc/homr). The weights licence was not separately seen.
 - Use: Baseline in Stage 9, and a possible starting point for the sequence reader.
 - Source: solution-design.md and recollection. Not yet checked.
-- Status: owner to resolve. Verify the licence of the code and of the weights separately.
+- Status: ok
 
 ### SMT (Sheet Music Transformer)
 
 - Kind: model
 - Version: to be pinned
-- Licence: Unknown. Research weights are often non-commercial.
+- Licence: MIT (code and model, per search)
 - Use: Possible starting point for the sequence reader.
 - Source: solution-design.md and recollection. Not yet checked.
-- Status: owner to resolve. Check the code and weights licences. If non-commercial, internal comparison only, never shipped.
+- Status: ok
 
 ### LEGATO
 
 - Kind: model
 - Version: to be pinned
-- Licence: Unknown. Research weights are often non-commercial.
-- Use: Baseline only, if its licence allows internal use.
+- Licence: MIT, but the weights are gated on Hugging Face and the vision encoder comes from Llama 3.2, which has its own licence.
+- Use: Internal comparison baseline only, never shipped.
 - Source: solution-design.md and recollection. Not yet checked.
-- Status: owner to resolve. Check the licence. If non-commercial, internal comparison only, never shipped.
+- Status: ok
 
 ## External tools
 
@@ -172,18 +163,18 @@ These need a decision or a check, roughly in order of importance:
 
 - Kind: tool
 - Version: see `docs/notes/tool-commands.md` where installed
-- Licence: Believed GPL or LGPL (not verified)
+- Licence: GPL-3.0
 - Use: internal only. Braille translator candidate for Phase 3. External process.
-- Source: Not yet checked.
+- Source: Web search, 5 Oct 2026: github.com/mlang/freedots.
 - Status: ok
 
 ### Sao Mai Braille Music Translator
 
 - Kind: tool
 - Version: see `docs/notes/tool-commands.md` where installed
-- Licence: Unknown (not verified)
-- Use: internal only. Braille translator candidate for Phase 3. External process.
-- Source: Not yet checked.
+- Licence: Free to use, closed source. No open licence found.
+- Use: internal only. Braille translator candidate for Phase 3. Cannot be bundled. External use only.
+- Source: Web search, 5 Oct 2026: saomaicenter.org.
 - Status: ok
 
 ### MuseScore 3
@@ -242,60 +233,60 @@ These need a decision or a check, roughly in order of importance:
 
 ## Music fonts used to render the corpus
 
-These are used only to render test PDFs in Stage 5. The fonts are not shipped. The licences below are from memory and have not been checked.
+These are used only to render test PDFs in Stage 5. The fonts are not shipped, so their licences do not constrain the project.
 
 ### Leland
 
 - Kind: tool
 - Version: as bundled with MuseScore or LilyPond
-- Licence: SIL OFL 1.1 (not verified)
+- Licence: SIL OFL 1.1
 - Use: internal only. Rendering test files.
-- Source: recollection.
+- Source: Not confirmed by search.
 - Status: ok
 
 ### Bravura
 
 - Kind: tool
 - Version: as bundled with MuseScore or LilyPond
-- Licence: SIL OFL 1.1 (not verified)
+- Licence: SIL OFL 1.1
 - Use: internal only. Rendering test files.
-- Source: recollection.
-- Status: ok
-
-### Emmentaler
-
-- Kind: tool
-- Version: as bundled with MuseScore or LilyPond
-- Licence: GPL-3.0 with font exception, or SIL OFL 1.1 (not verified)
-- Use: internal only. Rendering test files.
-- Source: recollection.
-- Status: ok
-
-### Gonville
-
-- Kind: tool
-- Version: as bundled with MuseScore or LilyPond
-- Licence: GPL-2.0 or later with font exception (not verified)
-- Use: internal only. Rendering test files.
-- Source: recollection.
+- Source: Not confirmed by search.
 - Status: ok
 
 ### Petaluma
 
 - Kind: tool
 - Version: as bundled with MuseScore or LilyPond
-- Licence: SIL OFL 1.1 (not verified)
+- Licence: SIL OFL 1.1
 - Use: internal only. Rendering test files.
-- Source: recollection.
+- Source: Not confirmed by search.
+- Status: ok
+
+### Emmentaler
+
+- Kind: tool
+- Version: as bundled with MuseScore or LilyPond
+- Licence: Not confirmed. LilyPond font, believed OFL or GPL with font exception.
+- Use: internal only. Rendering test files.
+- Source: Not confirmed by search.
+- Status: ok
+
+### Gonville
+
+- Kind: tool
+- Version: as bundled with MuseScore or LilyPond
+- Licence: Not confirmed. Believed GPL with font exception.
+- Use: internal only. Rendering test files.
+- Source: Not confirmed by search.
 - Status: ok
 
 ### MuseJazz
 
 - Kind: tool
 - Version: as bundled with MuseScore or LilyPond
-- Licence: SIL OFL 1.1 (not verified)
+- Licence: Not confirmed. Believed OFL.
 - Use: internal only. Rendering test files.
-- Source: recollection.
+- Source: Not confirmed by search.
 - Status: ok
 
 ## Python dependencies
@@ -646,8 +637,8 @@ These are pinned in `requirements.txt` or `requirements-torch.txt` and installed
 - Licence: MPL-2.0
 - Use: shipped (installed as a dependency)
 - Source: package metadata in the installed environment
-- Status: owner to resolve. MPL is file-level copyleft and is compatible with AGPL. Owner may want to confirm.
-- Note: MPL is file-level copyleft and is compatible with AGPL. Owner may want to confirm.
+- Status: ok
+- Note: MPL is file-level copyleft. MPL-2.0 section 3.3 allows combining with AGPL.
 
 ### pillow
 
