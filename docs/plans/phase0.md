@@ -135,7 +135,7 @@ Implementation, with Sonnet:
 - Handle failures without stopping the run. Record each failure and its reason in the log, and retry only where it makes sense.
 - Make the generator resumable, so that an overnight batch that is interrupted carries on where it stopped.
 - Write the corpus under the corpus folder from `omr.paths` (`OMR_CORPUS_DIR`, which is `E:\OMAIRCorpus` on the owner's machine), with a text index file that lists every pair. Downloads (the PDMX archive and OpenScore) and scratch exports go there too, never to the system drive.
-- Before starting, and again between scscores, check that the corpus folder exists and that the drive has more than a set margin free (100 GB by default). If not, stop cleanly with a plain-text message, so that an interrupted run can be resumed.
+- Before starting, and again between scores, check that the corpus folder exists and that the drive has more than a set margin free (100 GB by default). If not, stop cleanly with a plain-text message, so that an interrupted run can be resumed.
 - Report the corpus size in the log at the end of each run.
 
 Notes for the owner: Dorico SE may have no usable command-line export. If so, Dorico files may need a semi-manual step, and the plan should drop to a smaller Dorico sample rather than block the stage.
