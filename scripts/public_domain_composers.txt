@@ -1,0 +1,99 @@
+# Composers whose music is public domain: died before 1956, or traditional.
+# A composer string in PDMX matches if one of these phrases occurs in it as
+# whole words, and it does not mention an arranger, editor or lyricist.
+# This is the owner's list to review (docs/notes/corpus-sampling.md, Stage 5).
+# First draft written on 5 October 2026 from composers found in the regression
+# candidates. Only names with confidently known dates are included.
+
+# Traditional and anonymous
+traditional
+trad
+tradicional
+traditionnel
+anonymous
+anon
+unattributed
+unknown
+old scotch
+misc traditional
+
+# Composers, with death years
+bach          # J. S. Bach 1750
+beethoven     # 1827
+mozart        # 1791
+haydn         # 1809
+handel        # 1759
+purcell       # Henry Purcell 1695
+brahms        # 1897
+liszt         # 1886
+grieg         # 1907
+scarlatti     # 1757
+pachelbel     # 1706
+praetorius    # 1621
+gesualdo      # 1613
+lasso         # Orlando di Lasso 1594
+senfl         # 1543
+puccini       # 1924
+schubert      # 1828
+schumann      # 1856
+chopin        # 1849
+mendelssohn   # 1847
+tchaikovsky   # 1893
+dvorak        # 1904
+vivaldi       # 1741
+telemann      # 1767
+monteverdi    # 1643
+palestrina    # 1594
+byrd          # 1623
+tallis        # 1585
+dowland       # 1626
+morley        # Thomas Morley 1602
+weelkes       # 1623
+john blow     # 1708
+geminiani     # 1762
+kjerulf       # Halfdan Kjerulf 1868
+reissiger     # 1859
+claude gervaise # 16th century
+tiburtio massaino # d. about 1609
+benedetto pallavicino # 1601
+marenzio      # 1599
+tielman susato # 16th century
+sigismondo d india # 1629
+jean de castro # 16th century
+ippolito baccusi # 1609
+claudio saracini # 1649
+melchior franck # 1639
+jan tollius   # 17th century
+niel gow      # 1807
+neil gow      # 1807
+nathaniel gow # 1831
+william marshall # Scottish fiddler 1833
+carolan       # 1738
+james oswald  # 1769
+scott skinner # J. Scott Skinner 1927
+stephen foster # 1864
+scott joplin  # 1917
+
+# Hymn writers and gospel composers
+kirkpatrick   # William J. Kirkpatrick 1921
+sankey        # Ira D. Sankey 1908
+george f root # 1895
+geo f root
+g f root
+bradbury      # William B. Bradbury 1868
+p p bliss     # 1876
+danks         # Hart Pease Danks 1903
+robert lowry  # 1899
+chas h gabriel # Charles H. Gabriel 1932
+c austin miles # 1946
+sweney        # John R. Sweney 1899
+d b towner    # 1919
+fillmore      # J. H. Fillmore 1936
+adam geibel   # 1933
+e o excell    # 1921
+samuel sebastian wesley # 1876
+charles wesley # 1788
+isaac watts   # 1748
+reginald heber # 1826
+martin luther # 1546
+john newton   # 1807

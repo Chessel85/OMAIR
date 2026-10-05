@@ -139,7 +139,7 @@ def set_staff_size(musicxml_bytes, staff_space_mm):
     elif "<defaults>" in text:
         text = text.replace("<defaults>", "<defaults>" + scaling, 1)
     else:
-        text = text.replace("<part-list>", "<defaults>" + scaling + "</defaults><part-list>", 1)
+        text = re.sub(r"<part-list", lambda m: "<defaults>" + scaling + "</defaults><part-list", text, count=1)
     return text.encode("utf-8")
 
 
@@ -203,6 +203,16 @@ def export_musescore3(source, out_dir, font="Emmentaler", timeout=300):
     if not pdf.is_file():
         raise ExportError("MuseScore 3 reported success but wrote no PDF")
     return ExportResult(pdf, None, "MuseScore 3", _version([exe, "--version"]), font)
+
+
+def run_musescore3_convert(source, target, timeout=300):
+    """Import with MuseScore 3 and write `target` (the format follows its extension)."""
+    exe = musescore3_path()
+    if not exe:
+        raise ExportError("MuseScore 3 was not found")
+    _run([exe, "-o", str(target), str(source)], timeout, "MuseScore 3 conversion")
+    if not Path(target).is_file():
+        raise ExportError("MuseScore 3 reported success but wrote no file")
 
 
 def export_lilypond(source, out_dir, timeout=300):

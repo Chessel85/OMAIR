@@ -1,6 +1,6 @@
 # Corpus sampling rules
 
-Version 0.1, 5 October 2026. This is the Stage 5 sampling design in `docs/plans/phase0.md`. It says which scores go into the development set, the regression set and the training pool, and how each is exported. The export scripts implement these rules. If a rule changes, change it here first.
+Version 0.2, 5 October 2026 (implemented; see "Implementation notes" at the end). This is the Stage 5 sampling design in `docs/plans/phase0.md`. It says which scores go into the development set, the regression set and the training pool, and how each is exported. The export scripts implement these rules. If a rule changes, change it here first.
 
 ## Sources
 
@@ -65,7 +65,7 @@ No piece may appear in more than one pool, including in different arrangements, 
 
 This split depends only on the seed and the work key, so it does not change when candidates are added or removed, and it can be recomputed at any time.
 
-**Seed: 20261005.** It is stored in `scripts/corpus_config.py` and in the metadata of every exported pair.
+**Seed: 20261005.** It is stored in `src/omr/corpus/config.py` (which holds every number in these rules) and in the metadata of every exported pair.
 
 ## Drawing the sets
 
@@ -129,3 +129,18 @@ A small text file beside each pair, with one "name: value" line each: source (PD
 - These rules, the config script with the seed, the composer list, and the selection files (one line per selected score: source path, set, texture and genre). Selection files hold no music, so they can be committed whatever the licence.
 - The regression set itself, as described in Stage 7.
 - Nothing else from the corpus.
+
+## Implementation notes
+
+Added on 5 October 2026 when the generator was written. The code is in `src/omr/corpus/` and the driver is `scripts/build_corpus.py` (`candidates`, `composers`, `select SET`, `export SET`, `report`).
+
+- **Columns used from `PDMX.csv`:** `subset:no_license_conflict`, `subset:deduplicated`, `subset:all_valid`, `song_length.bars`, `n_tracks`, `title` (then `song_name`), `composer_name` (then `artist_name`), `genres`, `tags`, `mxl`, `is_original` and `license`. The metadata prefilter keeps 8 to 200 bars and 1 to 12 tracks. About 72,000 of 254,000 rows pass; the pool split then leaves about 11,000 to extract and parse.
+- **Genre tag mapping.** The `genres` column joins tags with hyphens, for example `classical-soundtrack`. The distinct tags are: religiousmusic is sacred; jazz is jazz; folk, worldmusic and country are folk; classical is classical; pop, rock, rbfunksoul, hiphop, disco, metal, electronic, reggaeska and soundtrack are popular; anything else (comedy, newage and so on) is other. When a score has several tags, the first of sacred, jazz, folk, classical, popular wins. The mapping is `PDMX_TAG_GENRE` in `config.py`.
+- **Voice and keyboard detection** uses the `instrument-sound` identifiers MuseScore writes (voice.soprano, keyboard.piano and so on). Only when a part has no sound identifier does the part name decide. This stops a bass guitar counting as a bass voice.
+- **OpenScore** repositories already contain `.mxl` files beside the MuseScore files, so those are used as the source MusicXML instead of converting the MuseScore files. The MuseScore 4 round trip still runs on them. String quartets longer than 200 bars are dropped by the size rule, which leaves very few chamber scores from that source.
+- **Public-domain composer list** (`scripts/public_domain_composers.txt`). A composer string matches if a listed phrase occurs in it as whole words. A string that also mentions an arranger, editor, transcriber or lyricist (words such as arr, arranged, by, after, text, lyrics) never matches, because the arranger's work may still be in copyright. The list is a first draft of composers with confidently known death dates. The owner must review it.
+- **Round trip results are cached** in `work/roundtrip/` under the corpus folder, one record per candidate, and the reference MusicXML is kept there. Selection is lazy: the best candidate is chosen first and checked, and a failure only costs the check for that candidate.
+- **Page limit.** The regression page limit uses the page count of the MuseScore 4 export in the default font.
+- **Uniqueness.** No two scores in a set share a work key.
+- **Failed exports are not retried** on a re-run unless `--retry-failures` is given, because timeouts and wrong-font results would only fail again. Each failure is in the log, in a `failure.txt` beside the job, and in `index.txt`.
+- **Layout under the corpus folder:** `sources/` (downloads), `work/` (candidate cache and round-trip records), `generated/<set>/<score id>/reference.musicxml`, `generated/<set>/<score id>/<job>/score.pdf` and `metadata.txt`, and `generated/<set>/index.txt`. The selection files are in `docs/corpus-selection/`.
