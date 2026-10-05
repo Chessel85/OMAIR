@@ -1,0 +1,131 @@
+# Corpus sampling rules
+
+Version 0.1, 5 October 2026. This is the Stage 5 sampling design in `docs/plans/phase0.md`. It says which scores go into the development set, the regression set and the training pool, and how each is exported. The export scripts implement these rules. If a rule changes, change it here first.
+
+## Sources
+
+- **PDMX** (Zenodo record 15571083, about 14 GB in all). It has `PDMX.csv` (metadata, about 225 MB), `mxl.tar.gz` (compressed MusicXML, about 1.9 GB), `pdf.tar.gz` (the PDFs from MuseScore.com, about 9.6 GB), `metadata.tar.gz`, `mid.tar.gz`, `data.tar.gz` and `subset_paths.tar.gz`. Download the CSV, `mxl.tar.gz` and `subset_paths.tar.gz` first. Leave `pdf.tar.gz` for later: those PDFs are real MuseScore.com exports from many MuseScore versions, which makes them useful for Stage 8, but they are not needed for the sampling.
+- **OpenScore Lieder** (voice and piano) and **OpenScore String Quartets** (chamber), from their GitHub repositories. Both are CC0. The scores are MuseScore files and are converted to MusicXML by MuseScore 4.
+
+All downloads go under the corpus folder from `omr.paths`, in `sources/pdmx` and `sources/openscore`.
+
+What PDMX tells and does not tell, from its paper and record:
+
+- About 254,000 scores. The "deduplicated" subset keeps one best arrangement per piece (about 103,000). The "no_license_conflict" subset (about 223,000) drops scores whose website licence and in-file licence disagree. The "all_valid" subset has every file format present.
+- Each score is public domain or CC0 on MuseScore.com. That is the uploader's claim. It does not guarantee that the music itself is out of copyright, which matters for popular and jazz arrangements.
+- About 67 percent of scores have no genre tag. Genre therefore cannot be the only basis for stratifying, and texture is computed from the MusicXML itself.
+- More than half of PDMX is solo music, and over 90 percent has fewer than five parts. Choir, chamber and ensemble scores must be sought out, or they will be scarce.
+
+The column names in `PDMX.csv` are checked once it is downloaded. The rules below name what they need (genre, licence conflict flag, deduplication flag, rating, title, composer); the script maps those to the real columns and stops with a clear message if one is missing.
+
+## Filters
+
+A score is a candidate only if all of these hold.
+
+- **Licence (C-4).** PDMX: in the no_license_conflict subset, and in the deduplicated subset. OpenScore: always.
+- **Valid.** PDMX: in the all_valid subset. The MusicXML parses.
+- **Size.** Between 8 and 200 bars, at most 12 parts, and a compressed MusicXML file under 1 MB. Larger scores make exports slow (musicxml2ly ran for more than 30 minutes on a 610 KB uncompressed ragtime file before it was stopped), and they add little that smaller scores do not.
+- **Specialised notation out (REC-9).** No tablature staves, no unpitched percussion staves, no figured bass. These are a later phase, and would only add noise to the Phase 1 numbers.
+- **Round trip.** MuseScore 4 imports the MusicXML and exports it again. The re-exported file is the **reference MusicXML** for the score. MuseScore 3 then imports the reference and exports it again, and musicdiff compares the two. A score is dropped if musicdiff finds any difference in notes or rests. This removes scores that MusicXML tools cannot read the same way, which is the plan's round-trip filter.
+
+The reference MusicXML is the ground truth for every export of that score, and every engraver is fed the reference, not the original file. For MuseScore 4 this is exact, because its PDF and its MusicXML come from the same loaded score. For MuseScore 3, LilyPond and Verovio, the engraver's own reading of the file may still lose something. Each pair records this in its metadata (`ground_truth: reference, exact` or `ground_truth: reference, engraver input`), so that Stage 6 can report those engravers separately.
+
+## Labels computed for each candidate
+
+### Texture (from the MusicXML part list)
+
+Each part is a voice if its name or instrument sound says voice, soprano, alto, tenor, bass, baritone, mezzo, choir, chorus or vocal (in English, German, French or Italian), and a keyboard if it says piano, organ, harpsichord, keyboard, clavier or klavier. The first matching rule gives the texture.
+
+1. **Choir:** two or more voice parts, or one part on two staves with lyrics on both staves (hymn layout).
+2. **Voice with piano:** one voice part and one keyboard part, and nothing else.
+3. **Piano:** one keyboard part and nothing else.
+4. **Single line:** one part, one staff, not a keyboard.
+5. **Chamber:** 2 to 5 parts, not matched above.
+6. **Small ensemble:** 6 to 12 parts, not matched above.
+
+### Genre
+
+- PDMX genre tags are mapped to the seven REC-10 genres: classical, popular, jazz, folk, sacred, choral and educational. The mapping is written in this file once the distinct tag values are known from the CSV, as a list of "tag: genre" lines. Tags that fit none are "other".
+- **Choral** is assigned to choir-texture scores that are not tagged sacred.
+- **Educational** is assigned from the title or tags when they contain exercise, étude, etude, study, scale, lesson, method, beginner, grade or sight-reading, as whole words.
+- Untagged scores get the genre "unlabelled". They can fill texture quotas but not genre quotas.
+- OpenScore scores are classical.
+
+### Features
+
+Read from the reference MusicXML: has lyrics, has chord symbols, has more than one voice on a staff, has tuplets, has grace notes, has repeats or endings, has a key or time signature change, has dynamics or hairpins. These make sure the sets exercise REC-2 to REC-6, not just a spread of genres.
+
+## Splitting into pools
+
+No piece may appear in more than one pool, including in different arrangements, because a model trained on one arrangement would be tested on a near copy.
+
+1. Each candidate gets a **work key**: the composer and title, lower-cased, with punctuation, accents and words like "arr.", "for piano", "easy", "version" and opus or catalogue numbers removed. Two scores with the same work key are the same work.
+2. Each work key gets a number from 0 to 1: the SHA-256 hash of the seed and the work key, read as a fraction.
+3. A number below 0.03 makes the work regression-eligible. From 0.03 to below 0.15 it is development-eligible. Everything else is the training pool.
+
+This split depends only on the seed and the work key, so it does not change when candidates are added or removed, and it can be recomputed at any time.
+
+**Seed: 20261005.** It is stored in `scripts/corpus_config.py` and in the metadata of every exported pair.
+
+## Drawing the sets
+
+Both sets are drawn by the same procedure from their own eligible pool.
+
+1. Shuffle the eligible candidates with a random generator seeded with the seed.
+2. Fill the texture quotas one texture at a time, in the order choir, chamber, small ensemble, voice with piano, single line, piano (scarce textures first, so that common ones do not use up candidates with useful features).
+3. Within a texture, at each step take the candidate that helps the most unmet minimums (genre minimums first, then feature minimums), and break ties by shuffled order.
+4. OpenScore may fill at most 40 percent of the voice-with-piano and chamber quotas, so that MuseScore.com styles of writing are represented as well.
+5. If a quota cannot be filled, take what there is, and write the shortfall to the log and to the selection file. Do not relax the filters to fill it.
+
+### Development set: 300 scores
+
+Texture quotas: single line 45, voice with piano 50, piano 70, choir 50, chamber 50, small ensemble 35.
+
+Genre minimums: 20 of each of the seven genres.
+
+Feature minimums: lyrics 60, chord symbols 30, several voices on a staff 40, tuplets 25, grace notes 20, repeats or endings 40, key or time changes 25, dynamics or hairpins 80.
+
+### Regression set: 50 scores
+
+The regression set is committed to the repository (Stage 7), so it has stricter rules.
+
+- At most 64 bars and at most 3 pages in the MuseScore 4 export.
+- Texture quotas: single line 8, voice with piano 8, piano 10, choir 8, chamber 8, small ensemble 8.
+- Genre minimums: 3 of each genre. Feature minimums: lyrics 10, chord symbols 5, several voices on a staff 8, tuplets 5, repeats or endings 8, dynamics or hairpins 15.
+- **Copyright check.** An uploader's CC0 claim is not enough for the public repository. A PDMX score may go in only if its composer is in `scripts/public_domain_composers.txt` (composers who died before 1956, plus "traditional" and "anonymous"), or it is an original work by the uploader marked CC0 with no named composer. Popular and jazz scores in particular will mostly come from ragtime, early jazz and pre-1930 song. The list starts with the composers found in the candidates, and the owner reviews it.
+- The script writes the 50 titles, composers and sources as a plain list, and the owner reads it before it is committed.
+
+### Training pool
+
+Everything else that passes the filters. It is not exported in Phase 0, except the small sample Stage 10 needs.
+
+## Exports
+
+Every development and regression score is exported as a pair (PDF and the reference MusicXML) through these engravers. The command lines are in `docs/notes/tool-commands.md`.
+
+Base exports, for every score (the plan's done condition):
+
+- MuseScore 4 with its default font (Leland).
+- MuseScore 3 with its default font (Emmentaler, which appears in the PDF as "MScore").
+- LilyPond, through musicxml2ly, with Emmentaler.
+- Verovio, through its SVG output converted to PDF, which gives Type B pages.
+
+Font variants, one extra MuseScore 4 export and one extra MuseScore 3 export per score:
+
+- MuseScore 4 rotates through Bravura, Petaluma, Gonville, MuseJazz, Finale Maestro, Finale Broadway and Emmentaler, in that order, across the set sorted by texture and then by the shuffled order. This spreads every font across every texture.
+- MuseScore 3 (version 3.3.4) has only Emmentaler, Bravura, Gonville and MuseJazz. It rotates through Bravura, Gonville and MuseJazz the same way.
+- Each MuseScore 4 variant also gets one of three staff sizes (staff space 1.5, 1.75 and 2.0 millimetres), rotating independently, so that the same font is seen at more than one size. The size is set in the `scaling` element of the MusicXML fed to MuseScore, because that overrides the style file. Only the scaling changes, so the notes in the reference are unaffected.
+
+That makes 6 exports per score: about 1,800 pairs for the development set and 300 for the regression set.
+
+Every export is checked with the inspector's JSON output before it is accepted: the music font must be the one requested, and every page must be Type A (MuseScore and LilyPond) or Type B (Verovio). MuseScore uses Bravura without any error when a requested font is missing, so without this check a wrong font would go unnoticed.
+
+## Metadata for each pair
+
+A small text file beside each pair, with one "name: value" line each: source (PDMX or OpenScore) and source path, work key, title, composer, set (development or regression), texture, genre, features, engraver, engraver version, font, staff size, ground truth (as above), seed, and the date of export.
+
+## What is committed
+
+- These rules, the config script with the seed, the composer list, and the selection files (one line per selected score: source path, set, texture and genre). Selection files hold no music, so they can be committed whatever the licence.
+- The regression set itself, as described in Stage 7.
+- Nothing else from the corpus.

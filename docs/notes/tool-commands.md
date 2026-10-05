@@ -24,6 +24,39 @@ Checked on 5 October 2026 on the development laptop (Windows 11). All commands r
 - `lilypond.exe` is there. `musicxml2ly` is a Python script, `musicxml2ly.py`, run with the `python.exe` that ships in the same folder: `python.exe musicxml2ly.py -o out.ly in.musicxml`
 - Checked: it converted a one-bar MusicXML file to `.ly`. Rendering it with `lilypond.exe -o out in.ly` also worked and produced a PDF.
 
+- musicxml2ly can be very slow on large files. On a 610 KB MusicXML file (the Maple Leaf Rag as written by music21) it ran for more than 30 minutes before it was stopped. The corpus generator must run it with a time limit (5 minutes is suggested) and record a timeout as a failure.
+- LilyPond PDFs use the font Emmentaler-20 with no usable Unicode values: every music character comes out as U+FFFD, and only the glyph ID identifies the symbol.
+
+## Music fonts and staff size in MuseScore
+
+Checked on 5 October 2026 with a Bach chorale.
+
+MuseScore 4:
+
+- Choose the music font with a style file: `MuseScore4.exe -S style.mss -o out.pdf in.musicxml`. The style file needs only `<museScore version="4.70"><Style>` containing `<musicalSymbolFont>Bravura</musicalSymbolFont>` and `<musicalTextFont>Bravura Text</musicalTextFont>`.
+- Fonts that work: Leland (the default), Bravura, Petaluma, Emmentaler, Gonville, MuseJazz, Finale Maestro and Finale Broadway.
+- An unknown font name falls back to Bravura with exit status 0 and no message. Check the font in the PDF afterwards (`omr inspect --json`).
+- Some fonts appear in the PDF under another name: Emmentaler as "MScore", Gonville as "Gootville", Finale Maestro as "FinaleMaestro". Finale Broadway exports also use a few Bravura glyphs.
+- Staff size: the `scaling` element in the MusicXML overrides the style file, so set it there. `millimeters` is the size of 40 tenths, which is 4 staff spaces, so a 2.0 mm staff space is `<millimeters>8</millimeters>` with `<tenths>40</tenths>`. Setting `Spatium` in the style file had no effect when the MusicXML had a `scaling` element.
+
+MuseScore 3 (3.3.4):
+
+- The `-S` style file is loaded, but the music font in it is ignored.
+- What works: convert to an uncompressed score first (`MuseScore3.exe -o score.mscx in.musicxml`), add `<musicalSymbolFont>Bravura</musicalSymbolFont>` just inside the score's `<Style>` element, then `MuseScore3.exe -o out.pdf score.mscx`.
+- Fonts available in 3.3.4: Emmentaler (the default, shown in the PDF as "MScore"), Bravura, Gonville ("Gootville") and MuseJazz. Leland, Petaluma and the Finale fonts are not present and fall back to Bravura without an error.
+
+## Verovio (6.3.0, Python bindings)
+
+Verovio writes SVG, not PDF. The corpus converts the SVG to PDF with PyMuPDF, which needs two fixes first, or the page comes out blank or without stems and barlines:
+
+- Set the options `svgViewBox: True` and `svgRemoveXlink: True`.
+- Replace the inner `<svg class="definition-scale" ... viewBox="0 0 W H">` element with `<g transform="scale(S)">`, where S is the outer view box width divided by W, and its closing `</svg>` with `</g>`. PyMuPDF ignores the inner view box.
+- Add `stroke="black"` to every element that has a `stroke-width` attribute. Verovio sets the stroke colour in a CSS style block, which PyMuPDF ignores.
+- Then `pymupdf.open(stream=svg_bytes, filetype="svg").convert_to_pdf()` gives a one-page PDF. Join the pages with `insert_pdf`.
+- Set the PDF creator to the Verovio version, because the converted file has no metadata.
+
+The music symbols in the result are filled outlines, not font characters, so these are Type B pages. Text (titles, lyrics) stays as real text in Times.
+
 ## Java (Eclipse Temurin OpenJDK 25.0.4.1)
 
 - Installed by the owner from `OpenJDK25U-jdk_x64_windows_hotspot_25.0.4.1_1.msi`.

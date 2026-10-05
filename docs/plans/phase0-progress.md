@@ -1,6 +1,6 @@
 # Phase 0 progress log
 
-Last updated 5 October 2026 (Stage 3 session). This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
+Last updated 5 October 2026 (Stages 4 and 5 design session). This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
 
 ## Repository facts
 
@@ -16,7 +16,9 @@ Last updated 5 October 2026 (Stage 3 session). This file records what has been d
 - **Stage 1, skeleton: done**, with one gap (see below).
 - **Stage 2, CI and conventions: done.** Added `.github/workflows/tests.yml` (Windows and Linux, Python 3.14, every push and pull request), `docs/conventions.md`, the shared logging helper `src/omr/log.py` and `tests/test_log.py`. Local tests pass (7 of 7). Pushed, and CI passed on Windows and Linux. Added `scripts/log_demo.py` and a README note about activating the environment in each new terminal, after the owner hit "No module named 'omr'" in a window without it. The owner found the log output fine and the timestamp tolerable. The owner confirmed the workflow is text based and fine with NVDA, so the remaining set-up, test and CI-reading checks were accepted without a full walk-through. Fix anything awkward if it turns up later.
 - **Stage 3, licence register: done.** `docs/licence-register.md` has an entry for each of the 66 pinned dependencies (from package metadata) and for the datasets, models, tools and fonts (looked up by web search on 5 October 2026, source named per entry). `tests/test_licence_register.py` fails if a pinned dependency has no entry (9 of 9 tests pass). Three items were settled by default rules the owner can change: CPDL (only public domain, CC0 or CC BY editions in the public repo), Mutopia (same; CC BY-SA stays local) and OLiMPiC (CC BY-SA, internal only). LEGATO is a never-shipped baseline (gated weights, Llama encoder). Emmentaler, Gonville and MuseJazz licences are unconfirmed but they are not shipped.
-- Stages 4 to 11: not started.
+- **Stage 4, PDF inspector: design done, implementation not started.** The specification is `docs/notes/inspector-spec.md` (page types, evidence, decision rules, report and JSON formats, expected test results). It was grounded by exporting a Bach chorale through MuseScore 4 (eight fonts), MuseScore 3, LilyPond and Verovio and reading the results with PyMuPDF. Next: Sonnet implements it, Opus reviews.
+- **Stage 5, corpus generator: sampling design done, implementation not started.** The rules are `docs/notes/corpus-sampling.md` (sources, filters, texture and genre labels, hash-based split into pools with seed 20261005, quotas, exports, metadata). Engraver facts found while designing it (MuseScore font and staff-size switching, the Verovio SVG-to-PDF fixes, the musicxml2ly time limit) are in `docs/notes/tool-commands.md`. Next: Sonnet downloads PDMX and OpenScore and implements the selection and exporters. The PDMX genre-tag mapping and the public-domain composer list need the owner's review once the data is downloaded.
+- Stages 6 to 11: not started.
 
 ## Corpus location
 
@@ -42,4 +44,5 @@ Fresh-clone check: repeated in a later session by cloning https://github.com/Che
 
 ## Next steps
 
-1. Stages 4 and 5 (in parallel, Opus for the design parts).
+1. Stage 4: implement `omr inspect` from `docs/notes/inspector-spec.md` (Sonnet), with the test files in `tests/data/inspect/`.
+2. Stage 5: download PDMX (`PDMX.csv`, `mxl.tar.gz`, `subset_paths.tar.gz`) and OpenScore to the corpus drive, then implement the selection and exporters from `docs/notes/corpus-sampling.md` (Sonnet). The export check uses the Stage 4 inspector, so build the inspector first or alongside.
