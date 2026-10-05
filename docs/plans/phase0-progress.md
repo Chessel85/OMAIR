@@ -1,6 +1,6 @@
 # Phase 0 progress log
 
-Last updated 5 October 2026 (later session). This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
+Last updated 5 October 2026 (Stage 3 session). This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
 
 ## Repository facts
 
@@ -15,7 +15,8 @@ Last updated 5 October 2026 (later session). This file records what has been don
 - **Stage 0, prerequisites: done** (Dorico SE parked). `scripts/check_environment.py` is written and reports Python, Git, MuseScore 3 and 4, LilyPond, musicxml2ly, Java, Dorico SE and nvidia-smi. Working command lines are in `docs/notes/tool-commands.md`. Both MuseScore versions convert headlessly. `nvidia-smi` reports the T500 with CUDA 13.2. **Dorico SE is parked**: it is not accessible with a screen reader, so it is dropped from Phase 0 for now and the script treats it as optional. Java (Temurin OpenJDK 25.0.4.1, installed by the owner from `OpenJDK25U-jdk_x64_windows_hotspot_25.0.4.1_1.msi` as a per-user install) is found by the script. All required tools are found. LilyPond renders a PDF from the converted file. The script exits with status 0.
 - **Stage 1, skeleton: done**, with one gap (see below).
 - **Stage 2, CI and conventions: done.** Added `.github/workflows/tests.yml` (Windows and Linux, Python 3.14, every push and pull request), `docs/conventions.md`, the shared logging helper `src/omr/log.py` and `tests/test_log.py`. Local tests pass (7 of 7). Pushed, and CI passed on Windows and Linux. Added `scripts/log_demo.py` and a README note about activating the environment in each new terminal, after the owner hit "No module named 'omr'" in a window without it. The owner found the log output fine and the timestamp tolerable. The owner confirmed the workflow is text based and fine with NVDA, so the remaining set-up, test and CI-reading checks were accepted without a full walk-through. Fix anything awkward if it turns up later.
-- Stages 3 to 11: not started.
+- **Stage 3, licence register: drafted, owner decisions pending.** `docs/licence-register.md` has an entry for each of the 66 pinned dependencies (read from installed package metadata), the datasets, models, external tools and corpus fonts. `tests/test_licence_register.py` fails if a pinned dependency has no entry (9 of 9 tests pass). Dataset, model, tool and font licences were written from memory and are marked "not verified"; the list at the top of the register is for the owner to resolve (PrIMuS probably non-commercial; GrandStaff, OLiMPiC, homr, SMT and LEGATO unknown).
+- Stages 4 to 11: not started.
 
 ## Stage 1 details
 
@@ -37,4 +38,5 @@ Fresh-clone check: repeated in a later session by cloning https://github.com/Che
 
 ## Next steps
 
-1. Stage 3 (licence register).
+1. Owner to work through the "Owner to resolve" list in the licence register, then mark Stage 3 done.
+2. Stages 4 and 5 (in parallel, Opus for the design parts).
