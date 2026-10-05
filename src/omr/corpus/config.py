@@ -21,7 +21,11 @@ GENRES = ("classical", "popular", "jazz", "folk", "sacred", "choral", "education
 FEATURES = (
     "lyrics", "chord symbols", "several voices on a staff", "tuplets",
     "grace notes", "repeats or endings", "key or time changes", "dynamics or hairpins",
+    "guitar",
 )
+# Features whose minimum is met before any genre or other feature minimum, so
+# that they are never crowded out (guitar is explicitly in scope).
+PRIORITY_FEATURES = ("guitar",)
 
 SETS = {
     "development": {
@@ -31,7 +35,7 @@ SETS = {
         "genre_min": {g: 20 for g in GENRES},
         "feature_min": {"lyrics": 60, "chord symbols": 30, "several voices on a staff": 40,
                         "tuplets": 25, "grace notes": 20, "repeats or endings": 40,
-                        "key or time changes": 25, "dynamics or hairpins": 80},
+                        "key or time changes": 25, "dynamics or hairpins": 80, "guitar": 15},
     },
     "regression": {
         "size": 50,
@@ -39,7 +43,7 @@ SETS = {
                      "choir": 8, "chamber": 8, "small ensemble": 8},
         "genre_min": {g: 3 for g in GENRES},
         "feature_min": {"lyrics": 10, "chord symbols": 5, "several voices on a staff": 8,
-                        "tuplets": 5, "repeats or endings": 8, "dynamics or hairpins": 15},
+                        "tuplets": 5, "repeats or endings": 8, "dynamics or hairpins": 15, "guitar": 3},
     },
 }
 

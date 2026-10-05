@@ -72,6 +72,44 @@ def test_features_and_exclusions():
     assert facts_for(parts, "<unpitched/>").excluded == "unpitched percussion"
 
 
+@pytest.mark.parametrize(
+    "name,sound,is_guitar",
+    [
+        ("Classical Guitar", "pluck.guitar.nylon-string", True),
+        ("Guitar", "", True),
+        ("Guitarra", "", True),
+        ("Electric Guitar", "pluck.guitar.electric", False),
+        ("Bass Guitar", "pluck.bass", False),
+        ("Bass", "pluck.bass", False),
+        ("Violin", "strings.violin", False),
+    ],
+)
+def test_guitar_feature(name, sound, is_guitar):
+    facts = facts_for([("P1", name, sound, 1)])
+    assert ("guitar" in facts.features) == is_guitar
+    if is_guitar:
+        assert labels.texture(facts) == "single line"
+
+
+def test_guitar_is_a_priority_feature_with_a_minimum_in_both_sets():
+    assert "guitar" in config.PRIORITY_FEATURES
+    assert config.SETS["development"]["feature_min"]["guitar"] >= 10
+    assert config.SETS["regression"]["feature_min"]["guitar"] >= 3
+
+
+def test_priority_feature_is_chosen_before_genre_minimums(monkeypatch):
+    log = ProgressLog("t", stream=io.StringIO())
+    from omr.corpus.roundtrip import RoundTrip
+    monkeypatch.setattr(select.roundtrip, "check", lambda c: RoundTrip(True, "ok", "/r", 1))
+    candidates = [make_candidate(i, "single line", genre=g, pool="regression")
+                  for i, g in enumerate(config.GENRES * 3)]
+    candidates += [make_candidate(100 + i, "single line", "classical", features=["guitar"], pool="regression")
+                   for i in range(3)]
+    chosen, _ = select.select_set("regression", candidates, log, composers={"bach"})
+    singles = [c for c, _ in chosen if c.texture == "single line"]
+    assert sum("guitar" in c.features for c in singles) == 3
+
+
 def test_mxl_is_read(tmp_path):
     path = tmp_path / "x.mxl"
     with zipfile.ZipFile(path, "w") as z:

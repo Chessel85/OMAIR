@@ -4,7 +4,7 @@
 # shortfall: genre jazz: 0 of at least 3
 # shortfall: genre sacred: 0 of at least 3
 # shortfall: genre educational: 0 of at least 3
-# shortfall: feature dynamics or hairpins: 13 of at least 15
+# shortfall: feature dynamics or hairpins: 14 of at least 15
 pdmx-kyKcYH1Z2cK9 | PDMX | mxl/1/5/Qmb6okFHL9g7Hmq7pyercQMePwTHxhiEvYkyKcYH1Z2cK9.mxl | choir | choral | Le célèbre Menuet d'Exaudet | Halfdan Kjerulf
 pdmx-yEAWP5Dcw7sf | PDMX | mxl/2/57/QmcZjpFU6Wa1p7sERARhVn3Vogui5u23o1yEAWP5Dcw7sf.mxl | choir | choral | Fredmans Epistel nr. 58 | Halfdan Kjerulf
 pdmx-TQBaCFFh3SfQ | PDMX | mxl/17/17/QmZexssvsiPmBQ3GMmedpgtMhfVzgudFcMTQBaCFFh3SfQ.mxl | choir | choral | Lord I make a full surrender (Kirkpatrick) - William J. Kirkpatrick | William J. Kirkpatrick
@@ -13,31 +13,31 @@ pdmx-t8yRZoyLKyGj | PDMX | mxl/9/43/QmRSZDf5FVyvvcaFRCTPMvHKQwrWVbTEust8yRZoyLKy
 pdmx-nB6NCro6E24g | PDMX | mxl/3/33/QmdnEnh4UcYSZ5Kr47QNgc6AtXQzyWQHsCnB6NCro6E24g.mxl | choir | choral | Sonata Op. 49 No. 2 for Alto Saxophone Duet | L. Van Beethoven
 pdmx-c1YXdfHj3BB2 | PDMX | mxl/4/40/QmerL7EGSxRFHo3cRgv3MwLCzVXrCm61YKc1YXdfHj3BB2.mxl | choir | choral | Wherefore do the nations wage - Charles Wesley | Charles Wesley
 pdmx-tqENpPLqXXt6 | PDMX | mxl/3/30/QmdLv4jg8s3TunXWNHimB6SL93UnGWYPiRtqENpPLqXXt6.mxl | choir | choral | WIGAN (Wesley) - Samuel Sebastian Wesley | Samuel Sebastian Wesley
+pdmx-NhuNzKj3Y1Ds | PDMX | mxl/14/36/QmWpSwxE3d1hwDt4YE1LPp856mCCpC7UQWNhuNzKj3Y1Ds.mxl | chamber | classical | Gavotte Francois Gossec Flute and guitar | François GOSSEC(1734-1829)
+os-lc6159296 | OpenScore | Lieder/Zumsteeg,_Emilie/5_Lieder/3_In_das_Stambuch_einer_Freundin/lc6159296.mxl | chamber | classical | 3 In das Stambuch einer Freundin | Emilie Zumsteeg
 pdmx-uw8HyodcyZJ9 | PDMX | mxl/16/2/QmY3Pe1BGNWoYxh2m2UQa7vRXXQs55P6Couw8HyodcyZJ9.mxl | chamber | classical | Fra tutte le pene (Zweite Komposition) | Ludvig van Beethoven
-pdmx-BnaExd7BVBxf | PDMX | mxl/2/25/QmciHRy6xLcCnqoLRJiP7sSbXxio9KfCJYBnaExd7BVBxf.mxl | chamber | classical | O chiome erranti - Claudio Saracini | Claudio Saracini
-pdmx-KqLKTkuC7XFk | PDMX | mxl/9/37/QmRPfWWjjxvMm5tCudtYntwUZd45FDGfDwKqLKTkuC7XFk.mxl | chamber | classical | The Macedon Youth | Henry Purcell
+pdmx-B6K7TawMtKT1 | PDMX | mxl/11/0/QmT1XcNzfHsAaBZPGPKXx7mievhLqbdSYBB6K7TawMtKT1.mxl | chamber | folk | Aus Fremden Landen | Misc Traditional
 pdmx-xdkdezfJa126 | PDMX | mxl/8/23/QmQhZZ6p7X2TiSPb13i264MLhJqNkHeBSixdkdezfJa126.mxl | chamber | folk | Herr im Glauben bitten wir | Misc Traditional
 pdmx-q1bJxo46ctvp | PDMX | mxl/10/55/QmSYKTjAL9fJD6DSm3TbysGdmMVf2qF6SJq1bJxo46ctvp.mxl | chamber | folk | Moll in the Wadd | Misc Traditional
-pdmx-B6K7TawMtKT1 | PDMX | mxl/11/0/QmT1XcNzfHsAaBZPGPKXx7mievhLqbdSYBB6K7TawMtKT1.mxl | chamber | folk | Aus Fremden Landen | Misc Traditional
 pdmx-dPaxpBiZVTAk | PDMX | mxl/3/53/QmdXthCJRTDeXbGfESfhkZAEpBH45RoeotdPaxpBiZVTAk.mxl | chamber | unlabelled | Cool piano song | Unknown
 pdmx-c2BRj2cZtkWi | PDMX | mxl/11/41/QmTRPepi8AVRCeRyUCwr7FwGa3DpDTSwYvc2BRj2cZtkWi.mxl | chamber | unlabelled | Das Ochsenmenuett euph | Joseph Haydn
 pdmx-1ZqV4GDzxsoo | PDMX | mxl/0/23/QmahCwNBXFau6rvkmf5YzxoSfsCfShRDUQ1ZqV4GDzxsoo.mxl | small ensemble | folk | Lindan | Misc Traditional
+os-lc6160298 | OpenScore | Lieder/Zumsteeg,_Emilie/6_Lieder,_Op.4/2_Morgenfreude/lc6160298.mxl | voice with piano | classical | 2 Morgenfreude | Emilie Zumsteeg
 os-lc30437453 | OpenScore | Lieder/Schoenberg,_Arnold/Das_Buch_der_hängenden_Gärten,_Op.15/7_Angst_und_Hoffen_wechselnd_mich_beklemmen/lc30437453.mxl | voice with piano | classical | 7 Angst und Hoffen wechselnd mich beklemmen | Arnold Schoenberg
-os-lc5142714 | OpenScore | Lieder/Schumann,_Clara/6_Lieder,_Op.23/5_Das_ist_ein_Tag,_der_klingen_mag/lc5142714.mxl | voice with piano | classical | 5 Das ist ein Tag, der klingen mag | Clara Schumann
-os-lc6909438 | OpenScore | Lieder/Schumann,_Robert/Myrthen,_Op.25/04_Jemand/lc6909438.mxl | voice with piano | classical | 04 Jemand | Robert Schumann
+os-lc5043613 | OpenScore | Lieder/Cornelius,_Peter/Trauer_und_Trost,_Op.3/5_Treue/lc5043613.mxl | voice with piano | classical | 5 Treue | Peter Cornelius
 pdmx-5JHRY6BRzJX2 | PDMX | mxl/14/44/QmWtnyRT1uvZNCVzvHyBHvjfoPWXDzj6AF5JHRY6BRzJX2.mxl | voice with piano | classical | Hilsen (Gruss) Edward Grieg | Edward Grieg
 pdmx-GPLPCaRKnqHc | PDMX | mxl/15/53/QmXX3Y6TdRejBjw213yEKBkGavZ7TMVqZeGPLPCaRKnqHc.mxl | voice with piano | classical | O Savior is thy promise fled? - Reginald Heber | Reginald Heber
 pdmx-R4xv9q63LNef | PDMX | mxl/15/48/QmXvJzVHNLq3bo6zLMZ6t9bvBqHAaTR2iVR4xv9q63LNef.mxl | voice with piano | classical | Retrospection - John Newton | John Newton
 pdmx-ELDbBfeQzMDw | PDMX | mxl/17/8/QmZ9yVxEQ78khkYg1AJStAabpm7Mgx8BynELDbBfeQzMDw.mxl | voice with piano | folk | O Night Of Nights Supreme Delights | Misc Traditional
 pdmx-kmX7TRdj8kS2 | PDMX | mxl/8/6/QmQ7VpqSz9cSCTf3UFjm12bNjiuNYgEzZXkmX7TRdj8kS2.mxl | voice with piano | classical | Adored By The Acclaiming Crowd - Charles Wesley | Charles Wesley
+pdmx-4viYqFUrsJaX | PDMX | mxl/4/38/QmeqNFNfivCVDshWYKow7fpuaaXM89jzdz4viYqFUrsJaX.mxl | single line | classical | Phantasia in A minor - David Kellner (1670-1748) | David Kellner
 pdmx-ky7C2BqKzcPt | PDMX | mxl/10/9/QmSat3GXUTPx6h6heKP4tJdPaQZsTMc7XKky7C2BqKzcPt.mxl | single line | popular | Traditional music - Jolly Old Saint Nicholas | Traditional
 pdmx-9mh9Dt5NAnR9 | PDMX | mxl/13/37/QmVPbzaCqNpMPVDBhDi7TGry4MHJ9dc2Yx9mh9Dt5NAnR9.mxl | single line | classical | William Marshall - the Nameless Lassie | William Marshall
 pdmx-MmArW7N363ro | PDMX | mxl/2/41/QmcRh7aWVks1H8droe61s661orPZSRCKfmMmArW7N363ro.mxl | single line | classical | Wolfgang Amadeus Mozart - Theme | Wolfgang Amadeus Mozart
 pdmx-Gpyq556zefWD | PDMX | mxl/9/39/QmRQaDNFA2eKuAoY3AqnskDaauT95nXfDNGpyq556zefWD.mxl | single line | classical | Niel Gow - The Duchess of Atholl's Slipper | Niel Gow 1788
 pdmx-mt5HmU8xUpxX | PDMX | mxl/15/9/QmXawjtRrYQeZHYiYzSdmpw6LNBKAR8QDAmt5HmU8xUpxX.mxl | single line | unlabelled | Traditional music - The Frisky | Traditional Singing Game
 pdmx-aig1TYdTKfSA | PDMX | mxl/7/8/QmP9HvcW47My9o4psrWzkyNtjkTMUJoqsaaig1TYdTKfSA.mxl | single line | unlabelled | Traditional music - Julia Delaney | traditional
-pdmx-PhyAfTaytVJu | PDMX | mxl/0/44/Qmatqtrp4sam14S9trUouqwnZ1q9ELMUTQPhyAfTaytVJu.mxl | single line | folk | we are one | Misc Traditional
-pdmx-8m4SKaRoAxcn | PDMX | mxl/10/49/QmSVJ3JGXKj3YsKs9FEjQYkbqKoBCGefFM8m4SKaRoAxcn.mxl | single line | unlabelled | Traditional music - An Comhra Donn | Traditional
+pdmx-VHs68K9anYTK | PDMX | mxl/4/34/QmeNoCjLD2WvFDTnCMedT81ezfNwir4wzsVHs68K9anYTK.mxl | single line | unlabelled | Francisco Tárrega - Marieta (Mazurka) | Francisco Tárrega(1852 - 1909)
 pdmx-VyxQ6BWr8tmk | PDMX | mxl/8/1/QmQ235fseo1YR57VzHq6Hxv4jhzytMWxTHVyxQ6BWr8tmk.mxl | piano | classical | Nuages Gris (extra Pedal) | Franz Liszt
 pdmx-sPED13SuAS5y | PDMX | mxl/10/11/QmSbH1kKP65XUXsESMUb4tRchgZXuoykYUsPED13SuAS5y.mxl | piano | classical | Bach Johann Sebastian - Französische Suite Nr 1 4-Menuet | Johann Sebastian Bach
 pdmx-iFAUMktENLWF | PDMX | mxl/13/20/QmVFpkfPqz3ancqVTn1bx4gUrtDxCmv55UiFAUMktENLWF.mxl | piano | classical | Franz Liszt - Nocturne n3 Rêve d'Amour | Franz Liszt

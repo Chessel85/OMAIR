@@ -97,3 +97,18 @@ isaac watts   # 1748
 reginald heber # 1826
 martin luther # 1546
 john newton   # 1807
+
+# Classical guitar
+sor           # Fernando Sor 1839
+giuliani      # Mauro Giuliani 1829
+carulli       # Ferdinando Carulli 1841
+carcassi      # Matteo Carcassi 1853
+aguado        # Dionisio Aguado 1849
+tarrega       # Francisco Tarrega 1909
+t rrega       # Tarrega as it arrives from PDMX with a damaged accent
+molino        # Francesco Molino 1847
+kellner       # David Kellner 1748
+gossec        # Francois-Joseph Gossec 1829
+albeniz       # Isaac Albeniz 1909
+alb niz       # Albeniz as it arrives from PDMX with a damaged accent
+zumsteeg      # Emilie Zumsteeg 1857

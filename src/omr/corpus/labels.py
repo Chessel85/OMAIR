@@ -64,6 +64,20 @@ def _words(text):
     return re.findall(r"[a-zà-ÿ]+", text.lower())
 
 
+GUITAR_WORDS = ("guitar", "guitarra", "gitarre", "chitarra", "guitare", "lute", "vihuela")
+
+
+def _is_guitar(name, sounds):
+    """A guitar part: by instrument sound where given, else by name. Bass
+    guitar and electric guitar do not count (this is for classical guitar)."""
+    words = _words(name)
+    if "bass" in words or "electric" in words:
+        return False
+    if sounds:
+        return any(s.startswith("pluck.guitar") and "electric" not in s and "bass" not in s for s in sounds)
+    return any(w in GUITAR_WORDS for w in words)
+
+
 def _is_voice(name, sounds):
     if any(s.startswith("voice.") for s in sounds):
         return True
@@ -87,7 +101,7 @@ def analyse(root):
     part_info = {}
     for sp in root.iter("score-part"):
         name = (sp.findtext("part-name") or "") + " " + (sp.findtext("part-abbreviation") or "")
-        sounds = [s.text or "" for s in sp.iter("instrument-sound")]
+        sounds = [s.text for s in sp.iter("instrument-sound") if s.text]
         part_info[sp.get("id")] = (name, sounds)
     parts = root.findall("part")
     facts.parts = len(parts)
@@ -101,6 +115,8 @@ def analyse(root):
             facts.voices += 1
         elif _is_keyboard(name, sounds):
             facts.keyboards += 1
+        if _is_guitar(name, sounds):
+            facts.features.add("guitar")
         staves = 1
         voices_on_staff = {}
         lyric_staves = set()

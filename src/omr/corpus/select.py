@@ -53,9 +53,11 @@ def regression_allowed(c, names):
 
 
 def _gain(c, cfg, genre_counts, feature_counts):
+    priority_gain = sum(1 for f in config.PRIORITY_FEATURES
+                        if f in c.features and feature_counts.get(f, 0) < cfg["feature_min"].get(f, 0))
     genre_gain = 1 if genre_counts.get(c.genre, 0) < cfg["genre_min"].get(c.genre, 0) else 0
     feature_gain = sum(1 for f in c.features if feature_counts.get(f, 0) < cfg["feature_min"].get(f, 0))
-    return genre_gain, feature_gain
+    return priority_gain, genre_gain, feature_gain
 
 
 def select_set(name, candidates, log, composers=None):

@@ -1,6 +1,6 @@
 # Corpus sampling rules
 
-Version 0.2, 5 October 2026 (implemented; see "Implementation notes" at the end). This is the Stage 5 sampling design in `docs/plans/phase0.md`. It says which scores go into the development set, the regression set and the training pool, and how each is exported. The export scripts implement these rules. If a rule changes, change it here first.
+Version 0.3, 5 October 2026 (implemented; guitar added; see "Implementation notes" at the end). This is the Stage 5 sampling design in `docs/plans/phase0.md`. It says which scores go into the development set, the regression set and the training pool, and how each is exported. The export scripts implement these rules. If a rule changes, change it here first.
 
 ## Sources
 
@@ -53,7 +53,7 @@ Each part is a voice if its name or instrument sound says voice, soprano, alto, 
 
 ### Features
 
-Read from the reference MusicXML: has lyrics, has chord symbols, has more than one voice on a staff, has tuplets, has grace notes, has repeats or endings, has a key or time signature change, has dynamics or hairpins. These make sure the sets exercise REC-2 to REC-6, not just a spread of genres.
+Read from the reference MusicXML: has lyrics, has chord symbols, has more than one voice on a staff, has tuplets, has grace notes, has repeats or endings, has a key or time signature change, has dynamics or hairpins, has a guitar part (classical guitar in standard notation; bass guitar and electric guitar do not count). These make sure the sets exercise REC-2 to REC-6, not just a spread of genres.
 
 ## Splitting into pools
 
@@ -73,7 +73,7 @@ Both sets are drawn by the same procedure from their own eligible pool.
 
 1. Shuffle the eligible candidates with a random generator seeded with the seed.
 2. Fill the texture quotas one texture at a time, in the order choir, chamber, small ensemble, voice with piano, single line, piano (scarce textures first, so that common ones do not use up candidates with useful features).
-3. Within a texture, at each step take the candidate that helps the most unmet minimums (genre minimums first, then feature minimums), and break ties by shuffled order.
+3. Within a texture, at each step take the candidate that helps the most unmet minimums, in this order of importance: priority features (guitar) first, then genre minimums, then the other feature minimums. Ties are broken by shuffled order.
 4. OpenScore may fill at most 40 percent of the voice-with-piano and chamber quotas, so that MuseScore.com styles of writing are represented as well.
 5. If a quota cannot be filled, take what there is, and write the shortfall to the log and to the selection file. Do not relax the filters to fill it.
 
@@ -83,7 +83,7 @@ Texture quotas: single line 45, voice with piano 50, piano 70, choir 50, chamber
 
 Genre minimums: 20 of each of the seven genres.
 
-Feature minimums: lyrics 60, chord symbols 30, several voices on a staff 40, tuplets 25, grace notes 20, repeats or endings 40, key or time changes 25, dynamics or hairpins 80.
+Feature minimums: lyrics 60, chord symbols 30, several voices on a staff 40, tuplets 25, grace notes 20, repeats or endings 40, key or time changes 25, dynamics or hairpins 80, guitar 15.
 
 ### Regression set: 50 scores
 
@@ -91,7 +91,7 @@ The regression set is committed to the repository (Stage 7), so it has stricter 
 
 - At most 64 bars and at most 3 pages in the MuseScore 4 export.
 - Texture quotas: single line 8, voice with piano 8, piano 10, choir 8, chamber 8, small ensemble 8.
-- Genre minimums: 3 of each genre. Feature minimums: lyrics 10, chord symbols 5, several voices on a staff 8, tuplets 5, repeats or endings 8, dynamics or hairpins 15.
+- Genre minimums: 3 of each genre. Feature minimums: lyrics 10, chord symbols 5, several voices on a staff 8, tuplets 5, repeats or endings 8, dynamics or hairpins 15, guitar 3.
 - **Copyright check.** An uploader's CC0 claim is not enough for the public repository. A PDMX score may go in only if its composer is in `scripts/public_domain_composers.txt` (composers who died before 1956, plus "traditional" and "anonymous"), or it is an original work by the uploader marked CC0 with no named composer. Popular and jazz scores in particular will mostly come from ragtime, early jazz and pre-1930 song. The list starts with the composers found in the candidates, and the owner reviews it.
 - The script writes the 50 titles, composers and sources as a plain list, and the owner reads it before it is committed.
 
@@ -144,3 +144,9 @@ Added on 5 October 2026 when the generator was written. The code is in `src/omr/
 - **Uniqueness.** No two scores in a set share a work key.
 - **Failed exports are not retried** on a re-run unless `--retry-failures` is given, because timeouts and wrong-font results would only fail again. Each failure is in the log, in a `failure.txt` beside the job, and in `index.txt`.
 - **Layout under the corpus folder:** `sources/` (downloads), `work/` (candidate cache and round-trip records), `generated/<set>/<score id>/reference.musicxml`, `generated/<set>/<score id>/<job>/score.pdf` and `metadata.txt`, and `generated/<set>/index.txt`. The selection files are in `docs/corpus-selection/`.
+
+## Guitar and tablature (decision of 5 October 2026)
+
+- Classical guitar in standard notation is explicitly in scope. A solo guitar part on one staff has the texture "single line", and guitar is a priority feature with a minimum in both sets, so the minimums are met before any genre or other feature. Guitar with other instruments is "chamber".
+- Scores with a tablature staff stay excluded, as REC-9 puts tablature in a later phase. This includes guitar scores that show notation and tab together. If tab becomes in scope earlier, the decision must be made together with the Stage 6 evaluation design, because the ground truth would contain the tab staff.
+- The guitar composers Sor, Giuliani, Carulli, Carcassi, Aguado and Tárrega are in `scripts/public_domain_composers.txt`, so guitar scores can enter the committed regression set.
