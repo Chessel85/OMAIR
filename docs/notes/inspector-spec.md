@@ -1,6 +1,6 @@
 # PDF inspector specification (`omr inspect`)
 
-Version 0.1, 5 October 2026. This is the Stage 4 design in `docs/plans/phase0.md`. It says what the inspector measures on each page, how it decides the page type, and what it reports. Phase 1 builds on the same evidence, so the extraction code should live in a module that Phase 1 can import (`omr.pdf.evidence`), with the classifier (`omr.pdf.classify`) and the report writer (`omr.inspect`) kept separate.
+Version 0.2, 5 October 2026 (implemented; see the changes in the Stage 4 notes of `docs/plans/phase0-progress.md`). This is the Stage 4 design in `docs/plans/phase0.md`. It says what the inspector measures on each page, how it decides the page type, and what it reports. Phase 1 builds on the same evidence, so the extraction code should live in a module that Phase 1 can import (`omr.pdf.evidence`), with the classifier (`omr.pdf.classify`) and the report writer (`omr.inspect`) kept separate.
 
 ## Purpose
 
@@ -35,7 +35,7 @@ All of this comes from PyMuPDF without rendering the page, except the raster mea
 
 Each font is put into exactly one class. Apply the tests in this order.
 
-1. **SMuFL music font.** At least 80 percent of its glyphs (and at least 5) have code points in the SMuFL range U+E000 to U+F3FF. This is decided by code points, not by name: MuseScore 3 and 4 write Emmentaler as a font called "MScore", and Gonville as "Gootville", both with SMuFL code points. Fonts whose name ends in "Text" (BravuraText, LelandText, MuseJazzText) are SMuFL text fonts, used for metronome marks and similar. Report them as "SMuFL text font" and count their glyphs separately from the main music font.
+1. **SMuFL music font.** At least 5 glyphs, at least 80 percent of them in the Private Use Area (U+E000 to U+F8FF) and at least 20 percent in the SMuFL standard range (U+E000 to U+F3FF). The wider range is needed because Bravura and Petaluma, as written by MuseScore 4, draw most noteheads from U+F4BE, which is outside the standard range. This is decided by code points, not by name: MuseScore 3 and 4 write Emmentaler as a font called "MScore", and Gonville as "Gootville", both with SMuFL code points. Fonts whose name ends in "Text" (BravuraText, LelandText, MuseJazzText) are SMuFL text fonts, used for metronome marks and similar. Report them as "SMuFL text font" and count their glyphs separately from the main music font.
 2. **Known legacy music font.** The name matches the legacy list below. These need a mapping table in Phase 1. Report the font as "legacy, mapping table needed".
 3. **Unknown, probably music.** Not in either class above, but at least 10 of its glyphs have their centre inside a staff (see staves below), and fewer than half of its glyphs are letters, digits or punctuation. Report it as "unknown font, probably music" and list it, so that Stage 8 can grow the legacy list.
 4. **Text font.** Everything else.
@@ -59,7 +59,7 @@ A staff is the strongest single sign of music on a vector page.
 
 1. Collect horizontal line candidates: stroked horizontal segments, and filled rectangles or polygons that are at least 30 times as wide as they are tall. Each candidate has a y position (centre), a left x, a right x and a thickness.
 2. Merge candidates that share a y position (within 0.3 points) and touch or overlap along x. Engravers often draw one staff line in pieces.
-3. Group candidates whose x ranges overlap by at least 80 percent of the shorter one. Within each group, sort by y and find runs of 5 lines with equal gaps (each gap within 10 percent of their median). Each run is a five-line staff.
+3. Group candidates whose x ranges overlap by at least 80 percent of the longer one. (Using the shorter one let short ledger lines join a staff and turn a five-line run into a six-line run.) Within each group, sort by y and find runs of 5 lines with equal gaps (each gap within 10 percent of their median). Each run is a five-line staff.
 4. Also record one-line runs that carry glyphs (percussion) and six-line runs (tablature), reported separately. They do not change the type.
 5. The staff space is the median gap inside the five-line staves. Report it in points and in millimetres. In the probe files it was about 5.0 points (1.75 mm) for MuseScore 3 and 4 and LilyPond, and 7.2 points for Verovio at scale 40.
 
@@ -150,8 +150,8 @@ An example, for a MuseScore 4 export:
     Summary: 1 page. Type A on 1 page. Music font: Leland (SMuFL). Made by MuseScore Studio Version 4.7.5.
 
     Page 1
-    Type A, high confidence: 239 music glyphs in Leland and 8 staves found from vector lines.
-    Staves: 8 five-line staves. Staff space 5.0 points, 1.75 millimetres.
+    Type A, high confidence: 239 music glyphs in Leland and 12 staves found from vector lines.
+    Staves: 12 five-line staves. Staff space 5.0 points, 1.75 millimetres.
     Fonts:
     - Leland: SMuFL music font, 239 glyphs.
     - Edwin-Roman: text font, 54 glyphs.

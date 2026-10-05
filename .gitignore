@@ -5,11 +5,11 @@ __pycache__/
 .pytest_cache/
 
 # Corpora and renders (licences vary, see C-4)
-corpus/
-renders/
+/corpus/
+/renders/
 
 # Model weights are released separately
-models/
+/models/
 *.pt
 *.onnx
 *.ckpt
