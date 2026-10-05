@@ -12,7 +12,7 @@ Last updated 5 October 2026. This file records what has been done against `phase
 
 ## Stage status
 
-- **Stage 0, prerequisites: not started.** `scripts/check_environment.py` is not written.
+- **Stage 0, prerequisites: done** (Dorico SE parked). `scripts/check_environment.py` is written and reports Python, Git, MuseScore 3 and 4, LilyPond, musicxml2ly, Java, Dorico SE and nvidia-smi. Working command lines are in `docs/notes/tool-commands.md`. Both MuseScore versions convert headlessly. `nvidia-smi` reports the T500 with CUDA 13.2. **Dorico SE is parked**: it is not accessible with a screen reader, so it is dropped from Phase 0 for now and the script treats it as optional. Java (Temurin OpenJDK 25.0.4.1, installed by the owner from `OpenJDK25U-jdk_x64_windows_hotspot_25.0.4.1_1.msi` as a per-user install) is found by the script. All required tools are found. LilyPond renders a PDF from the converted file. The script exits with status 0.
 - **Stage 1, skeleton: done**, with one gap (see below).
 - Stages 2 to 11: not started.
 
@@ -31,10 +31,9 @@ Gap: the "fresh clone" check was done by building a new environment in this work
 
 ## Open points for the owner
 
-- Stage 0 owner actions still to confirm: MuseScore 4 (`C:\Program Files\MuseScore 4`) and Git are installed, and the GitHub repository is done. MuseScore 3.3.4 is installed as a Microsoft Store package, with `MuseScore3.exe` in `C:\Program Files\WindowsApps\64051MuseScoreBVBA.MuseScoreNotationSoftware_3.3.4.0_x64__pz631wrhsw9tj\bin`. The folder name contains the version, so it changes on update. `check_environment.py` should find it with `Get-AppxPackage *MuseScore*` rather than a fixed path, and Stage 0 must test that the command line works from a Store install. Java, LilyPond and Dorico SE were not found on the path (Dorico SE may be elsewhere).
+- Stage 0 owner actions still to confirm (Dorico SE is parked, so its install and player-limit check are no longer needed; Stage 5 uses the other engravers, per the plan's fallback of a smaller or no Dorico sample): MuseScore 4 (`C:\Program Files\MuseScore 4`) and Git are installed, and the GitHub repository is done. MuseScore 3.3.4 is installed as a Microsoft Store package, with `MuseScore3.exe` in `C:\Program Files\WindowsApps\64051MuseScoreBVBA.MuseScoreNotationSoftware_3.3.4.0_x64__pz631wrhsw9tj\bin`. The folder name contains the version, so it changes on update. `check_environment.py` should find it with `Get-AppxPackage *MuseScore*` rather than a fixed path, and Stage 0 must test that the command line works from a Store install. LilyPond 2.26.0 is installed in `C:\Program Files\lilypond-2.26.0` (not on the PATH; the script finds it). Java is installed (see Stage status). Dorico SE is parked (inaccessible with a screen reader). Git is installed and the repository exists.
 - Package and README titles still say OMR. The owner is happy with the local/remote name difference.
 
 ## Next steps
 
-1. Stage 0: write `scripts/check_environment.py`, find the working MuseScore 3 and 4 command lines, record them in `docs/notes/tool-commands.md`, and check `nvidia-smi`.
-2. Stage 2 (CI and conventions) and Stage 3 (licence register) in parallel.
+1. Stage 2 (CI and conventions) and Stage 3 (licence register) in parallel.

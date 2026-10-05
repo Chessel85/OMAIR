@@ -23,6 +23,7 @@ In PowerShell, from the repository folder:
 ## Check that it works
 
 - Run the smoke test: `python scripts/smoke_test.py`. It lists each dependency as OK or FAILED, says whether PyTorch sees the GPU, and ends with a one-line summary.
+- Check the external tools: `python scripts/check_environment.py`. It lists MuseScore, LilyPond, Java and the other tools as FOUND or MISSING with their paths, and ends with a one-line summary. Working command lines are in `docs/notes/tool-commands.md`.
 - Run the tests: `pytest`
 
 ## Layout
