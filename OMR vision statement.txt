@@ -1,0 +1,23 @@
+I am a blind musician and want to develop an algorithm and application that can very accurately convert an image / pdf of sheet music to music XML and music Braille.
+There are already solutions available for this but the accuracy isn't good enough for me.
+Can Claude help devise strategies for such an algorithm and implement?
+I want to make use of AI where feasible and useful to improve accuracy.
+For now, it is assumed that input pdf files into the OMR algorithm will be outputs from engraving software tools like Finale, Sibelius and MuseScore rather than handwritten engravings from out of copyright sources.  
+Only if good success is achieved with these will a further phase looking at older engravings be started.
+However, an important format ultimately is where a photo or scan from a music book has been taken, and the algorithm must extract scores from amongst noise like blocks of text, graphics and features like the surface the book is resting on or the centre line of the pages. 
+To facilitate testing, a corpus of pdf files and accurate music XML equivalents is needed and can be assumed to be available for the purposes of design and development.
+Ifd needed, some pdf's can be printed out and photos/scans of them provided.
+Accuracy means getting the structure right and a high percentage of note pitch, position and duration.  Performance info like crescendos is highly desirable but not as critical.  Cosmetics like beams is not essential as the music XML output will likely be fed into engines like MuseScore which will handle rendering. 
+Questions \i can think of:
+* pdf can cover a range of representations. SVG, jpg and maybe more.  Need to cater for a range of formats.
+* If AI is used, will it be for developing an expert system like solution, or be part of the solution inherently.
+* As a blind person, I will be unable to give direct feedback on accuracy of output from the algorithm.  However, a text based report on conversions of low confidence will be useful.
+* It is expected that context can be used to help improve accuracy e.g.  The notes in one bar and in the same voice should add up to a whole bar's worth of notes.
+* I have a Precision laptop with 6 cores and 32Gb RAM.  There is an early GPU with onboard memory.  This is the development platform along with any free tools like GitHub.
+I want Claude to start by writing a solution design:
+* Literature review relevant to target platform 
+* Technologies to be used
+* Solution architecture 
+* Resources needed for development 
+* A high level plan 
+* Risks and issues 

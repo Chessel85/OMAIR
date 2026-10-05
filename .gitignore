@@ -1,0 +1,19 @@
+# Environment
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+
+# Corpora and renders (licences vary, see C-4)
+corpus/
+renders/
+
+# Model weights are released separately
+models/
+*.pt
+*.onnx
+*.ckpt
+
+# Logs
+logs/
+*.log

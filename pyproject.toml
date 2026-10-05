@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omr"
+version = "0.0.1"
+description = "Free, offline optical music recognition: sheet music PDFs to MusicXML and braille music."
+readme = "README.md"
+license = { text = "AGPL-3.0-or-later" }
+requires-python = ">=3.14"
+
+[project.scripts]
+omr = "omr.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

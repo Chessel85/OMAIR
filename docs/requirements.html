@@ -1,0 +1,722 @@
+<h1 id="omr-to-musicxml-and-braille-music-requirements-catalogue">OMR to
+MusicXML and Braille Music: Requirements Catalogue</h1>
+<p>Version 0.1, 5 October 2026.</p>
+<p>This document lists what the system must do and the constraints it
+must work within. The solution design (<code>solution-design.md</code>)
+describes how the system meets these requirements, and refers to them by
+ID.</p>
+<h2 id="how-to-read-this-catalogue">How to read this catalogue</h2>
+<p>Every requirement has these fields:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ID</td>
+<td>Never changes or gets reused.</td>
+</tr>
+<tr>
+<td>Priority</td>
+<td><strong>Must</strong> (the project fails without it),
+<strong>Should</strong> (important, but can come later), or
+<strong>Could</strong> (desirable if effort allows).</td>
+</tr>
+<tr>
+<td>Phase</td>
+<td>The phase in which it is first delivered (see the plan in the
+solution design).</td>
+</tr>
+<tr>
+<td>Source</td>
+<td>The vision statement (VS), a decision by the project owner (PO), or
+the design (D).</td>
+</tr>
+</tbody>
+</table>
+<p>The ID prefixes are:</p>
+<table>
+<thead>
+<tr>
+<th>Prefix</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IN</td>
+<td>Inputs</td>
+</tr>
+<tr>
+<td>REC</td>
+<td>Recognition content</td>
+</tr>
+<tr>
+<td>OUT</td>
+<td>Outputs</td>
+</tr>
+<tr>
+<td>ACC</td>
+<td>Accuracy</td>
+</tr>
+<tr>
+<td>OP</td>
+<td>Operation</td>
+</tr>
+<tr>
+<td>AX</td>
+<td>Accessibility</td>
+</tr>
+<tr>
+<td>DEV</td>
+<td>Development and verification</td>
+</tr>
+<tr>
+<td>C</td>
+<td>Project constraints</td>
+</tr>
+</tbody>
+</table>
+<h2 id="inputs">Inputs</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Requirement</th>
+<th>Priority</th>
+<th>Phase</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IN-1</td>
+<td>Vector PDFs from engraving software</td>
+<td>Accept PDFs exported from engraving software, including MuseScore,
+Sibelius, Finale, Dorico and LilyPond.</td>
+<td>Must</td>
+<td>1</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>IN-2</td>
+<td>Raster PDFs and images</td>
+<td>Accept PDFs that contain page images, and PNG, JPEG and TIFF image
+files.</td>
+<td>Must</td>
+<td>2</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>IN-3</td>
+<td>Photos and scans</td>
+<td>Accept photos and scans of printed music, including open-book
+spreads. Isolate the music from text blocks, graphics, the surface the
+book rests on, and the centre line of the pages.</td>
+<td>Must</td>
+<td>4</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>IN-4</td>
+<td>Older engravings</td>
+<td>Accept older, pre-digital engravings.</td>
+<td>Could</td>
+<td>5</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>IN-5</td>
+<td>Multi-page documents</td>
+<td>Accept multi-page documents and keep bar numbering, parts and
+repeats continuous across pages.</td>
+<td>Must</td>
+<td>1</td>
+<td>D</td>
+</tr>
+</tbody>
+</table>
+<h2 id="recognition-content">Recognition content</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Requirement</th>
+<th>Priority</th>
+<th>Phase</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REC-1</td>
+<td>Structure</td>
+<td>Recognise the structure of the score: parts, staves, systems, bars,
+clefs, key signatures, time signatures, repeats, first and second
+endings, and navigation marks (D.C., D.S., coda, segno).</td>
+<td>Must</td>
+<td>1</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>REC-2</td>
+<td>Notes and rests</td>
+<td>Recognise every note’s pitch, its position (onset) in the bar and
+its duration. This includes chords, rests, dots, ties, tuplets and grace
+notes.</td>
+<td>Must</td>
+<td>1</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>REC-3</td>
+<td>Voices</td>
+<td>Recognise multiple voices on one staff, and notes that cross from
+one staff to another.</td>
+<td>Must</td>
+<td>1</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>REC-4</td>
+<td>Performance markings</td>
+<td>Recognise dynamics, hairpins (crescendo and diminuendo),
+articulations, slurs, fermatas, ornaments, and tempo and expression
+text.</td>
+<td>Should</td>
+<td>1 for vector input, 2 for raster input</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>REC-5</td>
+<td>Lyrics</td>
+<td>Recognise lyrics, attached to the correct notes.</td>
+<td>Should</td>
+<td>1 for vector input</td>
+<td>PO (broad range of genres)</td>
+</tr>
+<tr>
+<td>REC-6</td>
+<td>Chord symbols</td>
+<td>Recognise chord symbols, as used in popular music, jazz and lead
+sheets.</td>
+<td>Should</td>
+<td>1 for vector input</td>
+<td>PO (broad range of genres)</td>
+</tr>
+<tr>
+<td>REC-7</td>
+<td>Score text</td>
+<td>Recognise the title, composer, lyricist, part and instrument names,
+and rehearsal marks.</td>
+<td>Should</td>
+<td>1</td>
+<td>D</td>
+</tr>
+<tr>
+<td>REC-8</td>
+<td>Beaming and layout</td>
+<td>Recognise beaming and other cosmetic layout.</td>
+<td>Could</td>
+<td>Not assigned</td>
+<td>VS (not essential)</td>
+</tr>
+<tr>
+<td>REC-9</td>
+<td>Specialised notations</td>
+<td>Recognise percussion notation, guitar tablature and fretboard
+diagrams, and figured bass.</td>
+<td>Could</td>
+<td>Later phase</td>
+<td>D</td>
+</tr>
+<tr>
+<td>REC-10</td>
+<td>Breadth</td>
+<td>Cover a broad range of genres and textures. Genres include
+classical, popular, jazz, folk, sacred, choral and educational music.
+Textures include a single melody line, voice with piano, piano, choir,
+chamber music and small ensembles.</td>
+<td>Must</td>
+<td>All</td>
+<td>PO</td>
+</tr>
+</tbody>
+</table>
+<h2 id="outputs">Outputs</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Requirement</th>
+<th>Priority</th>
+<th>Phase</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OUT-1</td>
+<td>MusicXML</td>
+<td>Produce valid MusicXML 4.0 that imports into MuseScore 4 without
+errors.</td>
+<td>Must</td>
+<td>1</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>OUT-2</td>
+<td>Braille music</td>
+<td>Produce braille music. The braille code, formatting conventions and
+file format must be configurable. The default code and file format are
+<strong>not yet decided</strong>. The project owner will consult the
+MuseScore community and braille-reading musicians. See open item
+OI-1.</td>
+<td>Must</td>
+<td>1 (basic), 3 (quality)</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>OUT-3</td>
+<td>Confidence report</td>
+<td>Produce a plain-text confidence report that gives the location of
+every low-confidence item: page, system, bar, staff or part, beat, and
+the issue.</td>
+<td>Must</td>
+<td>1</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>OUT-4</td>
+<td>Report summary</td>
+<td>The report must open with a summary: the number of bars, the share
+recognised with high confidence, and the number of flagged items.</td>
+<td>Must</td>
+<td>1</td>
+<td>D</td>
+</tr>
+<tr>
+<td>OUT-5</td>
+<td>MIDI</td>
+<td>Produce MIDI for listening checks.</td>
+<td>Could</td>
+<td>1</td>
+<td>D</td>
+</tr>
+</tbody>
+</table>
+<h2 id="accuracy">Accuracy</h2>
+<p>Note accuracy means the proportion of notes whose pitch, onset and
+duration all match the ground truth. File structure is correct when the
+parts, the number of bars, the clefs, the key and time signatures, and
+the repeats all match.</p>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Requirement</th>
+<th>Priority</th>
+<th>Phase</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ACC-1</td>
+<td>Vector PDFs</td>
+<td>At least 99 percent note accuracy, and at least 95 percent of files
+structurally correct.</td>
+<td>Must</td>
+<td>1</td>
+<td>VS and D</td>
+</tr>
+<tr>
+<td>ACC-2</td>
+<td>Clean raster input</td>
+<td>At least 97 percent note accuracy.</td>
+<td>Must</td>
+<td>2</td>
+<td>VS and D</td>
+</tr>
+<tr>
+<td>ACC-3</td>
+<td>Photos and scans</td>
+<td>At least 93 to 95 percent note accuracy on photos and scans taken in
+reasonable conditions.</td>
+<td>Must</td>
+<td>4</td>
+<td>VS and D</td>
+</tr>
+<tr>
+<td>ACC-4</td>
+<td>Error flagging</td>
+<td>At least 90 percent of the actual note errors must fall in bars that
+the confidence report flags.</td>
+<td>Should</td>
+<td>1</td>
+<td>D (target to be refined)</td>
+</tr>
+<tr>
+<td>ACC-5</td>
+<td>Musical context</td>
+<td>Use musical context to improve accuracy. For example, the notes of
+each voice in a bar must add up to the time signature.</td>
+<td>Must</td>
+<td>1</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>ACC-6</td>
+<td>Performance markings</td>
+<td>At least 90 percent recall of dynamics and hairpins on vector
+input.</td>
+<td>Should</td>
+<td>1</td>
+<td>D</td>
+</tr>
+</tbody>
+</table>
+<h2 id="operation">Operation</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Requirement</th>
+<th>Priority</th>
+<th>Phase</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OP-1</td>
+<td>Fully offline</td>
+<td>The system runs fully offline. It makes no network calls at run time
+and depends on no paid or cloud service.</td>
+<td>Must</td>
+<td>All</td>
+<td>PO</td>
+</tr>
+<tr>
+<td>OP-2</td>
+<td>Laptop hardware</td>
+<td>The system runs on an ordinary laptop with a 6-core CPU, 32 GB of
+RAM, and either no GPU or a small one (2 GB, for example an NVIDIA
+T500). A GPU is optional and only speeds things up.</td>
+<td>Must</td>
+<td>All</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>OP-3</td>
+<td>Speed</td>
+<td>A vector PDF page converts in under 10 seconds. A raster page or a
+photo converts in under 60 seconds, on the CPU alone.</td>
+<td>Should</td>
+<td>Not assigned</td>
+<td>D (targets to be confirmed)</td>
+</tr>
+<tr>
+<td>OP-4</td>
+<td>Operating systems</td>
+<td>Windows 11 is the primary platform. Linux and macOS are
+desirable.</td>
+<td>Should</td>
+<td>Not assigned</td>
+<td>D</td>
+</tr>
+</tbody>
+</table>
+<h2 id="accessibility">Accessibility</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Requirement</th>
+<th>Priority</th>
+<th>Phase</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AX-1</td>
+<td>Screen-reader operation</td>
+<td>Every function works with a screen reader (NVDA is the reference)
+through a command-line interface. No step needs sight or a GUI.</td>
+<td>Must</td>
+<td>All</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>AX-2</td>
+<td>Screen-reader-friendly text</td>
+<td>Reports, messages and documentation are plain text or Markdown that
+reads well with a screen reader. They contain no ASCII-art diagrams, use
+no tables where a list would do, and give locations in words.</td>
+<td>Must</td>
+<td>All</td>
+<td>VS and PO</td>
+</tr>
+<tr>
+<td>AX-3</td>
+<td>Accessible development</td>
+<td>A blind developer can carry out the development workflow: setting
+up, running tests, running the evaluation and reading the results.</td>
+<td>Must</td>
+<td>0</td>
+<td>VS</td>
+</tr>
+</tbody>
+</table>
+<h2 id="development-and-verification">Development and verification</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Requirement</th>
+<th>Priority</th>
+<th>Phase</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DEV-1</td>
+<td>Evaluation harness</td>
+<td>An evaluation harness compares the output against ground-truth
+MusicXML across the corpus and reports the ACC metrics.</td>
+<td>Must</td>
+<td>0</td>
+<td>VS</td>
+</tr>
+<tr>
+<td>DEV-2</td>
+<td>Regression set</td>
+<td>A fixed regression set runs automatically on every change.</td>
+<td>Must</td>
+<td>0</td>
+<td>D</td>
+</tr>
+<tr>
+<td>DEV-3</td>
+<td>Self-check by re-rendering</td>
+<td>The system checks itself by rendering its own output and comparing
+it with the input.</td>
+<td>Should</td>
+<td>2</td>
+<td>D</td>
+</tr>
+<tr>
+<td>DEV-4</td>
+<td>Baselines</td>
+<td>Measure baseline accuracy for existing open-source OMR tools on the
+same corpus.</td>
+<td>Should</td>
+<td>0</td>
+<td>D</td>
+</tr>
+</tbody>
+</table>
+<h2 id="project-constraints">Project constraints</h2>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Requirement</th>
+<th>Priority</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C-1</td>
+<td>Free and open source</td>
+<td>The project is free and open source and will never be used to make
+money.</td>
+<td>Must</td>
+<td>PO</td>
+</tr>
+<tr>
+<td>C-2</td>
+<td>Licence</td>
+<td>The project licence is AGPL-3.0. This is required because key
+dependencies (PyMuPDF, Ultralytics) are AGPL, and it is compatible with
+all the other planned dependencies.</td>
+<td>Must</td>
+<td>D, following C-1</td>
+</tr>
+<tr>
+<td>C-3</td>
+<td>Licence-compatible components</td>
+<td>Every bundled dependency, model weight file and dataset must have a
+licence compatible with redistribution under C-2. Components licensed
+for non-commercial use only may be used for internal comparison, but
+must not be shipped. A licence register records each one.</td>
+<td>Must</td>
+<td>D</td>
+</tr>
+<tr>
+<td>C-4</td>
+<td>Copyrighted scores</td>
+<td>Copyrighted scores, including most user uploads on MuseScore.com,
+must not be committed to the public repository. They stay in a local,
+git-ignored folder.</td>
+<td>Must</td>
+<td>D</td>
+</tr>
+<tr>
+<td>C-5</td>
+<td>No-cost development</td>
+<td>Development uses only free tools and incurs no cost. Training runs
+on the development laptop. Free cloud GPU quotas (Kaggle, Colab) may
+optionally speed training up, but nothing may depend on paid
+compute.</td>
+<td>Must</td>
+<td>VS and PO</td>
+</tr>
+<tr>
+<td>C-7</td>
+<td>Trainable on the development laptop</td>
+<td>Every model the system ships must be trainable or fine-tunable on
+the development laptop (2 GB GPU, 6-core CPU, 32 GB RAM) within a few
+days per run.</td>
+<td>Must</td>
+<td>PO</td>
+</tr>
+<tr>
+<td>C-6</td>
+<td>Available engraving software</td>
+<td>The project has access to MuseScore (versions 3 and 4) and to the
+free engravers Dorico SE, LilyPond and Verovio. Sibelius and Finale are
+not available, so ground truth for their output must come from published
+editions that provide both a PDF and a MusicXML or source file.</td>
+<td>Must</td>
+<td>PO</td>
+</tr>
+</tbody>
+</table>
+<h2 id="open-items">Open items</h2>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>ID</th>
+<th>Topic</th>
+<th>Question</th>
+<th>Owner</th>
+<th>Impact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OI-1</td>
+<td>Braille music code</td>
+<td>Which braille music code, formatting conventions and output file
+format (for example BRF, Unicode braille text, or both) should be the
+default?</td>
+<td>The project owner, through the MuseScore community</td>
+<td>Blocks the Phase 3 decisions on braille, but not Phase 1.</td>
+</tr>
+<tr>
+<td>OI-2</td>
+<td>Speed targets</td>
+<td>The OP-3 targets need confirming once baseline timings exist (Phase
+0).</td>
+<td>Not assigned</td>
+<td>Affects OP-3.</td>
+</tr>
+<tr>
+<td>OI-3</td>
+<td>Error-flagging target</td>
+<td>The ACC-4 target needs refining once the first measurements exist
+(Phase 1).</td>
+<td>Not assigned</td>
+<td>Affects ACC-4.</td>
+</tr>
+</tbody>
+</table>

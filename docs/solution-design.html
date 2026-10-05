@@ -1,0 +1,793 @@
+<h1 id="omr-to-musicxml-and-braille-music-solution-design">OMR to
+MusicXML and Braille Music: Solution Design</h1>
+<p>Version 0.2, 5 October 2026.</p>
+<p>This document is written for screen readers (NVDA is the reference).
+It uses headings and lists throughout and contains no tables or ASCII
+diagrams. Requirement IDs, such as OUT-2 or C-6, refer to
+<code>requirements.md</code>.</p>
+<h2 id="summary">1. Summary</h2>
+<p>The project is a free, open-source tool (AGPL-3.0) that converts
+sheet music PDFs and images into accurate MusicXML and braille music. It
+runs fully offline on an ordinary laptop. It aims to beat existing tools
+on accuracy, and it reports in plain text where it is unsure.</p>
+<p>The central design decisions are:</p>
+<ol type="1">
+<li><strong>Treat different inputs differently.</strong> A PDF exported
+from engraving software usually still contains the music as font glyphs:
+each notehead, clef and rest is a character from a music font, stored at
+an exact position. Reading those characters directly is close to
+lossless and needs no image recognition. That is the biggest accuracy
+gain available, and it is the focus of Phase 1. Image recognition is
+only needed for PDFs that contain page images, and for scans and
+photos.</li>
+<li><strong>Make AI part of the product, alongside explicit
+rules.</strong> Neural networks handle what rules do badly: finding
+symbols in noisy images, finding the music area on a photographed page,
+and flattening curved pages. Explicit musical rules then check and
+correct the result, for example by requiring that each voice in a bar
+adds up to the time signature, and that pitches stay consistent with the
+key signature.</li>
+<li><strong>Use several recognition methods and compare them.</strong>
+Where independent methods agree, confidence is high. Where they
+disagree, the musical rules choose between them, and anything left
+unresolved goes into the confidence report.</li>
+<li><strong>Verify without sight.</strong> The system renders its own
+MusicXML back to an image and compares that image with the input.
+Together with a ground-truth corpus, this means accuracy is measured by
+software, not by eye.</li>
+<li><strong>Keep braille output pluggable.</strong> Braille quality
+depends mostly on MusicXML quality. Braille is produced through an
+adapter layer that can drive existing translators. The default braille
+code and file format are an open decision (OI-1), to be made with the
+MuseScore community and braille-reading musicians.</li>
+<li><strong>Run fully offline and at no cost (OP-1, C-5, C-7).</strong>
+All models run locally, and no cloud or paid AI service is used at run
+time. Training is also done on the development laptop. This keeps the
+models deliberately small, and it means the system starts from
+pretrained weights and fine-tunes them instead of training from
+scratch.</li>
+</ol>
+<h2 id="literature-and-technology-review">2. Literature and technology
+review</h2>
+<h3 id="how-omr-works">2.1 How OMR works</h3>
+<p>OMR (Optical Music Recognition) is usually split into four
+stages:</p>
+<ol type="1">
+<li>Image preparation: deskew, remove noise, convert to black and
+white.</li>
+<li>Symbol detection: find staff lines, noteheads, stems, beams, rests,
+clefs, accidentals and so on.</li>
+<li>Notation assembly: link the symbols into musical objects. For
+example, a notehead plus a stem plus a beam makes an eighth note, and an
+accidental belongs to the note on its right.</li>
+<li>Encoding: work out pitch, duration, voice and timing, then write
+MusicXML.</li>
+</ol>
+<p>The reference survey is Calvo-Zaragoza, Hajič and Pacha,
+“Understanding Optical Music Recognition” (ACM Computing Surveys, 2020).
+Since about 2018 the field has had two main approaches:</p>
+<ul>
+<li><strong>Pipeline (modular) systems.</strong> These detect symbols
+with object detectors or segmentation networks, then assemble them with
+rules or graphs.
+<ul>
+<li>Strengths: they are interpretable, every symbol has its own
+confidence, and errors can be traced to a cause.</li>
+<li>Weakness: assembly is hard to get right for dense polyphonic
+music.</li>
+</ul></li>
+<li><strong>End-to-end systems.</strong> A neural network reads an image
+of a staff, a system or a page and writes out a sequence of musical
+tokens directly, much as handwriting recognition writes out text.
+<ul>
+<li>Strength: they learn context, so they handle complex rhythms
+well.</li>
+<li>Weaknesses: they need very large training sets, they can produce
+plausible but wrong music (“hallucination”), and their confidence is
+harder to pin to a location.</li>
+</ul></li>
+</ul>
+<h3 id="notable-systems">2.2 Notable systems</h3>
+<p>Open source:</p>
+<ul>
+<li><strong>Audiveris</strong> (Java, AGPL). The most mature open-source
+pipeline OMR, and the engine behind MuseScore’s PDF import. It relies
+heavily on rules and uses a neural network to classify symbols. It is
+reasonable on clean engravings and fragile on photos.</li>
+<li><strong>oemer</strong> (Python). Segmentation networks (U-Net style)
+followed by rule-based assembly. It handles camera photos. Accuracy is
+moderate.</li>
+<li><strong>homr</strong> (Python). Uses oemer-style segmentation to
+locate staves, then a transformer based on Polyphonic-TrOMR to read each
+staff. It targets camera photos and outputs MusicXML, covering pitch and
+rhythm but not dynamics or articulations. Of the existing open-source
+code, it is the closest to the raster path of this project.</li>
+<li><strong>Sheet Music Transformer (SMT) and SMT++</strong> (Ríos-Vila,
+Calvo-Zaragoza and others, 2024 to 2025). End-to-end transformers for
+polyphonic and pianoform music. SMT++ reads a full page without a
+separate layout step. They are trained largely on synthetic data, using
+curriculum learning.</li>
+<li><strong>LEGATO</strong> (2025). A large pretrained end-to-end model
+for full-page and multi-page typeset scores. It outputs ABC notation,
+which converts to MusicXML. It was trained on more than 200,000 page
+images derived from PDMX and reports state-of-the-art results. It is too
+large for a 2 GB GPU, and its CPU speed decides whether it can serve as
+a run-time engine or only as a development baseline.</li>
+<li><strong>OLiMPiC / LMX</strong> (Mayer, Straka, Hajič and Pecina,
+2024). End-to-end pianoform OMR using “linearised MusicXML” (LMX), an
+output format that maps cleanly back to MusicXML. It is relevant if the
+project trains its own end-to-end model.</li>
+</ul>
+<p>Commercial tools, listed for comparison only: PhotoScore, SmartScore,
+PlayScore 2, ScanScore, Newzik and the Soundslice scanner. None of them
+meets the accuracy target.</p>
+<h3 id="datasets">2.3 Datasets</h3>
+<ul>
+<li><strong>PDMX</strong> (Public Domain MusicXML, 2024). About 250,000
+public-domain or freely licensed MuseScore scores, with metadata that
+includes genre. It is the main source of ground truth.</li>
+<li><strong>OpenScore</strong> (the Lieder corpus, string quartets and
+others). High-quality transcriptions under CC0.</li>
+<li><strong>CPDL</strong> (Choral Public Domain Library). Many editions
+publish the PDF together with MusicXML or the original Sibelius or
+Finale file. This makes CPDL the main source of real Sibelius and Finale
+ground truth (C-6).</li>
+<li><strong>Mutopia.</strong> LilyPond sources and PDFs.</li>
+<li><strong>DeepScores V2.</strong> About 255,000 synthetic pages with a
+bounding box for every symbol. It is the standard dataset for training
+symbol detectors.</li>
+<li><strong>GrandStaff and Camera-GrandStaff; PrIMuS and Camera-PrIMuS;
+OLiMPiC.</strong> Collections of systems and incipits, clean and
+camera-distorted, for training and testing the raster path.</li>
+<li><strong>MUSCIMA++.</strong> Handwritten music. Not in scope.</li>
+</ul>
+<p>The most important dataset is the one the project generates itself.
+MusicXML from PDMX or OpenScore is rendered by several engravers
+(section 2.4), which gives exact pairs of PDF and MusicXML.
+<strong>Verovio</strong> writes SVG in which every graphical element
+carries the ID of the note it belongs to, so it gives pixel-exact symbol
+labels for training. Photo-style distortions are added on top.</p>
+<h3 id="engraver-diversity-without-sibelius-or-finale">2.4 Engraver
+diversity without Sibelius or Finale</h3>
+<p>Sibelius and Finale are not available to the project (C-6), yet their
+PDFs are common and must be supported (IN-1). The corpus therefore
+combines several sources:</p>
+<ul>
+<li><strong>MuseScore 4 and MuseScore 3,</strong> with several notation
+fonts: Leland, Bravura, Emmentaler, Gonville, Petaluma, MuseJazz, and
+the SMuFL versions of Finale Maestro and Finale Broadway. MuseScore 3
+and 4 also lay out pages differently. Batch export from the command line
+produces matching PDF and MusicXML pairs automatically.</li>
+<li><strong>Dorico SE</strong> (free, with limits on the number of
+players), which uses its own engraving engine and Bravura.</li>
+<li><strong>LilyPond</strong> (free), with its own engraving engine and
+the Emmentaler font, fed through musicxml2ly.</li>
+<li><strong>Verovio</strong>, which also supplies the training
+labels.</li>
+<li><strong>Real Sibelius and Finale PDFs from CPDL and IMSLP.</strong>
+<ul>
+<li>Where MusicXML is published alongside the PDF, the pair is ground
+truth.</li>
+<li>Where it is not, the PDF is still useful for three things: building
+font mapping tables (for example Opus and legacy Maestro), measuring the
+mix of PDF types, and testing with ground-truth-free checks (the bar
+arithmetic rules and the re-render check).</li>
+</ul></li>
+</ul>
+<h3 id="vector-pdf-extraction">2.5 Vector PDF extraction</h3>
+<p>Engraving software usually writes music symbols as text in a music
+font. Common fonts are:</p>
+<ul>
+<li>MuseScore: Leland, Bravura, Emmentaler.</li>
+<li>Sibelius: Opus, Helsinki and others.</li>
+<li>Finale: Maestro (legacy encoding, or the SMuFL version from Finale
+27 onwards).</li>
+<li>Dorico: Bravura.</li>
+</ul>
+<p>SMuFL fonts give every symbol a fixed code point. Staff lines, stems,
+barlines and beams are drawn as lines and filled shapes.</p>
+<p><strong>PyMuPDF</strong> lists every glyph with its font, code point
+and exact position, and every line and filled shape. This gives:</p>
+<ul>
+<li>exact noteheads, rests, clefs, accidentals, dynamics and
+articulations;</li>
+<li>exact staff-line positions, so pitch comes from geometry with no
+ambiguity;</li>
+<li>real text (titles, tempo marks, lyrics, chord symbols, instrument
+names) without OCR.</li>
+</ul>
+<p>The hard cases are:</p>
+<ul>
+<li><strong>Non-SMuFL fonts</strong> (legacy Maestro, Opus, Emmentaler)
+need one mapping table per font. Each table is built once, and can be
+learned automatically from CPDL pairs or from MuseScore renders.</li>
+<li><strong>Outlined glyphs.</strong> Some exports turn glyphs into
+outlines (plain shapes) or use Type 3 fonts. Each distinct shape is
+fingerprinted and identical shapes are grouped together, so each unique
+shape only needs labelling once. Labelling is automatic, by matching
+against reference renderings.</li>
+<li><strong>Assembly</strong> is still required: which stem belongs to
+which notehead, what a beam implies, and how notes form chords and
+voices. But it starts from exact data.</li>
+</ul>
+<p>No published OMR system is known to use this approach systematically.
+It is the project’s main advantage for born-digital input.</p>
+<h3 id="photos-and-scans">2.6 Photos and scans</h3>
+<ul>
+<li><strong>Page detection and dewarping.</strong> Find the page edges,
+correct the perspective, and flatten the curve near the spine. Options
+include classical geometry and learned dewarping models (DocTr,
+DewarpNet, UVDoc). Staff lines must be straight and evenly spaced, which
+makes them a strong guide to curvature. Ordinary text documents have
+nothing as reliable.</li>
+<li><strong>Layout analysis.</strong> Separate music systems from text
+blocks, pictures, page numbers, the spine shadow and the surface the
+book rests on. A small object detector (from the YOLO family, or
+RT-DETR) does this, trained on composites: rendered music placed on real
+page and desk backgrounds, with added text blocks.</li>
+<li><strong>Illumination correction and binarisation.</strong> Sauvola
+or Otsu thresholding, or a small learned model for uneven lighting.</li>
+</ul>
+<h3 id="braille-music">2.7 Braille music</h3>
+<ul>
+<li><strong>Standards.</strong>
+<ul>
+<li>The <em>New International Manual of Braille Music Notation</em>
+(Krolick, 1997) is the international basis.</li>
+<li>National codes and formatting rules differ: in North America, the
+BANA <em>Music Braille Code 2015</em>; in the UK, RNIB and UKAAF
+guidance; elsewhere, other national authorities.</li>
+<li>The default is an open decision (OI-1).</li>
+</ul></li>
+<li><strong>Existing translators from MusicXML to braille:</strong>
+<ul>
+<li>Sao Mai Braille and SM Music Braille: free and widely used. A macOS
+version (SM BungSang) appeared in 2026.</li>
+<li>FreeDots: open source, Java, with MIDI playback.</li>
+<li>The OpenSheetMusicDisplay braille module: open source, documented in
+2026.</li>
+<li>music21’s <code>braille</code> module: Python, covering part of the
+code.</li>
+<li>Commercial tools, for comparison only: GOODFEEL and BME2.</li>
+</ul></li>
+<li><strong>Implication.</strong> Wrong notes in the MusicXML give wrong
+braille. Most of the project’s effort therefore goes into recognition
+accuracy, while braille is produced through an adapter that can call any
+of these translators. Whether to adapt an existing translator or write a
+dedicated one is decided in Phase 3. That decision rests on a comparison
+judged by braille-reading musicians.</li>
+</ul>
+<h3 id="measuring-accuracy">2.8 Measuring accuracy</h3>
+<ul>
+<li><strong>musicdiff</strong> (Python, built on the work of Foscarin et
+al.) gives note-level differences between two scores. It is used in both
+the test reports and the evaluation harness.</li>
+<li><strong>OMR-NED and TEDn</strong> (tree edit distance on MusicXML)
+are the standard research metrics. They are reported so that results can
+be compared with published work.</li>
+<li><strong>Project metrics</strong> measure pitch, onset and duration
+accuracy, per note and per bar, plus structural correctness and how well
+the confidence flags match the real errors (requirements ACC-1 to
+ACC-6).</li>
+</ul>
+<h2 id="technologies">3. Technologies</h2>
+<p>Everything listed here is free, runs offline, and works from the
+command line or a text editor.</p>
+<ul>
+<li><strong>Language: Python 3.12.</strong> It has the strongest
+ecosystem for both machine learning and music, and it works well with a
+screen reader.</li>
+<li><strong>PDF handling: PyMuPDF</strong> (AGPL) extracts glyphs,
+vector shapes and embedded images, and rasterises pages.
+<strong>pikepdf</strong> is used for low-level inspection.</li>
+<li><strong>Image processing: OpenCV and scikit-image.</strong></li>
+<li><strong>Machine learning:</strong>
+<ul>
+<li><strong>PyTorch</strong> for training.</li>
+<li><strong>ONNX Runtime</strong> for inference on the CPU, with
+optional CUDA acceleration for small models on the T500.</li>
+<li><strong>Ultralytics YOLO</strong> (AGPL) or <strong>RT-DETR</strong>
+for detection.</li>
+<li><strong>Hugging Face</strong> for pretrained transformer
+weights.</li>
+</ul></li>
+<li><strong>Music representation:</strong>
+<ul>
+<li><strong>music21</strong> (BSD) for the internal score model,
+MusicXML writing and analysis.</li>
+<li><strong>partitura</strong> as an alternative if music21 proves too
+slow.</li>
+</ul></li>
+<li><strong>Rendering:</strong> the MuseScore 3 and 4 command line,
+Dorico SE, LilyPond, and <strong>Verovio</strong> (LGPL, Python
+bindings).</li>
+<li><strong>Evaluation:</strong> musicdiff, pytest and the project’s own
+metric scripts.</li>
+<li><strong>OCR, for text in images only:</strong> Tesseract or
+PaddleOCR. Both run locally. Vector PDFs need no OCR.</li>
+<li><strong>Braille:</strong> an adapter layer over music21 braille, the
+OpenSheetMusicDisplay braille module, FreeDots and Sao Mai, with the
+choice driven by configuration.</li>
+<li><strong>Infrastructure:</strong>
+<ul>
+<li>A public GitHub repository and issue tracker.</li>
+<li>GitHub Actions for tests and the regression set.</li>
+<li>GitHub Releases for model weight files.</li>
+<li>Corpora kept outside the repository.</li>
+</ul></li>
+<li><strong>Training compute: the development laptop, at no cost (C-5,
+C-7).</strong> See section 4.9 for how training fits within a 2 GB GPU.
+Free Kaggle (about 30 GPU hours a week) or Colab quotas are an optional
+accelerator only.</li>
+</ul>
+<h2 id="solution-architecture">4. Solution architecture</h2>
+<p>The system is a pipeline of separate stages. Each stage passes on its
+results with confidence scores, and keeps alternative interpretations
+wherever it is unsure, so that a later stage can still correct an
+earlier one.</p>
+<h3 id="stage-1-ingest-and-classify">4.1 Stage 1: Ingest and
+classify</h3>
+<p>The input can be PDF, PNG, JPEG or TIFF. Each page is classified as
+one of four types:</p>
+<ul>
+<li><strong>Type A: vector PDF with music-font glyphs.</strong> Goes to
+the vector path.</li>
+<li><strong>Type B: vector PDF with outlined glyphs.</strong> Goes to
+the vector path, with shape fingerprinting.</li>
+<li><strong>Type C: a PDF with a clean embedded page image, or a clean
+digital image.</strong> Goes to the raster path.</li>
+<li><strong>Type D: a photo or scan of a physical page.</strong> Goes to
+page preparation, then the raster path.</li>
+</ul>
+<p>If a page mixes types, its music content decides the type.</p>
+<h3 id="stage-2-page-preparation-type-d-only">4.2 Stage 2: Page
+preparation (Type D only)</h3>
+<ol type="1">
+<li>Find the page or pages, and split two-page spreads at the
+spine.</li>
+<li>Correct the perspective and dewarp, using straight staff lines as
+the target.</li>
+<li>Correct the illumination and binarise.</li>
+<li>Run layout analysis: keep the music systems and discard text blocks,
+pictures and background. Text near a system is kept, because it may be a
+title, tempo mark, lyric or chord symbol.</li>
+</ol>
+<h3 id="stage-3-recognition">4.3 Stage 3: Recognition</h3>
+<p><strong>Vector path (Types A and B):</strong></p>
+<ol type="1">
+<li>Extract glyphs, lines and filled shapes, with their exact
+positions.</li>
+<li>Map each glyph to a symbol, using SMuFL code points or the per-font
+mapping tables.</li>
+<li>Find the staves, then the systems, then the parts.</li>
+<li>Attach every symbol to a staff and work out its vertical position in
+staff steps.</li>
+<li>Sort the text into categories: title, tempo, expression, lyric,
+chord symbol and instrument name.</li>
+</ol>
+<p><strong>Raster path (Types C and D):</strong></p>
+<ol type="1">
+<li>Detect the staff lines and remove them, recording their
+positions.</li>
+<li><strong>Engine 1, the symbol detector:</strong> an object detector
+that gives each symbol a bounding box and a confidence score. It starts
+from DeepScores-trained weights and is fine-tuned on the project’s
+renders.</li>
+<li><strong>Engine 2, the sequence reader:</strong> an end-to-end
+transformer that reads each staff or system. It starts from homr or SMT
+weights and is fine-tuned. Its size is limited so that it runs on a CPU
+within the OP-3 time targets.</li>
+<li><strong>Audiveris (optional)</strong> runs as a separate external
+process and gives a third opinion. Running it as a separate process
+keeps the licensing simple.</li>
+</ol>
+<h3 id="stage-4-notation-assembly">4.4 Stage 4: Notation assembly</h3>
+<p>This stage builds a graph of musical objects from the symbols:</p>
+<ul>
+<li>Noteheads connect to stems, stems to flags or beams, and accidentals
+and dots to their notes.</li>
+<li>Notes that share a stem form a chord.</li>
+<li>Ties, slurs, tuplets and grace notes are identified.</li>
+<li><strong>Pitch</strong> comes from staff position, clef, key
+signature, the accidentals in force in the bar, and octave lines.</li>
+<li><strong>Duration</strong> comes from the notehead type, flags or
+beams, dots and tuplets.</li>
+<li><strong>Voices</strong> are assigned from stem direction, horizontal
+alignment and rests.</li>
+<li>Lyrics attach to notes, and chord symbols to beats.</li>
+</ul>
+<h3 id="stage-5-musical-reasoning-and-correction">4.5 Stage 5: Musical
+reasoning and correction</h3>
+<p>This stage applies explicit musical rules and scores each candidate
+reading:</p>
+<ul>
+<li><strong>Bar arithmetic.</strong> Each voice must add up to the time
+signature, allowing for pickup bars, cadenzas and repeat endings.</li>
+<li><strong>Vertical alignment.</strong> Events that sound together must
+be aligned across staves and parts.</li>
+<li><strong>Key and accidental consistency.</strong> An accidental lasts
+until the barline, and a key signature persists until a change is
+marked.</li>
+<li><strong>Range plausibility.</strong> An implausibly high or low note
+points to a wrong clef or a missed octave line.</li>
+<li><strong>Repetition.</strong> Repeated bars and sequences are common.
+A bar that nearly matches its neighbours probably matches them
+exactly.</li>
+<li><strong>Engine agreement.</strong> Candidates from the different
+engines are combined.</li>
+</ul>
+<p><strong>Method.</strong> Each uncertain decision keeps its top few
+candidates, with probabilities. A search picks the combination that
+satisfies the rules with the highest total probability. Beam search is
+used in general, and integer linear programming for difficult bars. A
+bar is flagged if its best reading still breaks a rule, or if the
+engines strongly disagree about it.</p>
+<h3 id="stage-6-self-check-by-re-rendering-dev-3">4.6 Stage 6:
+Self-check by re-rendering (DEV-3)</h3>
+<ol type="1">
+<li>Render the output MusicXML with Verovio, using the layout detected
+on the input (system breaks and staff sizes).</li>
+<li>Align the rendering with the original page, system by system.</li>
+<li>Compare the symbols, and for clean input also the pixels. Bars that
+differ have their confidence lowered.</li>
+</ol>
+<h3 id="stage-7-output">4.7 Stage 7: Output</h3>
+<ul>
+<li><strong>MusicXML 4.0 (OUT-1).</strong> Contains:
+<ul>
+<li>structure, pitch, duration, voices, ties and tuplets;</li>
+<li>where recognised: dynamics, hairpins, articulations, slurs, text,
+lyrics and chord symbols;</li>
+<li>beaming where available, though nothing depends on it.</li>
+</ul></li>
+<li><strong>Braille (OUT-2).</strong> Produced through the adapter
+layer. The code, formatting and file format are set in configuration,
+with the defaults to be decided under OI-1.</li>
+<li><strong>MIDI (OUT-5).</strong> For listening checks. The output can
+also be opened in MuseScore 4, which has built-in screen-reader support,
+for bar-by-bar review with NVDA.</li>
+<li><strong>Confidence report (OUT-3 and OUT-4).</strong> Plain text
+that reads well with a screen reader. Examples:
+<ul>
+<li>“Summary: 64 bars, 61 high confidence, 3 flagged.”</li>
+<li>“Page 2, system 3, bar 14, right hand: the voices add up to 7 eighth
+notes in 4/4. Most likely a missing dot on beat 2. Confidence:
+low.”</li>
+<li>“Page 1, bar 6: the engines disagree on the third note, F sharp 5 or
+G 5. Chose F sharp 5 because the key is D major.”</li>
+</ul></li>
+</ul>
+<h3 id="stage-8-evaluation-harness-dev-1-dev-2">4.8 Stage 8: Evaluation
+harness (DEV-1, DEV-2)</h3>
+<ul>
+<li>Runs the pipeline over the corpus and compares the output with the
+ground truth.</li>
+<li>Reports per-file and overall metrics, broken down by engraver, font,
+genre and texture. The breakdown shows where accuracy falls short.</li>
+<li>Runs a fixed regression set in GitHub Actions on every change. The
+set contains only public-domain material, in keeping with C-4.</li>
+</ul>
+<h3 id="training-on-the-development-laptop">4.9 Training on the
+development laptop</h3>
+<p>All training runs on the laptop: an NVIDIA T500 GPU with 2 GB of
+memory, a 6-core CPU and 32 GB of RAM. Training is designed around those
+limits.</p>
+<p>How much training each part needs:</p>
+<ul>
+<li><strong>The vector path (Phase 1) needs no training.</strong> It
+uses geometry, font tables and rules. Most born-digital PDFs will go
+through this path.</li>
+<li><strong>Rendering training data is CPU work.</strong> The training
+images come from rendering scores in MuseScore and Verovio. The 6 cores
+handle this in overnight batches.</li>
+<li><strong>The symbol detector and the layout detector are small
+detection models</strong> with a few million parameters, such as YOLO
+nano or small. Fine-tuning them from pretrained weights fits in 2 GB,
+with these techniques:
+<ul>
+<li>training on image tiles (for example 640 to 1024 pixels) instead of
+whole pages;</li>
+<li>small batches, combined with gradient accumulation;</li>
+<li>mixed precision (FP16). The T500 has no tensor cores, but it runs
+FP16 at twice its FP32 speed, and FP16 halves memory use.</li>
+</ul></li>
+<li><strong>The sequence reader is the heaviest model.</strong> It is
+kept small: a compact image encoder with a small transformer decoder, in
+the region of 20 to 40 million parameters. Each staff is cropped and
+processed separately, so the input images stay small. The model starts
+from homr or SMT weights and is fine-tuned, not trained from scratch. It
+also uses gradient checkpointing (which saves memory by recomputing some
+values instead of storing them), FP16, and batch sizes of 1 to 4 with
+accumulation.</li>
+<li><strong>Large models (LEGATO, SMT++ at full size) are not
+trained.</strong> They appear only as development baselines, run on the
+CPU if their speed allows.</li>
+</ul>
+<p>Practical arrangements:</p>
+<ul>
+<li><strong>Runs are long and unattended.</strong> A fine-tuning run is
+expected to take from several hours to a few days. Runs save checkpoints
+regularly so they can be stopped and resumed, which allows overnight
+running and recovery from interruptions. Progress goes to a plain-text
+log that can be read with NVDA.</li>
+<li><strong>The GPU is benchmarked in Phase 0.</strong> The actual
+training speed on the T500 is measured early, and model sizes are fixed
+to fit within a few days per run (C-7).</li>
+<li><strong>Training uses less data and more of the musical
+rules.</strong> Synthetic data is chosen carefully rather than in bulk:
+the training set focuses on the symbols and layouts where the evaluation
+harness shows errors. The musical-rules layer (Stage 5) corrects a good
+share of the errors that a smaller model makes.</li>
+</ul>
+<h3 id="interfaces">4.10 Interfaces</h3>
+<ul>
+<li><strong>Command line (AX-1).</strong> For example:
+<code>omr convert score.pdf --musicxml score.musicxml --braille score.brf --report score.txt</code>.
+The tool also has an <code>omr inspect</code> command, which describes a
+PDF’s type and fonts, and an <code>omr evaluate</code> command, which
+runs the harness.</li>
+<li><strong>Later options:</strong> a watch-folder mode, a MuseScore
+plugin, or a simple accessible front end.</li>
+</ul>
+<h2 id="resources">5. Resources</h2>
+<h3 id="people-and-roles">5.1 People and roles</h3>
+<ul>
+<li><strong>Project owner.</strong> Sets direction and priorities,
+decides which errors matter most, generates and curates the corpus,
+liaises with the MuseScore and blind-musician communities, and supplies
+photos and scans in Phase 4.</li>
+<li><strong>Claude, through Claude Code.</strong> Design, code, tests,
+training scripts and analysis of results.</li>
+<li><strong>Braille-reading musicians</strong> (volunteers from the
+MuseScore accessibility community, RNIB networks and similar groups).
+They decide the braille code (OI-1) and judge braille quality in Phase
+3. Several reviewers are needed, because the owner does not read
+braille.</li>
+<li><strong>Optional sighted helper.</strong> Occasional spot checks of
+hard cases.</li>
+<li><strong>Open-source contributors.</strong> Welcome once the project
+is public. They will need a contributing guide and clear module
+boundaries.</li>
+</ul>
+<h3 id="data">5.2 Data</h3>
+<ul>
+<li><strong>Generated corpus (the main corpus).</strong> Scores selected
+from PDMX and OpenScore, sampled across genres and textures (REC-10).
+Each score is batch-exported through the MuseScore 3 and 4 command line
+in several fonts and styles, and through Dorico SE, LilyPond and
+Verovio. Every export is a matching pair of PDF and MusicXML. This is
+scripted, so no manual downloading is needed.
+<ul>
+<li>Development set: about 300 scores.</li>
+<li>Regression set: about 50 scores.</li>
+<li>Training material: thousands of scores, for the raster path.</li>
+</ul></li>
+<li><strong>Real-world corpus.</strong>
+<ul>
+<li>Sibelius and Finale editions from CPDL that come with MusicXML or
+source files.</li>
+<li>PDFs from IMSLP and CPDL without ground truth, used for the
+ground-truth-free checks.</li>
+<li>Optionally, scores the owner downloads from MuseScore.com, kept
+locally (C-4).</li>
+</ul></li>
+<li><strong>Photo corpus (Phase 4).</strong> Printed pages from the
+generated corpus, photographed with a phone in varied conditions (flat,
+open book, angled, dim light), plus some scans. 50 to 100 images is
+enough for evaluation, because the training data for photos is
+synthetic.</li>
+<li><strong>Licence register.</strong> Records the licence of every
+dataset, model and dependency (C-3).</li>
+</ul>
+<h3 id="hardware-and-accounts">5.3 Hardware and accounts</h3>
+<ul>
+<li><strong>Development laptop:</strong> 6-core CPU and 32 GB of
+RAM.</li>
+<li><strong>GPU:</strong> NVIDIA T500 with 2 GB of memory (Turing
+generation, CUDA 13.2 driver). It does all the training, within the
+limits described in section 4.9. It cannot train or run large
+transformers. For inference, the CPU through ONNX Runtime is the
+default, and the GPU is optional.</li>
+<li><strong>Accounts:</strong> a GitHub account (public repository). A
+free Kaggle account is optional.</li>
+<li><strong>Disk space:</strong> 100 to 200 GB for corpora, renders and
+models.</li>
+</ul>
+<h3 id="software">5.4 Software</h3>
+<p>Python, Git, MuseScore 3 and 4, Dorico SE, LilyPond, Verovio,
+Audiveris (as a baseline) and at least one braille translator (Sao Mai
+or FreeDots). All are free.</p>
+<h2 id="plan">6. Plan</h2>
+<p>Durations are rough effort estimates, not calendar dates. Each phase
+ends with a measurable gate.</p>
+<h3 id="phase-0-foundations-about-2-to-3-weeks">Phase 0: Foundations
+(about 2 to 3 weeks)</h3>
+<ul>
+<li>Set up the repository, the AGPL-3.0 licence, the Python environment,
+the tests and continuous integration.</li>
+<li>Write the PDF inspector (<code>omr inspect</code>).</li>
+<li>Write the corpus generator: PDMX and OpenScore scores,
+batch-exported through MuseScore, Dorico SE, LilyPond and Verovio.</li>
+<li>Write the evaluation harness (<code>omr evaluate</code>), including
+musicdiff and the project metrics.</li>
+<li>Start the licence register.</li>
+<li>Run baselines with Audiveris and homr, and with LEGATO if its CPU
+speed allows.</li>
+<li>Collect real Sibelius and Finale PDFs from CPDL and IMSLP, and
+measure the mix of PDF types and fonts.</li>
+<li>Benchmark training speed on the T500 with a short detector
+fine-tuning run.</li>
+<li><strong>Gate:</strong> baseline numbers are recorded, the PDF-type
+mix is known, the OP-3 speed targets are confirmed, and model sizes are
+fixed so that training fits on the laptop.</li>
+</ul>
+<h3 id="phase-1-vector-pdf-to-musicxml-about-6-to-10-weeks">Phase 1:
+Vector PDF to MusicXML (about 6 to 10 weeks)</h3>
+<ul>
+<li>Glyph extraction, font mapping tables (SMuFL first, then legacy
+Maestro, Opus and Emmentaler), and detection of staves, systems and
+parts.</li>
+<li>Notation assembly: pitch, duration, voices, lyrics and chord
+symbols.</li>
+<li>The musical-rules layer and the first version of the confidence
+report.</li>
+<li>The MusicXML writer, plus basic braille output through the adapter
+(music21 braille).</li>
+<li><strong>Gate:</strong> ACC-1 is met on the vector corpus, including
+the CPDL Sibelius and Finale pairs.</li>
+</ul>
+<h3 id="phase-2-clean-raster-input-about-8-to-12-weeks">Phase 2: Clean
+raster input (about 8 to 12 weeks)</h3>
+<ul>
+<li>The synthetic training-data generator (Verovio and MuseScore
+renders, with labels).</li>
+<li>Fine-tune the symbol detector and the sequence reader, and build the
+reconciliation step.</li>
+<li>The self-check by re-rendering.</li>
+<li><strong>Gate:</strong> ACC-2 and ACC-4 are met.</li>
+</ul>
+<h3
+id="phase-3-braille-and-reporting-quality-about-3-to-6-weeks-overlapping-phase-2">Phase
+3: Braille and reporting quality (about 3 to 6 weeks, overlapping Phase
+2)</h3>
+<ul>
+<li>Resolve OI-1 with the MuseScore community and braille-reading
+musicians.</li>
+<li>Compare the translators on the corpus, with the braille readers
+judging.</li>
+<li>Decide whether to adapt an existing translator or build a dedicated
+one, and implement the chosen formatting.</li>
+<li>Refine the wording of the confidence report.</li>
+</ul>
+<h3 id="phase-4-photos-and-scans-about-8-to-12-weeks">Phase 4: Photos
+and scans (about 8 to 12 weeks)</h3>
+<ul>
+<li>Page detection, dewarping and illumination correction.</li>
+<li>Layout analysis that separates music from text and background.</li>
+<li>Camera-style augmentation and fine-tuning, evaluated on the photo
+corpus.</li>
+<li><strong>Gate:</strong> ACC-3 is met.</li>
+</ul>
+<h3 id="phase-5-future-older-engravings">Phase 5 (future): Older
+engravings</h3>
+<p>This phase starts only after the gates for Phases 1 to 4 are met
+(IN-4).</p>
+<h3 id="immediate-next-steps">Immediate next steps</h3>
+<ol type="1">
+<li>Create the repository skeleton and the PDF inspector.</li>
+<li>Build the corpus generator on PDMX, with MuseScore 4 batch
+export.</li>
+<li>Build the evaluation harness and run the baselines.</li>
+<li>In parallel, the project owner raises the braille question (OI-1)
+with the MuseScore community.</li>
+</ol>
+<h2 id="risks-and-issues">7. Risks and issues</h2>
+<ol type="1">
+<li><strong>Risk: vector PDFs vary more than expected</strong> (outlined
+glyphs, unusual fonts, unusual drawing order).
+<ul>
+<li><em>Mitigation:</em> the inspector measures this in Phase 0, using
+real CPDL and IMSLP files. Shape fingerprinting covers outlined glyphs.
+The raster path is the fallback.</li>
+</ul></li>
+<li><strong>Risk: little ground truth for Sibelius and Finale
+output</strong> (C-6).
+<ul>
+<li><em>Mitigation:</em> CPDL editions that include MusicXML or source
+files. MuseScore’s SMuFL Finale fonts. Ground-truth-free checks on other
+real PDFs.</li>
+</ul></li>
+<li><strong>Risk: polyphony and voice assignment are hard</strong>
+(piano music, cross-staff beaming, voices that appear and disappear).
+<ul>
+<li><em>Mitigation:</em> a rule-based voice solver plus engine
+agreement. Texture is widened gradually, and doubtful voices are
+reported.</li>
+</ul></li>
+<li><strong>Risk: the broad range of genres widens the scope</strong>
+(REC-10). Lyrics, chord symbols, lead sheets, choral layouts and
+ensemble scores all add work.
+<ul>
+<li><em>Mitigation:</em> the corpus is sampled across genres, and
+metrics are reported per genre. Lyrics and chord symbols come almost
+free on the vector path. Tablature and percussion are deferred
+(REC-9).</li>
+</ul></li>
+<li><strong>Risk: nobody can visually confirm the output.</strong>
+<ul>
+<li><em>Mitigation:</em> ground-truth comparison, the self-check by
+re-rendering, MIDI playback, screen-reader review in MuseScore 4, and
+calibrated confidence flags.</li>
+</ul></li>
+<li><strong>Risk: the core team does not read braille.</strong>
+<ul>
+<li><em>Mitigation:</em> braille-reading reviewers are recruited early
+through the MuseScore and blind-musician communities. Existing, proven
+translators are reused. Braille stays pluggable until OI-1 is
+resolved.</li>
+</ul></li>
+<li><strong>Risk: offline operation on a laptop limits model
+size</strong> (OP-1, OP-2).
+<ul>
+<li><em>Mitigation:</em> small, quantised models running on ONNX
+Runtime. The vector path needs no neural models at all. LEGATO-sized
+models are used only as development baselines, unless their CPU speed
+proves acceptable.</li>
+</ul></li>
+<li><strong>Risk: laptop-only training limits model quality and makes
+iteration slow</strong> (C-7).
+<ul>
+<li><em>Mitigation:</em>
+<ul>
+<li>The vector path needs no training.</li>
+<li>Models are small and fine-tuned from pretrained weights.</li>
+<li>Training uses tiles and per-staff crops, FP16 and gradient
+checkpointing.</li>
+<li>Runs go overnight and resume from checkpoints.</li>
+<li>Training data is targeted at the observed errors.</li>
+<li>The rules layer compensates for the smaller models.</li>
+<li>Free Kaggle quota is available if a run proves too slow.</li>
+</ul></li>
+</ul></li>
+<li><strong>Risk: end-to-end models hallucinate.</strong>
+<ul>
+<li><em>Mitigation:</em> their output is never accepted alone. It is
+always cross-checked against the detected noteheads and the musical
+rules.</li>
+</ul></li>
+<li><strong>Risk: licence incompatibility</strong> (C-2, C-3). Some
+research weights and datasets are for non-commercial use only, which
+conflicts with redistribution under AGPL.
+<ul>
+<li><em>Mitigation:</em> the licence register. Non-commercial components
+are used only for internal comparison and never shipped.</li>
+</ul></li>
+<li><strong>Risk: copyright of test material</strong> (C-4).
+<ul>
+<li><em>Mitigation:</em> the public repository holds only public-domain
+or freely licensed material. MuseScore.com downloads and other
+copyrighted scores stay in a git-ignored local folder.</li>
+</ul></li>
+<li><strong>Risk: tools change quickly</strong> (new OMR models appear
+often).
+<ul>
+<li><em>Mitigation:</em> the engines sit behind a common interface, so a
+better model can be added as another engine.</li>
+</ul></li>
+<li><strong>Risk: the development tools themselves may not be
+accessible</strong> (AX-3).
+<ul>
+<li><em>Mitigation:</em> command line and text throughout. No workflow
+needs a GUI.</li>
+</ul></li>
+</ol>
+<h2 id="open-decisions">8. Open decisions</h2>
+<ul>
+<li><strong>OI-1: braille music code, formatting and file
+format.</strong> The project owner is consulting the MuseScore
+community. This blocks Phase 3, but not Phases 0 to 2.</li>
+<li><strong>OI-2: speed targets.</strong> To be confirmed in Phase
+0.</li>
+<li><strong>OI-3: error-flagging target.</strong> To be refined in Phase
+1.</li>
+</ul>
