@@ -36,8 +36,12 @@ Every new terminal window needs step 2 again before you run `python`, `pytest` o
 - `tests`: the test suite.
 - `scripts`: development scripts.
 - `docs`: requirements, design, plans and notes.
-- `corpus`: generated and collected test scores. Not in Git.
+- `corpus`: the default location of generated and collected test scores. Not in Git. See the next section for putting it on another drive.
 - `models`: model weights. Not in Git; released separately.
+
+## Where the corpus lives
+
+The corpus can take a lot of disk space. Set the environment variable `OMR_CORPUS_DIR` to the folder to use, for example in PowerShell: `[Environment]::SetEnvironmentVariable('OMR_CORPUS_DIR','E:\OMAIRCorpus','User')`. Open a new terminal afterwards. If the variable is not set, the `corpus` folder in the repository is used. If the variable is set and the folder does not exist, for example because the drive is unplugged, scripts stop with a message instead of writing somewhere else. Scripts also stop if the drive has less than 100 GB free. The code is in `src/omr/paths.py`.
 
 ## Contributing
 

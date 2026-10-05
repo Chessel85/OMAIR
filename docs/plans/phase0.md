@@ -50,13 +50,14 @@ Done when: the script reports every required tool as found, and the working Muse
 **Recommended model: Sonnet.** Standard project scaffolding.
 
 - Create the repository layout: source package `omr`, `tests`, `scripts`, `docs`, `corpus` (git-ignored, see C-4) and `models` (git-ignored, weights are released separately).
+- Add `omr.paths`, the one place that decides where the corpus lives. The corpus folder is set by the environment variable `OMR_CORPUS_DIR`, and defaults to `corpus` in the repository so that CI and a fresh clone work. A configured folder must already exist, so an unplugged drive stops a job instead of silently filling the system drive. The module also provides a free-space check. Every script that reads or writes corpus data uses it. On the owner's machine the variable points at `E:\OMAIRCorpus`, on a separate 2 TB drive, because the system drive has limited free space.
 - Add the AGPL-3.0 licence text, a README, a contributing guide and a code of conduct.
 - Create the virtual environment with Python 3.14 and a pinned dependency file. Install PyTorch from the CUDA 13.0 wheel index, which has Python 3.14 Windows wheels. Install the other dependencies from PyPI: PyMuPDF, pikepdf, OpenCV, scikit-image, ONNX Runtime, Ultralytics, music21, musicdiff, Verovio and pytest.
 - Write a smoke test that imports every dependency and reports in plain text whether PyTorch sees the GPU.
 - Add the `.gitignore` entries for corpora, renders, model weights, logs and the environment.
 - Set up the `omr` command-line entry point with empty `inspect`, `evaluate` and `convert` subcommands, each of which prints a clear "not implemented yet" message.
 
-Done when: a fresh clone can be set up by following the README alone, and the smoke test passes.
+Done when: a fresh clone can be set up by following the README alone, the smoke test passes, and the corpus location and free-space checks have tests.
 
 Risk to check here: if any dependency has no Python 3.14 wheel on Windows, record it and fall back to Python 3.13 for the whole project. Do not mix versions.
 
@@ -133,11 +134,13 @@ Implementation, with Sonnet:
 - Each exporter produces a matching PDF and MusicXML pair, and a small metadata file recording the source score, engraver, version, font and style.
 - Handle failures without stopping the run. Record each failure and its reason in the log, and retry only where it makes sense.
 - Make the generator resumable, so that an overnight batch that is interrupted carries on where it stopped.
-- Write the corpus under the git-ignored `corpus` folder, with a text index file that lists every pair.
+- Write the corpus under the corpus folder from `omr.paths` (`OMR_CORPUS_DIR`, which is `E:\OMAIRCorpus` on the owner's machine), with a text index file that lists every pair. Downloads (the PDMX archive and OpenScore) and scratch exports go there too, never to the system drive.
+- Before starting, and again between scscores, check that the corpus folder exists and that the drive has more than a set margin free (100 GB by default). If not, stop cleanly with a plain-text message, so that an interrupted run can be resumed.
+- Report the corpus size in the log at the end of each run.
 
 Notes for the owner: Dorico SE may have no usable command-line export. If so, Dorico files may need a semi-manual step, and the plan should drop to a smaller Dorico sample rather than block the stage.
 
-Done when: the development set and the regression set exist, each with exports from at least MuseScore 4, MuseScore 3, LilyPond and Verovio, and the index lists every pair and every failure.
+Done when: the corpus folder is on the separate drive, the development set and the regression set exist, each with exports from at least MuseScore 4, MuseScore 3, LilyPond and Verovio, and the index lists every pair and every failure.
 
 ## Stage 6: Evaluation harness (`omr evaluate`)
 
@@ -171,7 +174,7 @@ Done when: the perfect recogniser scores 100 percent, the damaged recogniser sco
 
 Covers DEV-2.
 
-- Select the regression set of about 50 scores from the corpus, public-domain only, small enough to be stored in the repository or fetched by a script. Check the sizes against GitHub limits.
+- Select the regression set of about 50 scores from the corpus, public-domain only, small enough to be stored in the repository or fetched by a script. Check the sizes against GitHub limits. The regression set is copied into the repository (not left on the corpus drive), because CI has no access to the owner's corpus drive.
 - Add a GitHub Actions job that runs the harness on the regression set on every change, and fails if accuracy drops below the last recorded baseline by more than a set margin.
 - Store the current results in a plain-text file in the repository, so changes in accuracy show up in ordinary diffs.
 - Write down how to update the baseline deliberately.
@@ -184,7 +187,7 @@ Done when: a change that makes the stand-in recogniser worse makes CI fail, and 
 
 Covers part of the Phase 0 gate (the mix of PDF types and fonts) and risks 1 and 2 in the solution design.
 
-- Write a polite, rate-limited collection script for CPDL, and a list of IMSLP files chosen by hand with the owner. Check each site's terms, and collect only what is public domain or freely licensed (C-4).
+- Write a polite, rate-limited collection script for CPDL (output goes to the corpus folder from `omr.paths`), and a list of IMSLP files chosen by hand with the owner. Check each site's terms, and collect only what is public domain or freely licensed (C-4).
 - For CPDL editions, keep the PDF together with any MusicXML or source file (Sibelius, Finale), because those pairs are real Sibelius and Finale ground truth (C-6).
 - Run `omr inspect` over everything, using the JSON output.
 - Opus analyses the result: the share of each page type, the fonts found, which fonts need mapping tables, how many files have outlined glyphs, and which files are unusual enough to cause trouble. It writes the findings as plain text in `docs/notes/pdf-survey.md`.
@@ -212,7 +215,7 @@ Done when: baseline accuracy and timing figures for each tool are recorded, brok
 
 Covers the C-7 part of the gate.
 
-- Generate a small detection dataset from the corpus, using Verovio output with symbol labels.
+- Generate a small detection dataset from the corpus (written to the corpus folder from `omr.paths`), using Verovio output with symbol labels.
 - Run a short YOLO fine-tuning with the techniques in section 4.9 of the design: tiles, small batches with gradient accumulation, and FP16.
 - Measure and log in plain text: time per epoch, peak GPU memory, the largest tile and batch size that fit in 2 GB, and how CPU data loading limits the speed.
 - Repeat with a stand-in sequence-reader model of 20 to 40 million parameters, using gradient checkpointing, so that its speed and memory are known too.

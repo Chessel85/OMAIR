@@ -18,6 +18,10 @@ Last updated 5 October 2026 (Stage 3 session). This file records what has been d
 - **Stage 3, licence register: done.** `docs/licence-register.md` has an entry for each of the 66 pinned dependencies (from package metadata) and for the datasets, models, tools and fonts (looked up by web search on 5 October 2026, source named per entry). `tests/test_licence_register.py` fails if a pinned dependency has no entry (9 of 9 tests pass). Three items were settled by default rules the owner can change: CPDL (only public domain, CC0 or CC BY editions in the public repo), Mutopia (same; CC BY-SA stays local) and OLiMPiC (CC BY-SA, internal only). LEGATO is a never-shipped baseline (gated weights, Llama encoder). Emmentaler, Gonville and MuseJazz licences are unconfirmed but they are not shipped.
 - Stages 4 to 11: not started.
 
+## Corpus location
+
+The corpus lives outside the repository on the owner's 2 TB external drive, in `E:\OMAIRCorpus` (841 GB free when set up on 5 October 2026), because the system drive has about 200 GB free. `src/omr/paths.py` reads the environment variable `OMR_CORPUS_DIR` (set for the owner's Windows user) and falls back to the `corpus` folder in the repository, so CI works unchanged. A configured folder that does not exist is an error, and `check_free_space` stops jobs below 100 GB free. Tests are in `tests/test_paths.py` (13 of 13 tests pass). Stage 5 and the later stages that write data must use `omr.paths`. The regression set is the exception and is copied into the repository for CI.
+
 ## Stage 1 details
 
 Done:
