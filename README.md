@@ -4,6 +4,8 @@ A free, offline optical music recognition tool. It converts sheet music PDFs and
 
 The project is at Phase 0 (foundations). Nothing recognises music yet. The `omr` command exists, but its `inspect`, `evaluate` and `convert` subcommands print "not implemented yet".
 
+Development conventions, including the accessibility rules for output and logs, are in `docs/conventions.md`.
+
 Design documents are in `docs/`: `requirements.md`, `solution-design.md` and `plans/phase0.md`. Progress against the Phase 0 plan is in `docs/plans/phase0-progress.md`.
 
 The GitHub repository is called OMAIR (https://github.com/Chessel85/OMAIR). The Python package and command are called `omr`.

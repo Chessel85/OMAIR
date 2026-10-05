@@ -1,6 +1,6 @@
 # Phase 0 progress log
 
-Last updated 5 October 2026. This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
+Last updated 5 October 2026 (later session). This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
 
 ## Repository facts
 
@@ -14,7 +14,8 @@ Last updated 5 October 2026. This file records what has been done against `phase
 
 - **Stage 0, prerequisites: done** (Dorico SE parked). `scripts/check_environment.py` is written and reports Python, Git, MuseScore 3 and 4, LilyPond, musicxml2ly, Java, Dorico SE and nvidia-smi. Working command lines are in `docs/notes/tool-commands.md`. Both MuseScore versions convert headlessly. `nvidia-smi` reports the T500 with CUDA 13.2. **Dorico SE is parked**: it is not accessible with a screen reader, so it is dropped from Phase 0 for now and the script treats it as optional. Java (Temurin OpenJDK 25.0.4.1, installed by the owner from `OpenJDK25U-jdk_x64_windows_hotspot_25.0.4.1_1.msi` as a per-user install) is found by the script. All required tools are found. LilyPond renders a PDF from the converted file. The script exits with status 0.
 - **Stage 1, skeleton: done**, with one gap (see below).
-- Stages 2 to 11: not started.
+- **Stage 2, CI and conventions: written, not yet confirmed.** Added `.github/workflows/tests.yml` (Windows and Linux, Python 3.14, every push and pull request), `docs/conventions.md`, the shared logging helper `src/omr/log.py` and `tests/test_log.py`. Local tests pass (7 of 7). Still to do: push and check that CI is green, then the owner tries set-up, test and results-reading with NVDA and reports anything awkward.
+- Stages 3 to 11: not started.
 
 ## Stage 1 details
 
@@ -27,7 +28,7 @@ Done:
 - Dependencies: `requirements.in` (direct, unpinned), `requirements.txt` (pinned), `requirements-torch.txt` (PyTorch and torchvision, installed from the CUDA 13.0 index).
 - Checked: all dependencies have Python 3.14 Windows wheels, so the fallback to 3.13 is not needed. Smoke test passes, PyTorch sees the NVIDIA T500 (driver 596.71) with CUDA 13.0, and 3 of 3 tests pass. The README steps were followed in a fresh environment and worked.
 
-Gap: the "fresh clone" check was done by building a new environment in this working folder, not by cloning on another machine. Stage 2 CI on Linux will cover this further.
+Fresh-clone check: repeated in a later session by cloning https://github.com/Chessel85/OMAIR.git into a temporary folder and following the README. All dependencies installed, the smoke test passed with the GPU seen, and 3 of 3 tests passed. Stage 1 is fully done. Stage 2 CI on Linux will cover other machines.
 
 ## Open points for the owner
 
@@ -36,4 +37,5 @@ Gap: the "fresh clone" check was done by building a new environment in this work
 
 ## Next steps
 
-1. Stage 2 (CI and conventions) and Stage 3 (licence register) in parallel.
+1. Push Stage 2, confirm CI is green, and get the owner's NVDA check.
+2. Stage 3 (licence register).
