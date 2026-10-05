@@ -14,7 +14,7 @@ Last updated 5 October 2026 (later session). This file records what has been don
 
 - **Stage 0, prerequisites: done** (Dorico SE parked). `scripts/check_environment.py` is written and reports Python, Git, MuseScore 3 and 4, LilyPond, musicxml2ly, Java, Dorico SE and nvidia-smi. Working command lines are in `docs/notes/tool-commands.md`. Both MuseScore versions convert headlessly. `nvidia-smi` reports the T500 with CUDA 13.2. **Dorico SE is parked**: it is not accessible with a screen reader, so it is dropped from Phase 0 for now and the script treats it as optional. Java (Temurin OpenJDK 25.0.4.1, installed by the owner from `OpenJDK25U-jdk_x64_windows_hotspot_25.0.4.1_1.msi` as a per-user install) is found by the script. All required tools are found. LilyPond renders a PDF from the converted file. The script exits with status 0.
 - **Stage 1, skeleton: done**, with one gap (see below).
-- **Stage 2, CI and conventions: written, not yet confirmed.** Added `.github/workflows/tests.yml` (Windows and Linux, Python 3.14, every push and pull request), `docs/conventions.md`, the shared logging helper `src/omr/log.py` and `tests/test_log.py`. Local tests pass (7 of 7). Still to do: push and check that CI is green, then the owner tries set-up, test and results-reading with NVDA and reports anything awkward.
+- **Stage 2, CI and conventions: written, CI green, NVDA check in progress.** Added `.github/workflows/tests.yml` (Windows and Linux, Python 3.14, every push and pull request), `docs/conventions.md`, the shared logging helper `src/omr/log.py` and `tests/test_log.py`. Local tests pass (7 of 7). Pushed, and CI passed on Windows and Linux. Added `scripts/log_demo.py` and a README note about activating the environment in each new terminal, after the owner hit "No module named 'omr'" in a window without it. The owner found the log output fine and the timestamp tolerable. Still to do: the owner finishes the NVDA check of set-up, test running and CI reading, and reports anything awkward.
 - Stages 3 to 11: not started.
 
 ## Stage 1 details
@@ -37,5 +37,5 @@ Fresh-clone check: repeated in a later session by cloning https://github.com/Che
 
 ## Next steps
 
-1. Push Stage 2, confirm CI is green, and get the owner's NVDA check.
+1. Finish the owner's NVDA check for Stage 2.
 2. Stage 3 (licence register).
