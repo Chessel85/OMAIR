@@ -31,7 +31,7 @@ Gap: the "fresh clone" check was done by building a new environment in this work
 
 ## Open points for the owner
 
-- Stage 0 owner actions still to confirm: MuseScore 4 and Git are installed. MuseScore 3 was reported installed, but it was not found in the standard `Program Files` folders, so its path needs finding. Java, LilyPond and Dorico SE were not found on the path (Dorico SE may be elsewhere). The GitHub repository is done.
+- Stage 0 owner actions still to confirm: MuseScore 4 (`C:\Program Files\MuseScore 4`) and Git are installed, and the GitHub repository is done. MuseScore 3.3.4 is installed as a Microsoft Store package, with `MuseScore3.exe` in `C:\Program Files\WindowsApps\64051MuseScoreBVBA.MuseScoreNotationSoftware_3.3.4.0_x64__pz631wrhsw9tj\bin`. The folder name contains the version, so it changes on update. `check_environment.py` should find it with `Get-AppxPackage *MuseScore*` rather than a fixed path, and Stage 0 must test that the command line works from a Store install. Java, LilyPond and Dorico SE were not found on the path (Dorico SE may be elsewhere).
 - Package and README titles still say OMR. The owner is happy with the local/remote name difference.
 
 ## Next steps
