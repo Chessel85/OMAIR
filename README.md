@@ -22,6 +22,8 @@ In PowerShell, from the repository folder:
 4. Install the other dependencies: `pip install -r requirements.txt`
 5. Install the project itself: `pip install -e .`
 
+Every new terminal window needs step 2 again before you run `python`, `pytest` or `omr`. When the environment is active, the prompt starts with `(.venv)`. If you see "No module named 'omr'", the environment is not active.
+
 ## Check that it works
 
 - Run the smoke test: `python scripts/smoke_test.py`. It lists each dependency as OK or FAILED, says whether PyTorch sees the GPU, and ends with a one-line summary.
