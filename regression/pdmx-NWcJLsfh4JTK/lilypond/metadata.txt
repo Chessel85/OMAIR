@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/13/41/QmVR24p82weJ954xNNwUcCPsLDaiDFEhUFNWcJLsfh4JTK.mxl
+work key: kirkpatrick|whole wide world jesus kirkpatrick wm j kirkpatrick
+title: The whole wide world for Jesus (Kirkpatrick) - Wm. J. Kirkpatrick
+composer: William J. Kirkpatrick
+set: regression
+texture: piano
+genre: classical
+features: key or time changes
+engraver: LilyPond
+engraver version: GNU LilyPond 2.26.0 (running Guile 3.0)
+font: Emmentaler
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

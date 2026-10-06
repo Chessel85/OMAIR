@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/8/6/QmQ7VpqSz9cSCTf3UFjm12bNjiuNYgEzZXkmX7TRdj8kS2.mxl
+work key: wesley|adored acclaiming crowd charles wesley
+title: Adored By The Acclaiming Crowd - Charles Wesley
+composer: Charles Wesley
+set: regression
+texture: voice with piano
+genre: classical
+features: lyrics, several voices on a staff
+engraver: MuseScore 3
+engraver version: MuseScore3 3.3.4
+font: Bravura
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

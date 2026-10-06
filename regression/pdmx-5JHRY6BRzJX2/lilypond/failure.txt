@@ -1,0 +1,1 @@
+LilyPond exited with status 1: ommon is a VerticalAlignment, which might contain several staves. continuing, cross fingers Finding the ideal number of pages... Fitting music on 2 or 3 pages... Drawing systems... Converting to `score.pdf'... fatal error: failed files: "C:\\Users\\chess\\AppData\\Local\\Temp\\tmpi2eenih6\\score.ly"

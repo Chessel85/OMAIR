@@ -1,6 +1,6 @@
 # Phase 0 progress log
 
-Last updated 6 October 2026 (Stage 6 done: reviewed by Opus, and every finding dealt with). This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
+Last updated 6 October 2026 (Stage 7 done locally, not yet pushed). This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
 
 ## Repository facts
 
@@ -34,7 +34,8 @@ Last updated 6 October 2026 (Stage 6 done: reviewed by Opus, and every finding d
   - **To watch with the first real recogniser (Stage 9):** an output with many errors makes the bar search widen, up to the whole table. On the largest development score (152 bars) the full table takes about 2 seconds, so a long score with many errors could take tens of seconds.
   - TEDn is not computed (open item, spec decision 7).
   - **Speed:** the perfect recogniser over the 1,778 development pairs takes about 6 minutes without musicdiff and about 48 minutes with it (3 workers).
-- Stages 7 to 11: not started.
+- **Stage 7, regression set and automatic runs: done locally (6 October 2026); CI not yet seen running.** `regression/` holds the 43-score, 256-pair regression set (32.5 MB), copied from the corpus drive by `scripts/make_regression_snapshot.py` with an index of relative paths (`omr evaluate` gained `--set-root FOLDER`, and the harness resolves relative index paths). `scripts/check_regression.py` runs the `perfect` and `damaged` stand-ins over it in about a minute, and compares note accuracy (overall and by engraver), structure, marking recall and flag coverage with `regression/baseline.txt` (plain text; margin 0.1 points; any new failure, harness error or change in file count fails). `--update` records a baseline. CI has a new job, "Regression set", in `tests.yml`. `tests/test_regression.py` covers the comparison and shows a worse stand-in failing and an unchanged one passing (182 tests pass in all). How to update the baseline deliberately is in `docs/notes/regression.md`. Still to do: push, confirm the CI job is green, and add real recognisers to the baseline in Stage 9.
+- Stages 8 to 11: not started.
 - **Parallel runs (6 October 2026, before Stage 6, at the owner's request):** `src/omr/parallel.py` is a shared worker pool (default 3 workers). `build_corpus.py export SET --workers N` uses it. Tests are in `tests/test_parallel.py` and `tests/test_corpus.py` (114 of 114 pass). Measured speed-up with 3 workers is about 1.7 times, not more, because MuseScore already uses several threads and the laptop lowers its clock under full load (details in `docs/notes/tool-commands.md`). The Stage 6 harness and the MuseScore 4 answer-key regeneration must use the same pool and option (rule in `docs/conventions.md`).
 - **Per-pair answer keys for MuseScore 4: done (6 October 2026).** Each MuseScore 4 pair keeps the MusicXML written with its PDF, in one MuseScore run with the same style file, as `score.musicxml`, its ground truth. Its difference from the shared reference is in its metadata. All 686 MuseScore 4 pairs were rebuilt: 648 match the reference exactly, 34 differ only in other objects (mostly pedal and dynamic positions), and 4 (two scores) are musicdiff faults, not real differences. The rebuild also led to a relaxed inspector SMuFL rule (a percussion-heavy Petaluma score) and to redoing 76 MuseScore 3 variants whose fonts were left over from the redraws. Details in `docs/notes/corpus-sampling.md`, "Implementation notes".
 - **Stage 8, first task (decided by the owner on 6 October 2026):** change the inspector's "unknown, probably music" font rule to judge by position (at least 10 glyphs, and at least half of the font's glyphs, centred between the top and bottom lines of a staff) instead of by the share of letters. Add a test page with characters placed on and above staff lines under a made-up font name. Do this before the survey runs, or unlisted legacy fonts will be missed. The reasons are in `docs/notes/opus-review-findings.md`, Stage 4, finding 2.
@@ -63,5 +64,5 @@ Fresh-clone check: repeated in a later session by cloning https://github.com/Che
 
 ## Next steps
 
-1. Stages 7 and 8 in parallel: the regression set in the repository with its CI job, and the first Stage 8 task (the inspector's position-based font rule) before the PDF survey.
+1. Push Stage 7 and confirm CI is green. Then Stage 8, starting with the inspector's position-based font rule before the PDF survey.
 2. Dorico stays parked unless the Stage 8 survey shows Dorico PDFs are common. What automating it would need is in `docs/notes/tool-commands.md`.

@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/10/11/QmSbH1kKP65XUXsESMUb4tRchgZXuoykYUsPED13SuAS5y.mxl
+work key: bach|bach johann sebastian franzosische suite nr 1 4 menuet
+title: Bach Johann Sebastian - Französische Suite Nr 1 4-Menuet
+composer: Johann Sebastian Bach
+set: regression
+texture: piano
+genre: classical
+features: dynamics or hairpins, grace notes, repeats or endings, several voices on a staff
+engraver: LilyPond
+engraver version: GNU LilyPond 2.26.0 (running Guile 3.0)
+font: Emmentaler
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

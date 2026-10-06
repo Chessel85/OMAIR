@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/3/30/QmdLv4jg8s3TunXWNHimB6SL93UnGWYPiRtqENpPLqXXt6.mxl
+work key: wesley|wigan wesley samuel sebastian wesley
+title: WIGAN (Wesley) - Samuel Sebastian Wesley
+composer: Samuel Sebastian Wesley
+set: regression
+texture: choir
+genre: choral
+features: lyrics, several voices on a staff
+engraver: MuseScore 3
+engraver version: MuseScore3 3.3.4
+font: Emmentaler
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

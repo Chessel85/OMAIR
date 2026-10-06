@@ -58,6 +58,8 @@ def read_pairs(set_name, root=None):
             failures += 1
             continue
         _, score_id, job, _font, pdf, truth = fields[:6]
+        # Paths in a set kept in the repository are relative to its index.
+        pdf, truth = (p if Path(p).is_absolute() else str(root / p) for p in (pdf, truth))
         meta_path = Path(pdf).parent / "metadata.txt"
         meta = {}
         if meta_path.is_file():

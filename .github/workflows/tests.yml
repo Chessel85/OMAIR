@@ -26,3 +26,21 @@ jobs:
           python -m pip install -e .
       - name: Run tests
         run: python -m pytest
+
+  regression:
+    name: Regression set
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PyMuPDF opencv-python-headless numpy scipy verovio music21 musicdiff
+          python -m pip install -e .
+      # Runs the stand-in recognisers over regression/ and fails if any figure
+      # is worse than regression/baseline.txt by more than the margin.
+      - name: Check against the baseline
+        run: python scripts/check_regression.py

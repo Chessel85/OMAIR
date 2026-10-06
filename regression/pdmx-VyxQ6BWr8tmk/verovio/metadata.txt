@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/8/1/QmQ235fseo1YR57VzHq6Hxv4jhzytMWxTHVyxQ6BWr8tmk.mxl
+work key: liszt|nuages gris extra pedal
+title: Nuages Gris (extra Pedal)
+composer: Franz Liszt
+set: regression
+texture: piano
+genre: classical
+features: dynamics or hairpins, several voices on a staff, tuplets
+engraver: Verovio
+engraver version: 6.3.0[undefined]
+font: Verovio
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

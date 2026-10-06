@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/13/20/QmVFpkfPqz3ancqVTn1bx4gUrtDxCmv55UiFAUMktENLWF.mxl
+work key: liszt|franz liszt nocturne n3 reve d amour
+title: Franz Liszt - Nocturne n3 Rêve d'Amour
+composer: Franz Liszt
+set: regression
+texture: piano
+genre: classical
+features: none
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Bravura
+staff size: 2.0 mm
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

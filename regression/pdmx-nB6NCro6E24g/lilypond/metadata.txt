@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/3/33/QmdnEnh4UcYSZ5Kr47QNgc6AtXQzyWQHsCnB6NCro6E24g.mxl
+work key: beethoven|sonata op 49 no 2 alto saxophone duet
+title: Sonata Op. 49 No. 2 for Alto Saxophone Duet
+composer: L. Van Beethoven
+set: regression
+texture: choir
+genre: choral
+features: dynamics or hairpins, grace notes, tuplets
+engraver: LilyPond
+engraver version: GNU LilyPond 2.26.0 (running Guile 3.0)
+font: Emmentaler
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

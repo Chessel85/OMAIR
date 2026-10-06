@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/14/44/QmWtnyRT1uvZNCVzvHyBHvjfoPWXDzj6AF5JHRY6BRzJX2.mxl
+work key: grieg|hilsen gruss edward grieg
+title: Hilsen (Gruss) Edward Grieg
+composer: Edward Grieg
+set: regression
+texture: voice with piano
+genre: classical
+features: dynamics or hairpins, grace notes, lyrics, several voices on a staff
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Leland
+staff size: default
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 4 in all objects
+seed: 20261005
+date of export: 2026-10-06

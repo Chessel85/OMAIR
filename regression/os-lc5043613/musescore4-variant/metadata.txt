@@ -1,0 +1,18 @@
+source: OpenScore
+source path: Lieder/Cornelius,_Peter/Trauer_und_Trost,_Op.3/5_Treue/lc5043613.mxl
+work key: cornelius|5 treue
+title: 5 Treue
+composer: Peter Cornelius
+set: regression
+texture: voice with piano
+genre: classical
+features: dynamics or hairpins, key or time changes, lyrics, several voices on a staff
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Finale Broadway
+staff size: 1.75 mm
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

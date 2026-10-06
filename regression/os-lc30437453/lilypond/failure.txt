@@ -1,0 +1,1 @@
+LilyPond exited with status 1: ng '.' or '=' >> C:/Users/chess/AppData/Local/Temp/tmpmt9e4i9n/score.ly:196:1: error: syntax error, unexpected '}' } C:/Users/chess/AppData/Local/Temp/tmpmt9e4i9n/score.ly:196:2: error: Unfinished main input } fatal error: failed files: "C:\\Users\\chess\\AppData\\Local\\Temp\\tmpmt9e4i9n\\score.ly"

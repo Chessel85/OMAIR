@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/12/43/QmUSWddat2VTmv3CNCWcwz73etRjQXybjHN4apPPkuiAtX.mxl
+work key: geibel|i need thee lord life is sometimes dreary adam geibel
+title: I need Thee Lord for life is sometimes dreary - Adam Geibel
+composer: Adam Geibel
+set: regression
+texture: piano
+genre: classical
+features: key or time changes, several voices on a staff
+engraver: MuseScore 3
+engraver version: MuseScore3 3.3.4
+font: Bravura
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

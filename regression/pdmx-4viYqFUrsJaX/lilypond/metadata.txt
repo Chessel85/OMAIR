@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/4/38/QmeqNFNfivCVDshWYKow7fpuaaXM89jzdz4viYqFUrsJaX.mxl
+work key: kellner|phantasia minor david kellner 1670 1748
+title: Phantasia in A minor - David Kellner (1670-1748)
+composer: David Kellner
+set: regression
+texture: single line
+genre: classical
+features: dynamics or hairpins, guitar, key or time changes, several voices on a staff
+engraver: LilyPond
+engraver version: GNU LilyPond 2.26.0 (running Guile 3.0)
+font: Emmentaler
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

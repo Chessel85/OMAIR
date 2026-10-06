@@ -1,0 +1,18 @@
+source: OpenScore
+source path: Lieder/Schoenberg,_Arnold/Das_Buch_der_hängenden_Gärten,_Op.15/7_Angst_und_Hoffen_wechselnd_mich_beklemmen/lc30437453.mxl
+work key: schoenberg|7 angst und hoffen wechselnd mich beklemmen
+title: 7 Angst und Hoffen wechselnd mich beklemmen
+composer: Arnold Schoenberg
+set: regression
+texture: voice with piano
+genre: classical
+features: dynamics or hairpins, key or time changes, lyrics, several voices on a staff, tuplets
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Leland
+staff size: default
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

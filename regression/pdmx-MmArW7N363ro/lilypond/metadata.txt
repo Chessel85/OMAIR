@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/2/41/QmcRh7aWVks1H8droe61s661orPZSRCKfmMmArW7N363ro.mxl
+work key: mozart|wolfgang amadeus mozart theme
+title: Wolfgang Amadeus Mozart - Theme
+composer: Wolfgang Amadeus Mozart
+set: regression
+texture: single line
+genre: classical
+features: chord symbols
+engraver: LilyPond
+engraver version: GNU LilyPond 2.26.0 (running Guile 3.0)
+font: Emmentaler
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

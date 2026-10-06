@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/8/29/QmQKQtmH8DsnA5gc9vu2x1tgZeTdX2gXLP43id8LnKKREH.mxl
+work key: bach|minuet c minor
+title: Minuet_in_C_Minor
+composer: J.S. Bach
+set: regression
+texture: piano
+genre: classical
+features: grace notes, repeats or endings, several voices on a staff, tuplets
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Petaluma
+staff size: 1.5 mm
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

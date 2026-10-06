@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/1/5/Qmb6okFHL9g7Hmq7pyercQMePwTHxhiEvYkyKcYH1Z2cK9.mxl
+work key: kjerulf|le celebre menuet d exaudet
+title: Le célèbre Menuet d'Exaudet
+composer: Halfdan Kjerulf
+set: regression
+texture: choir
+genre: choral
+features: dynamics or hairpins, grace notes, lyrics, repeats or endings
+engraver: MuseScore 3
+engraver version: MuseScore3 3.3.4
+font: Emmentaler
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

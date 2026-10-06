@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/10/11/QmSbH1kKP65XUXsESMUb4tRchgZXuoykYUsPED13SuAS5y.mxl
+work key: bach|bach johann sebastian franzosische suite nr 1 4 menuet
+title: Bach Johann Sebastian - Französische Suite Nr 1 4-Menuet
+composer: Johann Sebastian Bach
+set: regression
+texture: piano
+genre: classical
+features: dynamics or hairpins, grace notes, repeats or endings, several voices on a staff
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Leland
+staff size: default
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

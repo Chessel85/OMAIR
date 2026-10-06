@@ -43,6 +43,9 @@ def add_evaluate_arguments(p):
     p.add_argument("--timeout", type=int, default=600, help="Seconds allowed per file (default 600).")
     p.add_argument("--cpu-only", action="store_true", help="Hide the GPU from the recogniser, for timings on the CPU alone.")
     p.add_argument("--no-musicdiff", action="store_true", help="Skip musicdiff and OMR-NED, which are slower.")
+    p.add_argument("--set-root", metavar="FOLDER",
+                   help="Read the set from FOLDER (with its index.txt) instead of the corpus folder, "
+                        "for example the regression set in the repository.")
     p.add_argument("--out", metavar="FOLDER", help="Where the reports go (default: evaluations/ under the corpus folder).")
 
 
@@ -60,7 +63,7 @@ def run_evaluate(args):
         results, report = harness.run(
             args.set, args.recogniser, log, out_dir=args.out, predictions=args.predictions,
             workers=args.workers, timeout=args.timeout, cpu_only=args.cpu_only,
-            with_musicdiff=not args.no_musicdiff, **filters)
+            with_musicdiff=not args.no_musicdiff, set_root=args.set_root, **filters)
     except (ValueError, FileNotFoundError, paths.CorpusDirError) as error:
         log.error(str(error))
         return log.finish("evaluation stopped")

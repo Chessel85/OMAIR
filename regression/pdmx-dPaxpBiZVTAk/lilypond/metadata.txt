@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/3/53/QmdXthCJRTDeXbGfESfhkZAEpBH45RoeotdPaxpBiZVTAk.mxl
+work key: unknown|cool song
+title: Cool piano song
+composer: Unknown
+set: regression
+texture: chamber
+genre: unlabelled
+features: dynamics or hairpins, repeats or endings
+engraver: LilyPond
+engraver version: GNU LilyPond 2.26.0 (running Guile 3.0)
+font: Emmentaler
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

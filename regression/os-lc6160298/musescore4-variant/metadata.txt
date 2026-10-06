@@ -1,0 +1,18 @@
+source: OpenScore
+source path: Lieder/Zumsteeg,_Emilie/6_Lieder,_Op.4/2_Morgenfreude/lc6160298.mxl
+work key: zumsteeg|2 morgenfreude
+title: 2 Morgenfreude
+composer: Emilie Zumsteeg
+set: regression
+texture: voice with piano
+genre: classical
+features: dynamics or hairpins, grace notes, lyrics, repeats or endings, several voices on a staff, tuplets
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: MuseJazz
+staff size: 2.0 mm
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

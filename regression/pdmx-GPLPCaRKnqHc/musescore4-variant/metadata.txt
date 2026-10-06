@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/15/53/QmXX3Y6TdRejBjw213yEKBkGavZ7TMVqZeGPLPCaRKnqHc.mxl
+work key: heber|o savior is thy promise fled reginald heber
+title: O Savior is thy promise fled? - Reginald Heber
+composer: Reginald Heber
+set: regression
+texture: voice with piano
+genre: classical
+features: lyrics, several voices on a staff
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Bravura
+staff size: 1.5 mm
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

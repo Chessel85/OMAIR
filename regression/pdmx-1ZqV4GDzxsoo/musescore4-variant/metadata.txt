@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/0/23/QmahCwNBXFau6rvkmf5YzxoSfsCfShRDUQ1ZqV4GDzxsoo.mxl
+work key: traditional|lindan
+title: Lindan
+composer: Misc Traditional
+set: regression
+texture: small ensemble
+genre: folk
+features: none
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Gonville
+staff size: 1.75 mm
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

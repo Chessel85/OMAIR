@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/15/48/QmXvJzVHNLq3bo6zLMZ6t9bvBqHAaTR2iVR4xv9q63LNef.mxl
+work key: newton|retrospection john newton
+title: Retrospection - John Newton
+composer: John Newton
+set: regression
+texture: voice with piano
+genre: classical
+features: lyrics
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Petaluma
+staff size: 1.75 mm
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

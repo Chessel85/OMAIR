@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/3/53/QmdXthCJRTDeXbGfESfhkZAEpBH45RoeotdPaxpBiZVTAk.mxl
+work key: unknown|cool song
+title: Cool piano song
+composer: Unknown
+set: regression
+texture: chamber
+genre: unlabelled
+features: dynamics or hairpins, repeats or endings
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Bravura
+staff size: 2.0 mm
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

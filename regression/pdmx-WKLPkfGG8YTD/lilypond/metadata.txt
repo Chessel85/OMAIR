@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/14/13/QmWcKV2u2xvhp2zvxajdByrRPrtuG7ahtBWKLPkfGG8YTD.mxl
+work key: morley|help i fall thomas morley
+title: Help I fall - Thomas Morley
+composer: Help I fall - Morley
+set: regression
+texture: choir
+genre: choral
+features: key or time changes, lyrics, repeats or endings
+engraver: LilyPond
+engraver version: GNU LilyPond 2.26.0 (running Guile 3.0)
+font: Emmentaler
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/10/55/QmSYKTjAL9fJD6DSm3TbysGdmMVf2qF6SJq1bJxo46ctvp.mxl
+work key: traditional|moll wadd
+title: Moll in the Wadd
+composer: Misc Traditional
+set: regression
+texture: chamber
+genre: folk
+features: repeats or endings
+engraver: MuseScore 3
+engraver version: MuseScore3 3.3.4
+font: Gonville
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

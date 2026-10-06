@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/17/8/QmZ9yVxEQ78khkYg1AJStAabpm7Mgx8BynELDbBfeQzMDw.mxl
+work key: traditional|o night of nights supreme delights
+title: O Night Of Nights Supreme Delights
+composer: Misc Traditional
+set: regression
+texture: voice with piano
+genre: folk
+features: lyrics, several voices on a staff
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Leland
+staff size: default
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

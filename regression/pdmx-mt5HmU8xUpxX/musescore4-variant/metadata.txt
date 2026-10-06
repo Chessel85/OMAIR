@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/15/9/QmXawjtRrYQeZHYiYzSdmpw6LNBKAR8QDAmt5HmU8xUpxX.mxl
+work key: game|traditional music frisky
+title: Traditional music - The Frisky
+composer: Traditional Singing Game
+set: regression
+texture: single line
+genre: unlabelled
+features: chord symbols
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Gonville
+staff size: 1.5 mm
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

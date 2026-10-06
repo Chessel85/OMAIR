@@ -1,0 +1,17 @@
+source: OpenScore
+source path: Lieder/Zumsteeg,_Emilie/5_Lieder/3_In_das_Stambuch_einer_Freundin/lc6159296.mxl
+work key: zumsteeg|3 das stambuch einer freundin
+title: 3 In das Stambuch einer Freundin
+composer: Emilie Zumsteeg
+set: regression
+texture: chamber
+genre: classical
+features: grace notes, guitar, lyrics, tuplets
+engraver: Verovio
+engraver version: 6.3.0[undefined]
+font: Verovio
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

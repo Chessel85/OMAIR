@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/10/9/QmSat3GXUTPx6h6heKP4tJdPaQZsTMc7XKky7C2BqKzcPt.mxl
+work key: traditional|traditional music jolly old saint nicholas
+title: Traditional music - Jolly Old Saint Nicholas
+composer: Traditional
+set: regression
+texture: single line
+genre: popular
+features: none
+engraver: MuseScore 3
+engraver version: MuseScore3 3.3.4
+font: Emmentaler
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

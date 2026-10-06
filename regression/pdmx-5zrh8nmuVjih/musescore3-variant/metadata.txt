@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/11/16/QmTDVEvgexrYLAz8X4B42PisZwogSpVi765zrh8nmuVjih.mxl
+work key: bradbury|joyful away to pisgah s mountain wm b bradbury
+title: Joyful away to Pisgah's mountain - Wm. B. Bradbury
+composer: Wm. B. Bradbury
+set: regression
+texture: piano
+genre: classical
+features: key or time changes, lyrics
+engraver: MuseScore 3
+engraver version: MuseScore3 3.3.4
+font: MuseJazz
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

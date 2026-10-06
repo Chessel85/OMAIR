@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/9/30/QmRLDo33CKfD3gvgLGjPHxMuhEnemW2joiMEkBgfaZVZEt.mxl
+work key: gabriel|old glory stands without peer chas h gabriel
+title: Old Glory stands without a peer - Chas. H. Gabriel
+composer: Chas. H. Gabriel
+set: regression
+texture: piano
+genre: classical
+features: key or time changes, several voices on a staff
+engraver: MuseScore 3
+engraver version: MuseScore3 3.3.4
+font: Gonville
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

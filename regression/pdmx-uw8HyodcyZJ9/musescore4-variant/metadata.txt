@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/16/2/QmY3Pe1BGNWoYxh2m2UQa7vRXXQs55P6Couw8HyodcyZJ9.mxl
+work key: beethoven|fra tutte le pene zweite komposition
+title: Fra tutte le pene (Zweite Komposition)
+composer: Ludvig van Beethoven
+set: regression
+texture: chamber
+genre: classical
+features: lyrics, several voices on a staff
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: MuseJazz
+staff size: 1.75 mm
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06

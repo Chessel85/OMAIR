@@ -1,0 +1,17 @@
+source: PDMX
+source path: mxl/15/53/QmXX3Y6TdRejBjw213yEKBkGavZ7TMVqZeGPLPCaRKnqHc.mxl
+work key: heber|o savior is thy promise fled reginald heber
+title: O Savior is thy promise fled? - Reginald Heber
+composer: Reginald Heber
+set: regression
+texture: voice with piano
+genre: classical
+features: lyrics, several voices on a staff
+engraver: LilyPond
+engraver version: GNU LilyPond 2.26.0 (running Guile 3.0)
+font: Emmentaler
+staff size: default
+ground truth file: ../reference.musicxml
+ground truth: engraver input
+seed: 20261005
+date of export: 2026-10-05

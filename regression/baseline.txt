@@ -1,0 +1,24 @@
+# Regression baseline (Stage 7). Written by scripts/check_regression.py --update.
+# One line per figure: recogniser | figure | value. Percentages are of the counts shown.
+# Update it only on purpose; see docs/notes/regression.md.
+perfect | files evaluated | 256
+perfect | harness errors | 0
+perfect | files failed | 0
+perfect | note accuracy | 100.0
+perfect | files structurally correct | 100.0
+perfect | dynamics and hairpins recall | 100.0
+perfect | note accuracy, LilyPond | 100.0
+perfect | note accuracy, MuseScore 3 | 100.0
+perfect | note accuracy, MuseScore 4 | 100.0
+perfect | note accuracy, Verovio | 100.0
+damaged | files evaluated | 256
+damaged | harness errors | 0
+damaged | files failed | 0
+damaged | note accuracy | 98.49
+damaged | files structurally correct | 2.34
+damaged | dynamics and hairpins recall | 92.18
+damaged | note errors in flagged bars | 45.8
+damaged | note accuracy, LilyPond | 98.45
+damaged | note accuracy, MuseScore 3 | 98.5
+damaged | note accuracy, MuseScore 4 | 98.5
+damaged | note accuracy, Verovio | 98.5

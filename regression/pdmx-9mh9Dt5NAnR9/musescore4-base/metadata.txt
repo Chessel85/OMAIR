@@ -1,0 +1,18 @@
+source: PDMX
+source path: mxl/13/37/QmVPbzaCqNpMPVDBhDi7TGry4MHJ9dc2Yx9mh9Dt5NAnR9.mxl
+work key: marshall|william marshall nameless lassie
+title: William Marshall - the Nameless Lassie
+composer: William Marshall
+set: regression
+texture: single line
+genre: classical
+features: chord symbols, grace notes
+engraver: MuseScore 4
+engraver version: MuseScore: Music Score Editor; Version 4.7.5; Build 3654226
+font: Leland
+staff size: default
+ground truth file: score.musicxml
+ground truth: exact
+difference from shared reference: 0 in notes and rests, 0 in all objects
+seed: 20261005
+date of export: 2026-10-06
