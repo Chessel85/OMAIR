@@ -62,6 +62,7 @@ def check_damaged(result, out_dir):
         "spelling only": n["wrong by kind"].get("spelling only", 0),
         "exact": n["exact"], "structure mismatches": len(result["structure"]["mismatches"]),
         "dynamics found": result["markings"]["dynamic"]["found"],
+        "hairpins found": result["markings"]["hairpin"]["found"],
         "covered": result["flags"]["covered"], "bars flagged": result["flags"]["bars flagged"],
         "voice errors": result["diagnostics"]["voice"]["of"] - result["diagnostics"]["voice"]["right"],
     }
@@ -70,6 +71,7 @@ def check_damaged(result, out_dir):
         "duration": e["duration"], "spelling only": e["spelling only"],
         "exact": n["truth"] - e["missing"] - e["wrong"], "structure mismatches": e["structure mismatches"],
         "dynamics found": result["markings"]["dynamic"]["truth"] - e["dynamics removed"],
+        "hairpins found": result["markings"]["hairpin"]["truth"] - e.get("hairpins removed", 0),
         "covered": e["covered"], "bars flagged": e["bars_flagged"], "voice errors": 0,
     }
     problems = [f"{k}: expected {want[k]}, got {got[k]}" for k in want if want[k] != got[k]]

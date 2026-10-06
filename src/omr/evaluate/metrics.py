@@ -17,12 +17,14 @@ STRUCTURE_KINDS = ("clef", "key", "time", "repeat", "ending", "navigation")
 MARKING_KINDS = ("dynamic", "hairpin", "hairpin end", "words", "chord symbol")
 
 
-def compare(truth_path, output_path, flags_path=None):
-    """Compare two MusicXML files. Raises events.MusicXMLError if the ground
-    truth cannot be read; an unreadable output is the caller's failed file."""
+def compare(truth_path, output_path, flags_path=None, flags=None):
+    """Compare two MusicXML files, with flags from a flag file or already read.
+    Raises events.MusicXMLError if either file cannot be read (the caller
+    decides which), and ValueError if the flag file cannot be read."""
     truth = events.read(truth_path)
     output = events.read(output_path)
-    flags = read_flags(flags_path) if flags_path and Path(flags_path).is_file() else None
+    if flags is None and flags_path and Path(flags_path).is_file():
+        flags = read_flags(flags_path)
     return compare_scores(truth, output, flags)
 
 
@@ -58,7 +60,7 @@ def failed_file(truth_path, reason):
 def _note_counts(truth, output, result):
     kinds = collections.Counter()
     for pair in result.errors:
-        kinds[" and ".join(pair.differs)] += 1
+        kinds[_differs_words(pair.differs)] += 1
         if pair.spelling_only:
             kinds["spelling only"] += 1
     return {
@@ -70,6 +72,11 @@ def _note_counts(truth, output, result):
         "wrong": len(result.errors),
         "wrong by kind": dict(kinds),
     }
+
+
+def _differs_words(differs):
+    """("pitch", "onset", "duration") -> "pitch, onset and duration"."""
+    return ", ".join(differs[:-1]) + " and " + differs[-1] if len(differs) > 1 else differs[0]
 
 
 def _diagnostics(truth, output, result):
@@ -168,6 +175,13 @@ def _structure(truth, output, result, say):
                 mismatches.append(f"{say.part(n)}: the ground truth has {a} staves, the output has {b}.")
     if len(truth.bars) != len(output.bars):
         mismatches.append(f"The ground truth has {len(truth.bars)} bars, the output has {len(output.bars)}.")
+    out_of_order = matching.staves_out_of_order(truth, output)
+    if out_of_order:
+        def output_staff(part, staff):
+            return f"output part {part + 1}" + (f" staff {staff}" if output.parts[part].staves > 1 else "")
+        looks = "; ".join(f"{output_staff(*o)} looks like {say.part(t[0])}"
+                          + (f", {say.staff(*t)}" if say.staff(*t) else "") for o, t in out_of_order)
+        mismatches.append(f"The parts seem to be in a different order: {looks}.")
 
     def key(event, part, staff, bar, onset):
         if event.kind == "clef":
@@ -176,18 +190,24 @@ def _structure(truth, output, result, say):
 
     truth_events = collections.Counter(
         key(e, e.part, e.staff, e.bar, e.onset) for e in truth.structure if e.kind in STRUCTURE_KINDS)
-    output_events = collections.Counter()
+    # Each output part is counted on its own and the largest count kept, so a part
+    # written as two (piano as two parts) does not count its repeats twice.
+    by_output_part = collections.defaultdict(collections.Counter)
     for e in output.structure:
         if e.kind not in STRUCTURE_KINDS:
             continue
         target = _mapped_part(result, e.part, e.staff)
         position = matching.to_truth_position(result, e.bar, e.onset)
         if target is None or position is None:
-            output_events[(e.kind, e.value, None, None, None, None)] += 1
+            by_output_part[e.part][(e.kind, e.value, None, None, None, None)] += 1
             continue
-        output_events[key(e, target[0], target[1], position[0], position[1])] += 1
+        by_output_part[e.part][key(e, target[0], target[1], position[0], position[1])] += 1
+    output_events = collections.Counter()
+    for counter in by_output_part.values():
+        output_events |= counter
     only_truth = truth_events - output_events
     only_output = output_events - truth_events
+    entries = []   # (item, how): how is ("changed", new value) or ("has", has, lacks, count)
     # A changed value at the same place (2/4 became 3/4) is one mismatch, not two.
     for item in sorted(only_truth, key=lambda i: _sort_key((i, 0))):
         kind, value, part, staff, bar, onset = item
@@ -196,14 +216,10 @@ def _structure(truth, output, result, say):
         if other is not None and only_truth[item] == 1 and only_output[other] == 1:
             del only_output[other]
             only_truth[item] = 0
-            where = say.place(part, staff, bar, onset if kind == "clef" else None)
-            mismatches.append(f"{where}: the ground truth has {_structure_thing(say, kind, value)}, "
-                              f"the output has {_structure_thing(say, kind, other[1])}.")
-    only_truth = +only_truth
-    for item, count in sorted(only_truth.items(), key=_sort_key):
-        mismatches.append(_structure_words(say, item, "ground truth", "output", count))
-    for item, count in sorted(only_output.items(), key=_sort_key):
-        mismatches.append(_structure_words(say, item, "output", "ground truth", count))
+            entries.append((item, ("changed", other[1])))
+    entries += [(item, ("has", "ground truth", "output", count)) for item, count in (+only_truth).items()]
+    entries += [(item, ("has", "output", "ground truth", count)) for item, count in only_output.items()]
+    mismatches += _structure_lines(say, entries, len(truth.parts))
     truth_symbols = {(m.part, m.bar, m.value) for m in truth.markings if m.kind == "time symbol"}
     output_symbols = set()
     for m in output.markings:
@@ -230,13 +246,37 @@ def _structure_thing(say, kind, value):
     }[kind]()
 
 
-def _structure_words(say, item, has, lacks, count):
-    kind, value, part, staff, bar, onset = item
+def _structure_lines(say, entries, part_count):
+    """The mismatches in words, in bar order. A mismatch that every part has in
+    the same bar (a missing repeat in a 10-part score) is one line, not one per part."""
+    parts_with = collections.defaultdict(set)
+    for (kind, value, part, staff, bar, onset), how in entries:
+        if kind != "clef" and bar is not None and part is not None:
+            parts_with[(kind, value, bar, how)].add(part)
+    lines = []
+    for item, how in entries:
+        kind, value, part, staff, bar, onset = item
+        shared = parts_with.get((kind, value, bar, how), set())
+        if part_count > 1 and kind != "clef" and len(shared) == part_count:
+            if part != min(shared):
+                continue
+            where = f"{say.bar(bar)}, all {part_count} parts"
+        elif bar is None:
+            where = None
+        else:
+            where = say.place(part, staff, bar, onset if kind == "clef" else None)
+        lines.append((_sort_key((item, 0)), _structure_words(say, kind, value, how, where)))
+    return [text for _, text in sorted(lines, key=lambda line: line[0])]
+
+
+def _structure_words(say, kind, value, how, where):
     thing = _structure_thing(say, kind, value)
+    if how[0] == "changed":
+        return f"{where}: the ground truth has {thing}, the output has {_structure_thing(say, kind, how[1])}."
+    _, has, lacks, count = how
     times = f" ({count} times)" if count > 1 else ""
-    if bar is None:
+    if where is None:
         return f"The {has} has {thing}{times} in a bar or part the {lacks} does not have."
-    where = say.place(part, staff, bar, onset if kind == "clef" else None)
     return f"{where}: the {has} has {thing}{times}, the {lacks} does not."
 
 
@@ -311,13 +351,27 @@ def _note_marks(result):
 def read_flags(path):
     """Read a flag file (spec, "Error flagging"). Returns a list of
     (part, bar, staff or None), each counted from 0 for part and bar."""
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except OSError as error:
+        raise ValueError(f"it could not be read: {error}")
+    except ValueError as error:
+        raise ValueError(f"it is not valid JSON: {error}")
     if not isinstance(data, dict) or data.get("version") != 1 or not isinstance(data.get("flags"), list):
-        raise ValueError("the flag file must be {\"version\": 1, \"flags\": [...]}")
+        raise ValueError("it must be {\"version\": 1, \"flags\": [...]}")
+
+    def counted_from_1(flag, name, number):
+        value = flag.get(name)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"flag {number} needs \"{name}\" as a whole number from 1, not {value!r}")
+        return value
+
     flags = []
-    for flag in data["flags"]:
-        staff = flag.get("staff")
-        flags.append((int(flag["part"]) - 1, int(flag["bar"]) - 1, int(staff) if staff is not None else None))
+    for number, flag in enumerate(data["flags"], 1):
+        if not isinstance(flag, dict):
+            raise ValueError(f"flag {number} is not an object")
+        staff = counted_from_1(flag, "staff", number) if flag.get("staff") is not None else None
+        flags.append((counted_from_1(flag, "part", number) - 1, counted_from_1(flag, "bar", number) - 1, staff))
     return flags
 
 
@@ -345,41 +399,33 @@ def _flags(output, result, flags):
                 i += step
         return bars
 
-    def covered_truth(note):
+    def places(note):
+        """The output (part, bar, staff or None) where a flag covers a missing or wrong note."""
         index = result.truth_segment.get(note.bar)
         if index is None:
-            return False
+            return []
         segment = result.segments[index]
         bars = segment.output or neighbours(index)
         target = truth_staff_to_output.get((note.part, note.staff))
-        for o_part in output_parts_of.get(note.part, ()):
-            for bar in bars:
-                staff = target[1] if target and target[0] == o_part else None
-                if covered_output(o_part, bar, staff):
-                    return True
-        return False
+        return [(o_part, bar, target[1] if target and target[0] == o_part else None)
+                for o_part in output_parts_of.get(note.part, ()) for bar in bars]
 
-    error_bars = set()
-    covered = total = 0
+    error_places = []
     for note in result.missing + [pair.truth for pair in result.errors]:
-        total += 1
-        covered += covered_truth(note)
-        index = result.truth_segment.get(note.bar)
-        if index is not None:
-            for bar in result.segments[index].output:
-                for o_part in output_parts_of.get(note.part, ()):
-                    error_bars.add((o_part, bar))
+        error_places.append(places(note))
     for note in result.extra:
-        total += 1
-        covered += covered_output(note.part, note.bar, note.staff)
-        error_bars.add((note.part, note.bar))
+        error_places.append([(note.part, note.bar, note.staff)])
+    covered = sum(any(covered_output(*place) for place in where) for where in error_places)
+    # A flagged bar "has an error" if one of its flags covers an error there.
+    with_error = {(part, bar) for where in error_places for part, bar, staff in where
+                  if covered_output(part, bar, staff)}
     bars_total = sum(output.bar_counts) if output.bar_counts else 0
     return {
-        "errors": total,
+        "errors": len(error_places),
         "covered": covered,
         "bars flagged": len(flagged),
         "bars": bars_total,
-        "flagged bars with an error": len(set(flagged) & error_bars),
+        "flagged bars with an error": len(with_error),
     }
 
 
@@ -391,7 +437,7 @@ def _error_list(result, say):
     items = []
     for pair in result.errors:
         t, o = pair.truth, pair.output
-        kind = " and ".join(pair.differs) + " error"
+        kind = _differs_words(pair.differs) + " error"
         if pair.spelling_only:
             kind = "spelling error"
         items.append((t.bar, t.onset, {

@@ -35,7 +35,7 @@ Each note element that is visible (`print-object` is not "no") becomes one **not
 
 - **Part and staff.** The part is the `part` element. The staff is the note's `staff` element, or 1. A cross-staff note has the staff it is drawn on.
 - **Voice**, from the `voice` element.
-- **Onset**: its position from the start of the bar, in quarter notes, as an exact fraction. It is worked out from `duration`, `backup` and `forward`, divided by `divisions`. A chord note (`chord` element) has the onset of the chord's first note. A grace note has no duration, so its onset is that of the note that follows it, and it also gets an order number among the grace notes before that note (1, 2, 3).
+- **Onset**: its position from the start of the bar, in quarter notes, as an exact fraction. It is worked out from `duration`, `backup` and `forward`, divided by `divisions`. A chord note (`chord` element) has the onset of the chord's first note. A grace note has no duration, so its onset is that of the note that follows it, and it also gets an order number: how many grace notes in its voice come before it in the bar since the voice's last main note, itself included (1, 2, 3). The count starts again in each bar.
 - **Pitch**: the written pitch, from `step`, `alter` and `octave`. The spelling is kept, so C sharp and D flat are different pitches. A percussion note uses `display-step` and `display-octave`. Written pitch is compared because transposing parts are read as written.
 - **Duration**: the notated value, from `type`, `dot` and `time-modification` (so a triplet eighth is 1/3 of a quarter note). If `type` is missing, the `duration` value is used instead. A grace note's duration is its notated type and dots, with zero length. The slash (acciaccatura or appoggiatura) is not part of the duration.
 - **Other attributes**, which are compared separately and are not part of note accuracy: tie start and stop, staff, voice, stem direction, beams, cue size, notations (articulations, fermatas, ornaments, slurs), and lyrics.
@@ -53,7 +53,7 @@ Matching runs in four steps, each limited to what the step before allowed.
 ### Step 1: staves
 
 - Both files are listed as staves in score order (part 1 staff 1, part 1 staff 2, part 2 staff 1, and so on).
-- If the counts agree, staves are paired in order.
+- If the counts agree, staves are paired in order. If pairing by similarity (below) would pair them differently and is clearly better (on average at least 0.3 more similar for each staff that moves), the structure check reports that the parts seem to be in a different order. The pairing stays in order, because two similar parts (first and second violins) could otherwise be swapped in a correct file.
 - If they differ, staves are paired by best total similarity: the overlap of their pitch histograms, plus a bonus for the same clef. SciPy's `linear_sum_assignment` does the pairing. A staff left unpaired has all its notes counted as missing (ground truth) or extra (prediction).
 - A **matching group** is one ground-truth part with the predicted staves paired to its staves. Notes are matched within the group, not within a staff, so that a note placed on the other staff of a piano part is still found. The wrong staff is then reported as a staff error, not a note error. A piano written as one part with two staves in one file, and as two parts in the other, also matches this way.
 
@@ -66,7 +66,7 @@ The ground-truth bars and the predicted bars are lined up in one sequence for th
 - Leave out a ground-truth bar (a missing bar) or a predicted bar (an extra bar): the number of events in it, and at least 1.
 - When two alignments cost the same, one-to-one pairing is preferred.
 - An earlier version used shares (1 minus the share of events in common). On the development set it joined two bars wrongly: two identical one-note bars, the second with a wrong note value, cost as much as a missing bar, so joining neighbouring bars came out cheaper. Counting events fixes this, and a test reproduces the case.
-- To keep this fast, the search stays within a band around the diagonal, as wide as the difference in bar counts plus 20 bars.
+- To keep this fast, the search stays within a band around the diagonal, as wide as the difference in bar counts plus 20 bars. A path that leaves the band needs at least 2 × (band + 1) − (difference in bar counts) missing, extra or joined bars, each costing at least 1. If the best path in the band costs more than that, a better path might lie outside, so the band is doubled and the search repeated, up to the whole table. A perfect or nearly perfect output never needs this.
 
 The result is a list of aligned bar pairs (one-to-one, two-to-one, one-to-two, or unpaired). A missing or misplaced barline is a structural error, and it costs no note errors when the notes themselves are right.
 
@@ -79,11 +79,11 @@ Within each aligned bar pair and matching group, a note is an **exact match** wh
 
 ### Step 4: naming the remaining errors
 
-The notes left over after step 3 are paired to name each error. This step does not change the accuracy.
+The notes left over after step 3 are paired to name each error.
 
-- The cost of pairing a ground-truth note with a predicted note in the same bar pair and group is 0.4 for each of pitch, onset and duration that differs. A pair that differs in all three is not allowed. Leaving a note unpaired costs 1.
-- SciPy's `linear_sum_assignment` finds the cheapest pairing.
-- Each pair is named by what differs: a pitch error (the report also says if it is only a spelling difference, such as C sharp for D flat), a duration error, an onset error, or a combination. An unpaired ground-truth note is a **missing note**, and an unpaired predicted note is an **extra note**.
+- Within each bar pair and group, as many leftover notes are paired as possible: the smaller of the two leftover counts. So a group with 3 ground-truth notes and 2 predicted notes left over has 2 wrong notes and 1 missing note, whichever notes are paired. The counts have only one answer, and a wrong note is always one error.
+- Which notes pair is chosen by cost: 1 for each of pitch, onset and duration that differs. SciPy's `linear_sum_assignment` finds the cheapest pairing. This choice affects only the names of the errors, never their number.
+- Each pair is named by what differs: a pitch error (the report also says if it is only a spelling difference, such as C sharp for D flat), a duration error, an onset error, or a combination, up to "pitch, onset and duration". The ground-truth notes left unpaired are **missing notes**, and the predicted notes left unpaired are **extra notes**.
 
 ## Metrics
 
@@ -91,15 +91,15 @@ All metrics are reported per file and overall. Overall figures add up the counts
 
 ### Note accuracy (ACC-1 to ACC-3)
 
-- Let T be the number of ground-truth notes, M the number of exact matches, and E the number of extra notes (step 4).
-- The **errors** are the T minus M ground-truth notes not matched exactly, plus the E extra notes. A wrong note counts once.
+- Let T be the number of ground-truth notes, M the number of exact matches, and E the number of extra notes (step 4). In each bar pair and group, E is the number of predicted notes left over after step 3 minus the ground-truth notes left over, or 0 if that is negative.
+- The **errors** are the T minus M ground-truth notes not matched exactly, plus the E extra notes. In each bar pair and group this is the larger of the two leftover counts. A wrong note counts once.
 - **Note accuracy = M / (T + E)**, which is the number of correct notes divided by the correct notes plus the errors. It is 100 percent only if every note is right and nothing is added.
 - Also reported: recall (M / T), precision (M / number of predicted notes), and the count of each kind of error.
 - Diagnostic figures, not used for the targets:
   - pitch and duration accuracy (onset ignored within the bar) and sounding-pitch accuracy (spelling ignored): the notes that match on those properties, divided by the larger of the ground-truth and output note counts;
   - rest accuracy: rests matching in onset and duration, divided by the larger of the two rest counts;
   - staff, voice and tie accuracy: the share of exact matches with the right staff, voice grouping, or tie start and stop.
-- **Voice accuracy** compares groupings, not voice numbers. Within each bar, each predicted voice is mapped to the ground-truth voice it shares most exact matches with, and a matched note whose voices do not correspond under that mapping is a voice error. Two output voices may map to the same ground-truth voice, so merging voices into chords, or splitting a chord into voices, is not a voice error. Identical notes (a unison in two voices) could be paired either way, so the mapping is taken from the notes that pair unambiguously. A predicted voice that appears only among identical notes is mapped to the ground-truth voices those notes leave over once the other voices are mapped. A group of identical notes then counts only the voice errors that no pairing of the group avoids.
+- **Voice accuracy** compares groupings, not voice numbers. Within each bar, each predicted voice is mapped to the ground-truth voice it shares most exact matches with, and a matched note whose voices do not correspond under that mapping is a voice error. Two output voices may map to the same ground-truth voice, so splitting a chord into voices is not a voice error. Merging two ground-truth voices into one output voice (as chords) is a voice error for the notes of the voice it does not map to, because braille and screen readers present voices separately. Identical notes (a unison in two voices) could be paired either way, so the mapping is taken from the notes that pair unambiguously. A predicted voice that appears only among identical notes is mapped to the ground-truth voices those notes leave over once the other voices are mapped. A group of identical notes then counts only the voice errors that no pairing of the group avoids.
 
 ### Structural correctness (ACC-1)
 
@@ -112,7 +112,7 @@ A file is **structurally correct** when all of these match exactly:
 - the time signatures, with their bar (beats and beat type; a common-time or cut-time symbol equals 4/4 or 2/2 for this test, and a different symbol is reported only as a note);
 - repeat barlines (forward or backward, and the times count), endings (their numbers and where they start and stop), and navigation marks (segno, coda, D.C., D.S., Fine, To Coda).
 
-Every mismatch is listed in words, for example "Bar 17: the ground truth has a backward repeat barline, the output has none". The overall figure is the share of files that are structurally correct. ACC-1 asks for at least 95 percent.
+Every mismatch is listed in words, for example "Bar 17: the ground truth has a backward repeat barline, the output does not". A mismatch that every part has in the same bar (a repeat missing from all 10 parts) is one line ("Bar 17, all 10 parts: ..."). When two output parts are paired with one ground-truth part (piano written as two parts), their repeats, endings, marks and signatures are not counted twice: the larger count of the two is used. The overall figure is the share of files that are structurally correct. ACC-1 asks for at least 95 percent.
 
 ### Performance markings (ACC-6 and REC-4)
 
@@ -130,8 +130,8 @@ The recogniser may write a **flag file** beside its MusicXML, `flags.json`:
 - Flags refer to the output's own bars, because the recogniser does not know the ground truth. The harness maps them through the bar alignment.
 - A note error is **covered** if a flag names its part and bar (and its staff, if the flag gives one). For a missing or wrong note, that is the predicted bar aligned to the note's ground-truth bar. For an extra note, it is the bar the extra note is in. An error in a ground-truth bar with no predicted bar is covered if a flag names the predicted bar just before or just after the gap.
 - **Flagging recall = covered errors / all note errors.** ACC-4 asks for at least 90 percent.
-- Because flagging every bar would score 100 percent, the report also gives the share of bars flagged and the share of flagged bars that really contain an error. OI-3 refines the target with these figures.
-- A missing flag file means no flags. The human-readable confidence report (OUT-3) is separate, and the recogniser writes it however it likes.
+- Because flagging every bar would score 100 percent, the report also gives the share of bars flagged and the share of flagged bars that really contain an error. A flagged bar contains an error if one of its flags covers an error by the rule above (so a flag naming the lower staff does not count an error on the upper staff, and the bars beside a gap count for the errors in it). OI-3 refines the target with these figures.
+- A missing flag file means no flags. So does a flag file that cannot be read: the notes are still scored, and the file's report says why the flags were not counted. The human-readable confidence report (OUT-3) is separate, and the recogniser writes it however it likes.
 
 ### Comparison with published work
 
@@ -144,7 +144,8 @@ The recogniser may write a **flag file** beside its MusicXML, `flags.json`:
 - A recogniser is a command template, for example `python my_omr.py {pdf} {out}`. The harness fills in the pair's PDF and an output folder, and the command writes `{out}/score.musicxml` and, optionally, `{out}/flags.json`. On Windows the template is run as one command line, with each filled-in path quoted. The test recognisers also get `{truth}`, the ground-truth file; a real recogniser must never use it.
 - Built-in names: `perfect` and `damaged` (below), and later `omr` (the project's own pipeline) and the Stage 9 baselines.
 - The harness times each run (wall clock) and records it. With `--cpu-only`, it hides the GPU from the recogniser (`CUDA_VISIBLE_DEVICES` set to empty), for the OP-2 timings in Stage 9.
-- Each run has a time limit (default 600 seconds). A run that fails, times out or writes no MusicXML is a **failed file**. Its notes all count as missing, it is not structurally correct, and the report lists it with the reason. The report also gives the accuracy over completed files only.
+- Each run has a time limit (default 600 seconds). A run that fails, times out, writes no MusicXML or writes MusicXML the reader cannot use (for example a step other than A to G) is a **failed file**. Its notes all count as missing, it is not structurally correct, and the report lists it with the reason. The report also gives the accuracy over completed files only.
+- If the harness itself fails on a pair, the pair is listed under "Pairs the harness could not evaluate" with the error, is not counted, and the run goes on. The command then ends with an error status.
 - Runs use the shared worker pool (`omr.parallel`, `--workers N`, default 3), one pair per job, as `docs/conventions.md` requires. The comparison of a pair also runs in the worker.
 
 ## Test recognisers
@@ -155,12 +156,13 @@ The recogniser may write a **flag file** beside its MusicXML, `flags.json`:
   - respell a note enharmonically (one pitch error, and a spelling-only error in the diagnostics);
   - delete a note that is part of a chord (one missing note);
   - add a note to a chord (one extra note);
-  - change the duration of the last note of a voice in a bar (one duration error, with no later onsets moved);
+  - change the notated value of a note but keep its `duration`, so no later onset moves (one duration error);
   - renumber the voices in a bar (no note errors, voice accuracy unchanged);
-  - move a chord's notes into a second voice (no note errors);
+  - move a chord's other notes into a new voice (no note errors, voice accuracy unchanged, since splitting a chord into voices is not a voice error);
   - remove a barline by joining two bars (no note errors, one structural error in the bar count);
-  - delete a dynamic or a hairpin (one marking missed);
-  - remove a clef, key or time change (one structural error).
+  - delete a dynamic (one dynamic missed), and delete a hairpin where no other hairpin of the same kind starts in that bar and part (one hairpin missed);
+  - remove a clef, key or time change after the first bar (one structural error).
+- Each kind is applied once, in its own bar with a free bar either side, where the file has a suitable place. The join comes after all the others. A short or plain file may get fewer kinds of damage; `damage.json` says which were applied.
 - The damaged recogniser also writes a flag file that flags a known share of the damaged bars, so the flagging recall has a known value.
 
 ## Hand-made test pairs
@@ -181,8 +183,8 @@ Small MusicXML pairs written for the tests, with the right metric values worked 
 
 ## Reports
 
-- **Per file**, in plain text: the summary first ("pdmx-abc, MuseScore 4, Bravura: note accuracy 97.8 percent, 12 errors in 6 bars, structurally correct"), then the structural mismatches, then the errors bar by bar, in words. For example: "Bar 14 (page 2, system 3), Piano, upper staff, beat 3: expected F sharp 5 quarter note, found G 5 quarter note (pitch error)." The text report lists at most 50 errors per file and says how many more are in the JSON.
-- **Overall**, in plain text, as headings and lists: the totals against the targets (ACC-1, ACC-4, ACC-6), then each figure broken down by engraver, font, genre, texture and ground-truth kind (exact or engraver input), then the lowest 10 files, and the failed files.
+- **Per file**, in plain text: the summary first ("pdmx-abc, MuseScore 4, Bravura: note accuracy 97.8 percent, 12 note errors in 6 bars, structurally correct"; the bars are ground-truth bars, and extra notes in output bars with no ground-truth partner count as one more), then the structural mismatches, then the errors bar by bar, in words. For example: "Bar 14 (page 2, system 3), Piano, upper staff, beat 3: expected F sharp 5 quarter note, found G 5 quarter note (pitch error)." The text report lists at most 50 errors per file and says how many more are in the JSON.
+- **Overall**, in plain text, as headings and lists: the totals and the per-file note accuracy (median, lowest and highest), the totals against the targets (ACC-1, ACC-4, ACC-6), the marking figures for exact and engraver-input pairs separately, then each figure broken down by engraver, font, genre, texture and ground-truth kind (exact or engraver input), then the lowest 10 files, and the failed files.
 - **JSON**, with every count and every error, for later analysis and for the Stage 7 regression baseline.
 - The command ends with the usual one-line summary, and exit status 0 unless something failed to run.
 
@@ -206,3 +208,5 @@ Accepted by the owner on 6 October 2026.
 5. **Failed files count as zero** in the overall figures, and accuracy over completed files is reported as well. A file the tool cannot convert is a failure for the user.
 6. **Navigation marks are part of structural correctness.** The requirement lists repeats, and the marks decide the order in which the music is played.
 7. **TEDn** waits if no usable implementation exists, and is recorded as an open item. OMR-NED from musicdiff is reported meanwhile.
+8. **A wrong note is one error, whatever differs** (accepted after the Opus review). In each bar pair and group the errors are the larger of the leftover ground-truth and predicted note counts, so the count does not depend on how step 4 pairs notes.
+9. **Merging two voices into chords is a voice error** (accepted after the Opus review). Splitting a chord into voices is not.

@@ -353,10 +353,18 @@ def corpus_set(tmp_path, scores):
     return root
 
 
+def wedge(kind):
+    return f'<direction><direction-type><wedge type="{kind}"/></direction-type><staff>1</staff></direction>'
+
+
 def long_score():
     bars = [attributes() + dynamic("p") + note("C4") + note("E4", chord=True) + note("D4") + note("E4") + note("F4")]
-    for n in range(11):
-        bars.append(dynamic("mf") + note("G4") + note("B4", chord=True) + note("A4") + note("B4") + note("C5"))
+    clef_changes = {11: ("C", 3), 14: ("G", 2), 17: ("C", 3), 20: ("G", 2)}   # bar index -> clef
+    for n in range(1, 30):
+        sign, line = clef_changes.get(n, ("", ""))
+        change = f"<attributes><clef><sign>{sign}</sign><line>{line}</line></clef></attributes>" if sign else ""
+        bars.append(change + dynamic("mf") + wedge("crescendo") + note("G4") + note("B4", chord=True) + note("A4")
+                    + note("B4") + wedge("stop") + note("C5"))
     return score(("Piano", bars))
 
 
@@ -368,9 +376,12 @@ def test_damaged_recogniser_scores_what_its_damage_implies(tmp_path, seed):
     n = fig["notes"]
     assert (n["missing"], n["extra"], n["wrong"]) == (expected["missing"], expected["extra"], expected["wrong"])
     assert n["wrong by kind"].get("spelling only", 0) == expected["spelling only"]
-    assert len(fig["structure"]["mismatches"]) == expected["structure mismatches"] == 1
+    assert len(fig["structure"]["mismatches"]) == expected["structure mismatches"] == 2   # the join and a removed change
     assert fig["flags"]["covered"] == expected["covered"]
     assert fig["markings"]["dynamic"]["found"] == fig["markings"]["dynamic"]["truth"] - expected["dynamics removed"]
+    assert fig["markings"]["hairpin"]["found"] == fig["markings"]["hairpin"]["truth"] - expected["hairpins removed"]
+    assert expected["hairpins removed"] == 1 and expected["chords split"] == 1
+    assert fig["diagnostics"]["voice"]["right"] == fig["diagnostics"]["voice"]["of"]
 
 
 def test_runner_with_perfect_and_a_failing_recogniser(tmp_path):
@@ -489,3 +500,172 @@ def test_a_real_voice_error_inside_a_unison_is_still_counted(tmp_path):
                 + backup(48) + note("D4", 18, voice=d_voice) + note("B4", 30, voice=2, typ="half", dots=0))
     fig = compare(tmp_path, score(("Alto", [bar(2)])), score(("Alto", [bar(1)])))
     assert fig["diagnostics"]["voice"] == {"right": 3, "of": 4}
+
+
+def test_a_wrong_note_counts_once_even_when_nothing_matches(tmp_path):
+    # E4 quarter at beat 2 becomes an eighth rest and A5 eighth at beat 2.5: pitch,
+    # onset and duration all differ, but it is still one wrong note: accuracy 3 / 4.
+    truth = score(("Flute", [four_quarters("C4 E4 G4 C5")]))
+    output = score(("Flute", [attributes() + note("C4") + rest(6) + note("A5", 6) + note("G4") + note("C5")]))
+    fig = compare(tmp_path, truth, output)
+    assert accuracy(fig) == Fraction(3, 4)
+    assert (fig["notes"]["wrong"], fig["notes"]["missing"], fig["notes"]["extra"]) == (1, 0, 0)
+    assert fig["notes"]["wrong by kind"] == {"pitch, onset and duration": 1}
+    assert fig["errors"][0]["kind"] == "pitch, onset and duration error"
+
+
+def test_errors_in_a_bar_are_the_larger_leftover_count(tmp_path):
+    # Bar of C4 D4 E4 F4; the output has C4, then G5 half and A5 quarter, no F4:
+    # 1 exact, 3 truth and 2 output notes left over, so 3 errors (2 wrong, 1 missing).
+    truth = score(("Flute", [four_quarters()]))
+    output = score(("Flute", [attributes() + note("C4") + note("G5", 24) + note("A5")]))
+    fig = compare(tmp_path, truth, output)
+    assert (fig["notes"]["exact"], fig["notes"]["wrong"], fig["notes"]["missing"], fig["notes"]["extra"]) == (1, 2, 1, 0)
+    assert report.note_errors(fig["notes"]) == 3
+
+
+def test_two_voices_merged_into_chords_are_voice_errors(tmp_path):
+    # Two whole notes in voices 1 and 2, written as one chord in voice 1: notes all
+    # right, but the output voice maps to one ground-truth voice, so 1 voice error.
+    truth = score(("Flute", [attributes() + note("E4", 48) + backup(48) + note("C4", 48, voice=2)]))
+    output = score(("Flute", [attributes() + note("E4", 48) + note("C4", 48, chord=True)]))
+    fig = compare(tmp_path, truth, output)
+    assert accuracy(fig) == 1
+    assert fig["diagnostics"]["voice"] == {"right": 1, "of": 2}
+
+
+def test_grace_note_order_starts_again_in_each_bar(tmp_path):
+    # Bar 1 ends with a grace note after its last note; bar 2 starts with a grace note.
+    # The output drops the closing grace note: 1 missing note, and bar 2 is all right.
+    def two_bars(closing_grace):
+        first = four_quarters() + (note("G4", grace=True, typ="16th") if closing_grace else "")
+        return score(("Flute", [first, note("A4", grace=True, typ="16th") + note("B4", 48)]))
+    fig = compare(tmp_path, two_bars(True), two_bars(False))
+    assert (fig["notes"]["exact"], fig["notes"]["missing"], fig["notes"]["wrong"]) == (6, 1, 0)
+
+
+@pytest.mark.parametrize("flags, words", [
+    ([{"bar": 1}], 'flag 1 needs "part"'),
+    (["x"], "flag 1 is not an object"),
+    ([{"part": 1, "bar": 0}], 'flag 1 needs "bar"'),
+])
+def test_bad_flag_file_counts_as_no_flags_and_the_notes_are_still_scored(tmp_path, flags, words):
+    root = corpus_set(tmp_path, [score(("Flute", [four_quarters()]))])
+    predictions = tmp_path / "pred" / "s0" / "musescore4-base"
+    predictions.mkdir(parents=True)
+    (predictions / "score.musicxml").write_text(score(("Flute", [four_quarters("C4 D4 E4 G4")])), encoding="utf-8")
+    (predictions / "flags.json").write_text(json.dumps({"version": 1, "flags": flags}), encoding="utf-8")
+    log = ProgressLog("t", stream=io.StringIO())
+    results, text = harness.run("development", None, log, out_dir=tmp_path / "eval", predictions=tmp_path / "pred",
+                                workers=1, with_musicdiff=False, set_root=root)
+    r = results[0]
+    assert "failed" not in r and r["notes"]["exact"] == 3
+    assert words in r["flag file problem"]
+    assert r["flags"]["covered"] == 0 and r["flags"]["bars flagged"] == 0
+    assert "1 flag files could not be read" in text.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("change, words", [
+    (("<step>D</step>", "<step>d</step>"), "the step 'd'"),
+    (('<clef number="1">', '<clef number="x">'), "a clef number is 'x'"),
+    (("<fifths>0</fifths>", "<fifths>none</fifths>"), "fifths value is 'none'"),
+])
+def test_odd_output_is_a_failed_file_with_a_plain_reason(tmp_path, change, words):
+    root = corpus_set(tmp_path, [score(("Flute", [four_quarters()]))])
+    predictions = tmp_path / "pred" / "s0" / "musescore4-base"
+    predictions.mkdir(parents=True)
+    (predictions / "score.musicxml").write_text(score(("Flute", [four_quarters()])).replace(*change), encoding="utf-8")
+    log = ProgressLog("t", stream=io.StringIO())
+    results, _ = harness.run("development", None, log, out_dir=tmp_path / "eval", predictions=tmp_path / "pred",
+                             workers=1, with_musicdiff=False, set_root=root)
+    assert results[0]["failed"].startswith("the output could not be read") and words in results[0]["failed"]
+
+
+def test_a_harness_error_on_one_pair_does_not_stop_the_run(tmp_path, monkeypatch):
+    root = corpus_set(tmp_path, [score(("Flute", [four_quarters()]))])
+
+    def broken(*args, **kwargs):
+        raise KeyError("a harness bug")
+    monkeypatch.setattr(metrics, "compare", broken)
+    log = ProgressLog("t", stream=io.StringIO())
+    results, text = harness.run("development", "perfect", log, out_dir=tmp_path / "eval", workers=1,
+                                with_musicdiff=False, set_root=root)
+    assert "the harness failed on this pair (KeyError" in results[0]["harness error"]
+    assert "Pairs the harness could not evaluate (1)" in text.read_text(encoding="utf-8")
+
+
+def test_parts_in_a_different_order_are_a_structural_mismatch(tmp_path):
+    # Flute (high) and cello (low) written in the other order: every note is an error
+    # (staves pair in order), and the structure says why.
+    flute = ("Flute", [four_quarters("C5 D5 E5 F5")])
+    cello = ("Cello", [attributes(clefs=("F4",)) + "".join(note(p) for p in "C3 D3 E3 F3".split())])
+    fig = compare(tmp_path, score(flute, cello), score(cello, flute))
+    assert accuracy(fig) == 0
+    assert any(m.startswith("The parts seem to be in a different order: output part 1 looks like Cello")
+               for m in fig["structure"]["mismatches"])
+    # Two parts with the same music, in order: no such line.
+    fig = compare(tmp_path, score(flute, ("Oboe", [four_quarters("C5 D5 E5 F5")])),
+                  score(flute, ("Oboe", [four_quarters("C5 D5 E5 F5")])))
+    assert fig["structure"]["correct"]
+
+
+def test_a_mismatch_in_every_part_is_one_line(tmp_path):
+    repeat = '<barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>'
+    def two_parts(with_repeat):
+        bar = four_quarters() + (repeat if with_repeat else "")
+        return score(("Flute", [bar]), ("Oboe", [bar]))
+    fig = compare(tmp_path, two_parts(True), two_parts(False))
+    assert fig["structure"]["mismatches"] == [
+        "Bar 1, all 2 parts: the ground truth has a backward repeat barline, the output does not."]
+
+
+def test_piano_as_two_parts_does_not_count_its_repeats_twice(tmp_path):
+    repeat = '<barline location="right"><repeat direction="backward"/></barline>'
+    truth = score(("Piano", [attributes(staves=2, clefs=("G2", "F4")) + note("C5", 48) + backup(48)
+                             + note("C3", 48, voice=5, staff=2) + repeat]))
+    output = score(("Piano", [attributes() + note("C5", 48) + repeat]),
+                   ("Piano", [attributes(clefs=("F4",)) + note("C3", 48) + repeat]))
+    fig = compare(tmp_path, truth, output)
+    assert not any("repeat" in m for m in fig["structure"]["mismatches"])
+
+
+def test_band_widens_when_the_best_path_needs_it(tmp_path):
+    # 60 bars of one whole note each, no two alike; the output drops the first 30 and
+    # adds 30 wrong bars at the end. The best alignment keeps the 30 surviving bars,
+    # 30 bars off the diagonal, outside the first band of 20.
+    names = [f"{s}{a}{o}" for o in (3, 4, 5) for s in "CDEFGAB" for a in ("", "#", "b")]
+    def bar(i, pitch):
+        return (attributes() if i == 0 else "") + note(pitch, 48)
+    truth = score(("Flute", [bar(i, names[i]) for i in range(60)]))
+    output = score(("Flute", [bar(i, names[30 + i]) for i in range(30)] + [bar(1, "C2")] * 30))
+    assert compare(tmp_path, truth, output)["notes"]["exact"] == 30
+
+
+def test_a_flag_on_another_staff_does_not_make_a_bar_count_as_having_an_error(tmp_path):
+    # The error is on the upper staff; the flag names the lower staff of that bar.
+    def piano(top):
+        return score(("Piano", [attributes(staves=2, clefs=("G2", "F4")) + note(top, 48) + backup(48)
+                                + note("C3", 48, voice=5, staff=2)]))
+    fig = compare(tmp_path, piano("C5"), piano("D5"), flags=[{"part": 1, "bar": 1, "staff": 2}])
+    assert fig["flags"]["covered"] == 0 and fig["flags"]["flagged bars with an error"] == 0
+    fig = compare(tmp_path, piano("C5"), piano("D5"), flags=[{"part": 1, "bar": 1, "staff": 1}])
+    assert fig["flags"]["covered"] == 1 and fig["flags"]["flagged bars with an error"] == 1
+
+
+def test_reports_give_errors_in_bars_the_median_and_markings_by_ground_truth_kind(tmp_path):
+    root = corpus_set(tmp_path, [score(("Flute", [attributes() + dynamic("p") + note("C4", 48)])),
+                                 score(("Flute", [attributes() + dynamic("f") + note("D4", 48)]))])
+    predictions = tmp_path / "pred"
+    for i, xml in enumerate([score(("Flute", [attributes() + dynamic("p") + note("C4", 48)])),
+                             score(("Flute", [attributes() + note("E4", 48)]))]):
+        folder = predictions / f"s{i}" / "musescore4-base"
+        folder.mkdir(parents=True)
+        (folder / "score.musicxml").write_text(xml, encoding="utf-8")
+    log = ProgressLog("t", stream=io.StringIO())
+    results, text = harness.run("development", None, log, out_dir=tmp_path / "eval", predictions=predictions,
+                                workers=1, with_musicdiff=False, set_root=root)
+    overall = text.read_text(encoding="utf-8")
+    assert "Per-file note accuracy: median 50.0 percent, lowest 0.0 percent, highest 100 percent." in overall
+    assert "- dynamic: exact pairs 50.0 percent of 2." in overall
+    wrong = next(r for r in results if r["id"] == "s1")
+    assert "1 note error in 1 bar," in report.one_line(wrong)

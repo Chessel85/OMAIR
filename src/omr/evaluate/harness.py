@@ -120,22 +120,31 @@ def evaluate_pair(pair, recogniser, out, timeout, cpu_only, predictions, with_mu
     result["seconds"] = seconds
     if failure is None and not output.is_file():
         failure = "the recogniser wrote no MusicXML"
+    # A flag file that cannot be read means no flags; the notes are still scored.
+    flag_list = None
+    if failure is None and flags.is_file():
+        try:
+            flag_list = metrics.read_flags(flags)
+        except ValueError as error:
+            result["flag file problem"] = f"the flag file could not be read, so no flags were counted: {error}"
+            flag_list = []
     try:
         if failure is None:
             try:
-                figures = metrics.compare(pair.truth, output, flags if flags.is_file() else None)
+                figures = metrics.compare(pair.truth, output, flags=flag_list)
             except events.MusicXMLError as error:
                 if not _readable(pair.truth):
                     raise
                 failure = f"the output could not be read: {error}"
-            except ValueError as error:
-                failure = f"the flag file could not be read: {error}"
         if failure is not None:
             figures = metrics.failed_file(pair.truth, failure)
         elif with_musicdiff:
             figures["musicdiff"] = musicdiff_figures(pair.truth, output)
     except events.MusicXMLError as error:
         result["harness error"] = f"the ground truth could not be read: {error}"
+        return result
+    except Exception as error:   # a harness bug on one pair must not stop the run
+        result["harness error"] = f"the harness failed on this pair ({type(error).__name__}: {error})"
         return result
     result.update(figures)
     (out / "figures.json").write_text(json.dumps(result, indent=1, default=str), encoding="utf-8")

@@ -191,8 +191,8 @@ def _read_part(score, part_index, name, part):
     page, system = 1, 1
     first_part = part_index == 0
     bar_index = 0
-    grace_count = {}    # voice -> grace notes seen since its last main note
     for measure in part.findall("measure"):
+        grace_count = {}    # voice -> grace notes seen in this bar since its last main note
         position = Fraction(0)
         last_onset = Fraction(0)
         reach = Fraction(0)
@@ -238,6 +238,23 @@ def _read_part(score, part_index, name, part):
     score.bar_counts.append(bar_index)
 
 
+def _step(text):
+    step = (text or "").strip()
+    if step not in STEP_SEMITONES:
+        raise MusicXMLError(f"a note has the step {step!r}; a step must be one of A to G")
+    return step
+
+
+def _whole_number(text, what, default=None):
+    """An integer attribute or element, or a plain error if it is not one."""
+    if text is None or not text.strip():
+        return default
+    try:
+        return int(text.strip())
+    except ValueError:
+        raise MusicXMLError(f"{what} is {text.strip()!r}, not a whole number")
+
+
 def _read_note(score, part_index, bar_index, onset, divisions, duration, element, grace_count):
     staff = int(_number(element.findtext("staff"), 1))
     voice = (element.findtext("voice") or "1").strip()
@@ -252,13 +269,13 @@ def _read_note(score, part_index, bar_index, onset, divisions, duration, element
         return
     pitch_element = element.find("pitch")
     if pitch_element is not None:
-        pitch = Pitch(pitch_element.findtext("step", "C").strip(), _number(pitch_element.findtext("alter")),
+        pitch = Pitch(_step(pitch_element.findtext("step")), _number(pitch_element.findtext("alter")),
                       int(_number(pitch_element.findtext("octave"), 4)))
     else:
         unpitched = element.find("unpitched")
         if unpitched is None:
             return
-        pitch = Pitch(unpitched.findtext("display-step", "C").strip(), Fraction(0),
+        pitch = Pitch(_step(unpitched.findtext("display-step", "C")), Fraction(0),
                       int(_number(unpitched.findtext("display-octave"), 4)))
     length, value = _notated(element, divisions, duration)
     grace = 0
@@ -355,11 +372,13 @@ def _read_attributes(score, part_index, bar_index, position, element):
         change = int(_number(clef.findtext("clef-octave-change")))
         if change:
             value += f" octave {change:+d}"
-        score.structure.append(Marking("clef", value, part_index, int(clef.get("number", "1")), bar_index, position))
+        staff = _whole_number(clef.get("number"), "a clef number", 1)
+        score.structure.append(Marking("clef", value, part_index, staff, bar_index, position))
     for key in element.findall("key"):
         if key.findtext("fifths") is not None:
-            staff = int(key.get("number")) if key.get("number") else None
-            score.structure.append(Marking("key", key.findtext("fifths").strip(), part_index, staff, bar_index, position))
+            staff = _whole_number(key.get("number"), "a key signature's staff number")
+            fifths = _whole_number(key.findtext("fifths"), "a key signature's fifths value", 0)
+            score.structure.append(Marking("key", str(fifths), part_index, staff, bar_index, position))
     for time in element.findall("time"):
         if time.findtext("beats") is not None:
             value = f"{time.findtext('beats').strip()}/{time.findtext('beat-type', '').strip()}"

@@ -34,13 +34,22 @@ def note_errors(notes):
     return notes["truth"] - notes["exact"] + notes["extra"]
 
 
+def error_words(result):
+    """"12 note errors in 6 bars", counting each ground-truth bar once."""
+    count = note_errors(result["notes"])
+    if not count:
+        return "0 note errors"
+    bars = len({e["bar"] for e in result.get("errors", [])})
+    return f"{count} note error{'s' if count != 1 else ''} in {bars} bar{'s' if bars != 1 else ''}"
+
+
 def one_line(result):
     notes = result["notes"]
     m, d = note_accuracy(notes)
     structure = "structurally correct" if result["structure"]["correct"] else (
         f"{len(result['structure']['mismatches'])} structural mismatches")
     timing = f", {result['seconds']:.1f} seconds" if result.get("seconds") is not None else ""
-    return f"note accuracy {percent(m, d)}, {note_errors(notes)} note errors, {structure}{timing}."
+    return f"note accuracy {percent(m, d)}, {error_words(result)}, {structure}{timing}."
 
 
 def _title(result):
@@ -82,6 +91,8 @@ def per_file(result):
         lines += ["", "Error flags",
                   f"- {f['covered']} of {f['errors']} note errors are in flagged bars ({percent(f['covered'], f['errors'])}).",
                   f"- {f['bars flagged']} of {f['bars']} bars flagged; {f['flagged bars with an error']} of them have an error."]
+    if "flag file problem" in result:
+        lines.append(f"- {result['flag file problem'][0].upper()}{result['flag file problem'][1:]}.")
     errors = result.get("errors", [])
     if errors:
         lines += ["", f"Note errors, in bar order ({len(errors)})"]
@@ -90,6 +101,11 @@ def per_file(result):
         if len(errors) > MAX_ERRORS_LISTED:
             lines.append(f"- {len(errors) - MAX_ERRORS_LISTED} more errors are listed in figures.json.")
     return "\n".join(lines) + "\n"
+
+
+def _fraction(value):
+    """A share as (part, whole) for `percent`, keeping exactly 1 as 100 percent."""
+    return (1, 1) if value == 1 else (value, 1)
 
 
 def _add(total, result):
@@ -121,6 +137,11 @@ def overall(results, set_name, label, export_failures=0):
     files = total["files"]
     lines.append(f"Summary: {files} files, note accuracy {percent(total['exact'], total['truth'] + total['extra'])}, "
                  f"{percent(total['correct structure'], files)} structurally correct, {total['failed']} failed.")
+    accuracies = sorted(note_accuracy(r["notes"])[0] / note_accuracy(r["notes"])[1]
+                        for r in results if note_accuracy(r["notes"])[1])
+    if accuracies:
+        lines.append(f"Per-file note accuracy: median {percent(*_fraction(statistics.median(accuracies)))}, "
+                     f"lowest {percent(*_fraction(accuracies[0]))}, highest {percent(*_fraction(accuracies[-1]))}.")
     lines.append("")
     lines += ["Targets"]
     lines.append(f"- ACC-1 note accuracy on vector PDFs (target {TARGETS['note accuracy']:g} percent): "
@@ -143,6 +164,9 @@ def overall(results, set_name, label, export_failures=0):
                      f"{percent(covered, errors)} ({covered:,} of {errors:,}); {percent(flagged_bars, bars)} of bars flagged.")
     else:
         lines.append("- ACC-4 error flagging: the recogniser wrote no flag files.")
+    bad_flags = sum(1 for r in results if "flag file problem" in r)
+    if bad_flags:
+        lines.append(f"- {bad_flags} flag files could not be read and count as no flags; each file's report says why.")
     lines.append("")
 
     lines.append("Note errors")
@@ -165,18 +189,22 @@ def overall(results, set_name, label, export_failures=0):
         a = sum(next(iter(r["diagnostics"][name].values())) for r in results)
         b = sum(r["diagnostics"][name]["of"] for r in results)
         lines.append(f"- {name}: {percent(a, b)}.")
-    marks = collections.defaultdict(lambda: [0, 0])
+    lines.append("")
+
+    # Engraver-input ground truth may hold markings the engraver did not draw, so
+    # marking figures are given separately for exact and engraver-input pairs.
+    lines.append("Markings found, by ground-truth kind")
+    marks = collections.defaultdict(lambda: collections.defaultdict(lambda: [0, 0]))
     for r in results:
-        for k, f in r.get("note marks", {}).items():
-            marks[k][0] += f["found"]
-            marks[k][1] += f["truth"]
-        for k, f in r["markings"].items():
-            if k not in ("dynamic", "hairpin"):
-                marks[k][0] += f["found"]
-                marks[k][1] += f["truth"]
-    for k, (a, b) in sorted(marks.items()):
-        if b:
-            lines.append(f"- {k}: {percent(a, b)} of {b:,} found.")
+        side = "exact" if r.get("meta", {}).get("ground truth") == "exact" else "engraver input"
+        for k, f in list(r["markings"].items()) + list(r.get("note marks", {}).items()):
+            marks[k][side][0] += f["found"]
+            marks[k][side][1] += f["truth"]
+    for k in sorted(marks):
+        sides = [f"{side} pairs {percent(a, b)} of {b:,}" for side, (a, b) in sorted(marks[k].items(),
+                 key=lambda item: item[0] != "exact") if b]
+        if sides:
+            lines.append(f"- {k}: " + "; ".join(sides) + ".")
     lines.append("")
 
     for field, heading in BREAKDOWNS:
@@ -218,7 +246,7 @@ def overall(results, set_name, label, export_failures=0):
     lines.append(f"Failed files ({len(failed)})")
     lines += [f"- {_title(r)}: {r['failed']}" for r in failed] or ["- None."]
     if unreadable:
-        lines += ["", f"Ground truth that could not be read ({len(unreadable)}), not counted:"]
+        lines += ["", f"Pairs the harness could not evaluate ({len(unreadable)}), not counted:"]
         lines += [f"- {r['id']} {r['job']}: {r['harness error']}" for r in unreadable]
     if export_failures:
         lines += ["", f"Also, {export_failures} exports failed when the corpus was made, so those pairs do not exist and are not counted."]

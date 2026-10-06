@@ -38,7 +38,8 @@ class _Damage:
         self.used_bars = set()
         self.log = []
         self.expected = {"pitch": 0, "spelling only": 0, "duration": 0, "missing": 0, "extra": 0,
-                         "structure mismatches": 0, "bars joined": 0, "dynamics removed": 0}
+                         "structure mismatches": 0, "bars joined": 0, "dynamics removed": 0,
+                         "hairpins removed": 0, "chords split": 0}
         self.error_bars = {}    # bar position -> number of note errors there
 
     def candidates(self, test, reserve_after=None):
@@ -93,6 +94,31 @@ def _same_onset_pitches(note, notes):
     while end < len(notes) and notes[end].find("chord") is not None:
         end += 1
     return {_pitch(n) for n in notes[start:end] if n.find("pitch") is not None}
+
+
+def _chord_notes(note, notes):
+    """The notes after `note` in its chord, if `note` starts a chord whose notes
+    can all move to another voice (visible, pitched, the same duration); else None."""
+    if note.find("chord") is not None or note.findtext("duration") is None:
+        return None
+    index = notes.index(note)
+    others = []
+    for other in notes[index + 1:]:
+        if other.find("chord") is None:
+            break
+        others.append(other)
+    if not others or any(o.get("print-object") == "no" or o.find("pitch") is None or o.find("grace") is not None
+                         or o.findtext("duration") != note.findtext("duration") for o in others):
+        return None
+    return others
+
+
+def _single_wedge(direction):
+    """The wedge type if the direction holds nothing but one wedge, else None."""
+    types = direction.findall("direction-type")
+    if len(types) == 1 and len(types[0]) == 1 and types[0][0].tag == "wedge":
+        return types[0][0].get("type")
+    return None
 
 
 def _plain_bar(measures, index):
@@ -218,7 +244,72 @@ def damage(truth, out, seed=1, flag_share=0.5):
                 break
         if removed:
             break
-    # 8. Join two bars near the end in every part (a missed barline: one structural error, no note errors).
+    # 8. Move a chord's other notes into a new voice (a chord split into voices: no note
+    #    errors, and voice accuracy unchanged, since two output voices may map to one).
+    for p, b, measure, note in d.candidates(lambda n, ns: _chord_notes(n, ns) is not None, join_at):
+        notes = measure.findall("note")
+        others = _chord_notes(note, notes)
+        used_voices = {n.findtext("voice", "1").strip() for n in notes}
+        new_voice = str(max([int(v) for v in used_voices if v.isdigit()] + [0]) + 1)
+        position = list(measure).index(note) + 1
+        for other in others:
+            measure.remove(other)
+        backup = ET.Element("backup")
+        ET.SubElement(backup, "duration").text = note.findtext("duration")
+        moved = [backup]
+        for k, other in enumerate(others):
+            if k == 0:
+                other.remove(other.find("chord"))
+            voice = other.find("voice")
+            if voice is None:
+                voice = ET.Element("voice")
+                other.insert(list(other).index(other.find("duration")) + 1, voice)
+            voice.text = new_voice
+            moved.append(other)
+        for k, element in enumerate(moved):
+            measure.insert(position + k, element)
+        d.expected["chords split"] += 1
+        d.take("chord split", b, 0, f"part {p + 1}: a chord's upper notes moved to voice {new_voice}")
+        break
+    # 9. Remove one hairpin, where no other hairpin of the same kind starts in that bar and part.
+    removed = False
+    for p, part in enumerate(d.parts):
+        for b, measure in enumerate(part.findall("measure")):
+            if b in d.used_bars or (join_at is not None and b >= join_at):
+                continue
+            wedges = [(direction, _single_wedge(direction)) for direction in measure.findall("direction")]
+            starts = [(direction, kind) for direction, kind in wedges if kind in ("crescendo", "diminuendo")]
+            kinds = [kind for _, kind in starts]
+            for direction, kind in starts:
+                if kinds.count(kind) == 1:
+                    measure.remove(direction)
+                    d.expected["hairpins removed"] += 1
+                    d.take("hairpin removed", b, 0, f"part {p + 1}: a {kind} hairpin removed")
+                    removed = True
+                    break
+            if removed:
+                break
+        if removed:
+            break
+    # 10. Remove one clef, key or time change after the first bar (one structural error).
+    removed = False
+    for p, part in enumerate(d.parts):
+        for b, measure in enumerate(part.findall("measure")):
+            if b == 0 or b in d.used_bars or (join_at is not None and b >= join_at):
+                continue
+            for attributes in measure.findall("attributes"):
+                change = next((c for c in attributes if c.tag in ("clef", "key", "time")), None)
+                if change is not None:
+                    attributes.remove(change)
+                    d.expected["structure mismatches"] += 1
+                    d.take("structure removed", b, 0, f"part {p + 1}: a {change.tag} change removed")
+                    removed = True
+                    break
+            if removed:
+                break
+        if removed:
+            break
+    # 11. Join two bars near the end in every part (a missed barline: one structural error, no note errors).
     if join_at is not None:
         for part in d.parts:
             measures = part.findall("measure")

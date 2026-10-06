@@ -1,5 +1,7 @@
 # Review brief for Stage 6
 
+The review is done. Its findings, and what was done about each, are in `docs/notes/opus-review-findings-stage6.md`. This brief describes the harness as it was handed to the reviewer.
+
 Written 6 October 2026, for an Opus review in a fresh session. The plan (`docs/plans/phase0.md`, Stage 6) is done when the perfect recogniser scores 100 percent, the damaged recogniser scores the expected values, and Opus has reviewed the metric code against the definitions. This note says what was built, what was checked, and where mistakes are most likely.
 
 The definitions are in `docs/notes/evaluation-spec.md`. The owner accepted its decisions on 6 October 2026. Review the code against that file, and report any place where the code and the spec disagree, or where the spec itself is wrong.

@@ -2,7 +2,8 @@
 
 Step 1 pairs staves, step 2 lines up bars, step 3 counts exact matches (a
 multiset intersection, which has only one answer), and step 4 pairs the notes
-left over, only to name each error. Step 4 never changes the accuracy.
+left over to name each error. Step 4 pairs as many notes as it can, so the
+counts have one answer whatever its costs choose.
 """
 
 import collections
@@ -14,7 +15,8 @@ from scipy.optimize import linear_sum_assignment
 
 JOIN_PENALTY = 1.5     # extra cost for joining two bars against one, in notes and rests
 BAND_MARGIN = 20       # bars either side of the diagonal searched, beyond the difference in counts
-PROPERTY_COST = 0.4    # step 4: cost for each of pitch, onset and duration that differs
+PROPERTY_COST = 1      # step 4: cost for each of pitch, onset and duration that differs
+ORDER_MARGIN = 0.3     # similarity gained for each moved staff before the parts are called out of order
 
 
 @dataclass
@@ -61,6 +63,32 @@ def map_staves(truth, output):
         return dict(zip(output_staves, truth_staves))
     if not truth_staves or not output_staves:
         return {}
+    similarity = _staff_similarity(truth, output)
+    rows, cols = linear_sum_assignment(-similarity)
+    return {output_staves[j]: truth_staves[i] for i, j in zip(rows, cols)}
+
+
+def staves_out_of_order(truth, output):
+    """When the staff counts agree, the (output staff, truth staff) pairs that
+    pairing by similarity would choose instead of pairing in order, if it is
+    clearly better: on average at least ORDER_MARGIN more similar for each
+    staff that moves. An empty list means the order looks right."""
+    truth_staves, output_staves = truth.staves(), output.staves()
+    if len(truth_staves) != len(output_staves) or len(truth_staves) < 2:
+        return []
+    similarity = _staff_similarity(truth, output)
+    rows, cols = linear_sum_assignment(-similarity)
+    moved = [(i, j) for i, j in zip(rows, cols) if i != j]
+    gain = similarity[rows, cols].sum() - np.trace(similarity)
+    if not moved or gain < ORDER_MARGIN * len(moved):
+        return []
+    return [(output_staves[j], truth_staves[i]) for i, j in sorted(moved, key=lambda m: m[1])]
+
+
+def _staff_similarity(truth, output):
+    """For each (truth staff, output staff): the overlap of their pitch
+    histograms, plus 0.2 if their first clefs are the same."""
+    truth_staves, output_staves = truth.staves(), output.staves()
 
     def profile(score):
         pitches = collections.defaultdict(collections.Counter)
@@ -82,8 +110,7 @@ def map_staves(truth, output):
             overlap = sum((a & b).values()) / total if total else 0.0
             same_clef = 0.2 if truth_clefs.get(t) and truth_clefs.get(t) == output_clefs.get(o) else 0.0
             similarity[i, j] = overlap + same_clef
-    rows, cols = linear_sum_assignment(-similarity)
-    return {output_staves[j]: truth_staves[i] for i, j in zip(rows, cols)}
+    return similarity
 
 
 # Step 2: bars
@@ -126,28 +153,45 @@ def _unmatched(a, b):
     return sum(a.values()) + sum(b.values()) - 2 * sum((a & b).values())
 
 
+def _offsets(score, bars):
+    return [Fraction(0)] + ([_bar_length(score, bars[0])] if len(bars) == 2 else [])
+
+
+def _summaries(score, events_by_bar):
+    """Each bar's events, alone and joined to the next bar, built once."""
+    count = len(events_by_bar)
+    single = [_counter(events_by_bar, [b], [Fraction(0)]) for b in range(count)]
+    joined = [_counter(events_by_bar, [b, b + 1], _offsets(score, [b, b + 1])) for b in range(count - 1)]
+    return single, joined
+
+
 def align_bars(truth, output, staff_map):
-    """Line up the bars by dynamic programming (spec, "Step 2: bars")."""
-    truth_events = _bar_events(truth)
-    output_events = _bar_events(output, staff_map)
-    n, m = len(truth_events), len(output_events)
+    """Line up the bars by dynamic programming (spec, "Step 2: bars").
+
+    The search stays in a band around the diagonal. A path that leaves the band
+    needs at least 2 * (band + 1) - |n - m| moves that change the offset (a
+    missing, extra or joined bar), each costing at least 1. So if the best path
+    in the band costs no more than that, no path outside can beat it; otherwise
+    the band is doubled and the search repeated."""
+    truth_summaries = _summaries(truth, _bar_events(truth))
+    output_summaries = _summaries(output, _bar_events(output, staff_map))
+    n, m = len(truth_summaries[0]), len(output_summaries[0])
     band = abs(n - m) + BAND_MARGIN
+    while True:
+        segments, total = _align(truth, output, truth_summaries, output_summaries, band)
+        if band >= max(n, m) or total <= 2 * (band + 1) - abs(n - m):
+            return segments
+        band *= 2
+
+
+def _align(truth, output, truth_summaries, output_summaries, band):
+    """One banded alignment. Returns (segments, total cost)."""
+    (truth_single, truth_joined), (output_single, output_joined) = truth_summaries, output_summaries
+    n, m = len(truth_single), len(output_single)
     infinity = float("inf")
     cost = np.full((n + 1, m + 1), infinity)
     step = {}
     cost[0, 0] = 0.0
-
-    def offsets(score, bars):
-        return [Fraction(0)] + ([_bar_length(score, bars[0])] if len(bars) == 2 else [])
-
-    def summaries(score, events_by_bar, count):
-        """Each bar's events, alone and joined to the next bar, built once."""
-        single = [_counter(events_by_bar, [b], [Fraction(0)]) for b in range(count)]
-        joined = [_counter(events_by_bar, [b, b + 1], offsets(score, [b, b + 1])) for b in range(count - 1)]
-        return single, joined
-
-    truth_single, truth_joined = summaries(truth, truth_events, n)
-    output_single, output_joined = summaries(output, output_events, m)
 
     def pair_cost(truth_bars, output_bars):
         a = truth_single[truth_bars[0]] if len(truth_bars) == 1 else truth_joined[truth_bars[0]]
@@ -185,8 +229,10 @@ def align_bars(truth, output, staff_map):
                     c = unpaired_cost(truth_single, i)
                 else:
                     c = unpaired_cost(output_single, j)
-                if here + c < cost[i + di, j + dj] - 1e-12:
-                    cost[i + di, j + dj] = here + c
+                new, old = here + c, cost[i + di, j + dj]
+                # On equal costs a one-to-one pairing wins (joins can reach a cell first).
+                if new < old - 1e-12 or (new <= old + 1e-12 and (di, dj) == (1, 1)):
+                    cost[i + di, j + dj] = new
                     step[(i + di, j + dj)] = (di, dj)
     segments = []
     i, j = n, m
@@ -194,11 +240,11 @@ def align_bars(truth, output, staff_map):
         di, dj = step[(i, j)]
         truth_bars = list(range(i - di, i))
         output_bars = list(range(j - dj, j))
-        segments.append(Segment(truth_bars, output_bars, offsets(truth, truth_bars) if truth_bars else [],
-                                offsets(output, output_bars) if output_bars else []))
+        segments.append(Segment(truth_bars, output_bars, _offsets(truth, truth_bars) if truth_bars else [],
+                                _offsets(output, output_bars) if output_bars else []))
         i, j = i - di, j - dj
     segments.reverse()
-    return segments
+    return segments, float(cost[n, m])
 
 
 # Steps 3 and 4: notes
@@ -276,34 +322,21 @@ def _pair_exact(truth_placed, output_placed, truth_staff_of):
 
 
 def _name_errors(left_truth, left_output):
-    """Step 4: the cheapest pairing of the leftovers, to name each error."""
+    """Step 4: pair the leftovers to name each error. As many notes are paired
+    as possible, so the counts have one answer (a wrong note is one error, and
+    the group has max(leftover truth, leftover output) errors); the costs only
+    choose which notes pair."""
     if not left_truth or not left_output:
         return [], left_truth, left_output
-    n, m = len(left_truth), len(left_output)
-    big = 10.0
-    # Square matrix: the extra rows and columns stand for "left unpaired" at cost 1.
-    size = n + m
-    costs = np.full((size, size), big)
-    for i, t in enumerate(left_truth):
-        for j, o in enumerate(left_output):
-            differs = _differences(t, o)
-            if len(differs) < 3:
-                costs[i, j] = PROPERTY_COST * len(differs)
-        costs[i, m + i] = 1.0
-    for j in range(m):
-        costs[n + j, j] = 1.0
-    costs[n:, m:] = 0.0
-    rows, cols = linear_sum_assignment(costs)
-    errors, missing, extra = [], [], []
-    paired_output = set()
+    costs = np.array([[PROPERTY_COST * len(_differences(t, o)) for o in left_output] for t in left_truth])
+    rows, cols = linear_sum_assignment(costs)   # a rectangular matrix pairs min(n, m) notes
+    errors = []
     for i, j in zip(rows, cols):
-        if i < n and j < m and costs[i, j] < 1.0:
-            differs = _differences(left_truth[i], left_output[j])
-            spelling = differs == ("pitch",) and left_truth[i].pitch.sounding() == left_output[j].pitch.sounding()
-            errors.append(ErrorPair(left_truth[i].note, left_output[j].note, differs, spelling))
-            paired_output.add(j)
-        elif i < n:
-            missing.append(left_truth[i])
+        differs = _differences(left_truth[i], left_output[j])
+        spelling = differs == ("pitch",) and left_truth[i].pitch.sounding() == left_output[j].pitch.sounding()
+        errors.append(ErrorPair(left_truth[i].note, left_output[j].note, differs, spelling))
+    paired_truth, paired_output = set(rows), set(cols)
+    missing = [t for i, t in enumerate(left_truth) if i not in paired_truth]
     extra = [o for j, o in enumerate(left_output) if j not in paired_output]
     return errors, missing, extra
 
