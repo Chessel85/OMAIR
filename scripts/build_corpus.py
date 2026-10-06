@@ -5,6 +5,7 @@ Steps, each resumable:
   composers    list the composers of regression candidates, for the owner's review
   select SET   draw the set (development or regression) and write its selection file
   export SET   export every selected score through every engraver
+  training     list the training pool without near copies of the selected pieces
   report       count the pairs and failures in the corpus folder
 
 Rules: docs/notes/corpus-sampling.md. Output folder: OMR_CORPUS_DIR.
@@ -79,6 +80,13 @@ def cmd_export(args, log):
     return f"{made} exports made, {failed} failed for {args.set}"
 
 
+def cmd_training(args, log):
+    from omr.corpus import training
+
+    kept, copies = training.build(log)
+    return f"{len(kept)} training candidates kept, {len(copies)} near copies removed"
+
+
 def cmd_report(args, log):
     for name in config.SETS:
         index = generate.output_dir(name) / "index.txt"
@@ -103,12 +111,13 @@ def main(argv=None):
         if name == "export":
             p.add_argument("--limit", type=int, help="Only the first N scores.")
             p.add_argument("--retry-failures", action="store_true")
+    sub.add_parser("training")
     sub.add_parser("report")
     args = parser.parse_args(argv)
     log = make_log(f"build-corpus-{args.command}")
     try:
         summary = {"candidates": cmd_candidates, "composers": cmd_composers, "select": cmd_select,
-                   "export": cmd_export, "report": cmd_report}[args.command](args, log)
+                   "export": cmd_export, "training": cmd_training, "report": cmd_report}[args.command](args, log)
     except paths.CorpusDirError as error:
         log.error(str(error))
         summary = "stopped"

@@ -52,8 +52,11 @@ def _clean(value):
     return "" if value in (None, "NA") else value.strip()
 
 
-def pdmx_candidates(log):
-    """Rows of PDMX.csv that pass the metadata filters and are in a set pool."""
+SET_POOLS = ("development", "regression")
+
+
+def pdmx_candidates(log, pools=SET_POOLS):
+    """Rows of PDMX.csv that pass the metadata filters and are in one of `pools`."""
     csv_path = sources_dir() / "pdmx" / "PDMX.csv"
     found = []
     seen = total = 0
@@ -76,7 +79,7 @@ def pdmx_candidates(log):
             key = labels.work_key(composer, title)
             pool = labels.pool_of(key)
             seen += 1
-            if pool == "training":
+            if pool not in pools:
                 continue
             mxl_rel = row["mxl"].lstrip("./").replace("\\", "/")
             found.append(Candidate(
@@ -87,7 +90,7 @@ def pdmx_candidates(log):
                 work_key=key, pool=pool, bars=bars, parts=tracks,
                 original_cc0=(row["is_original"] == "True" and row["license"] == "cc-zero"),
             ))
-    log.info(f"PDMX: {total} rows read, {seen} passed the metadata filters, {len(found)} are in the development or regression pools.")
+    log.info(f"PDMX: {total} rows read, {seen} passed the metadata filters, {len(found)} are in the {' or '.join(pools)} pools.")
     return found
 
 
@@ -122,7 +125,7 @@ def extract_pdmx(candidates, log):
     return kept
 
 
-def openscore_candidates(log):
+def openscore_candidates(log, pools=SET_POOLS):
     found = []
     base = sources_dir() / "openscore"
     for collection in ("Lieder", "StringQuartets"):
@@ -143,7 +146,7 @@ def openscore_candidates(log):
                 continue
             key = labels.work_key(composer, title)
             pool = labels.pool_of(key)
-            if pool == "training":
+            if pool not in pools:
                 continue
             found.append(Candidate(
                 id="os-" + mxl.stem, source="OpenScore", source_path=f"{collection}/{rel.as_posix()}",
@@ -151,7 +154,7 @@ def openscore_candidates(log):
                 tags="", work_key=key, pool=pool,
             ))
             count += 1
-        log.info(f"OpenScore {collection}: {count} scores in the development or regression pools.")
+        log.info(f"OpenScore {collection}: {count} scores in the {' or '.join(pools)} pools.")
     return found
 
 

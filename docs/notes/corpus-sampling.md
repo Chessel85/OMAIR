@@ -26,7 +26,7 @@ A score is a candidate only if all of these hold.
 - **Valid.** PDMX: in the all_valid subset. The MusicXML parses.
 - **Size.** Between 8 and 200 bars, at most 12 parts, and a compressed MusicXML file under 1 MB. Larger scores make exports slow (musicxml2ly ran for more than 30 minutes on a 610 KB uncompressed ragtime file before it was stopped), and they add little that smaller scores do not.
 - **Specialised notation out (REC-9).** No tablature staves, no unpitched percussion staves, no figured bass. These are a later phase, and would only add noise to the Phase 1 numbers.
-- **Round trip.** MuseScore 4 imports the MusicXML and exports it again. The re-exported file is the **reference MusicXML** for the score. MuseScore 3 then imports the reference and exports it again, and musicdiff compares the two. A score is dropped if musicdiff finds any difference in notes or rests. This removes scores that MusicXML tools cannot read the same way, which is the plan's round-trip filter.
+- **Round trip.** MuseScore 4 imports the MusicXML and exports it again. The re-exported file is the **reference MusicXML** for the score. MuseScore 3 then imports the reference and exports it again, and musicdiff compares the two. A score is dropped if musicdiff finds any difference in notes or rests, or cannot parse either file (musicdiff then returns no count, which is not a pass). This removes scores that MusicXML tools cannot read the same way, which is the plan's round-trip filter.
 
 The reference MusicXML is the ground truth for every export of that score, and every engraver is fed the reference, not the original file. For MuseScore 4 this is exact, because its PDF and its MusicXML come from the same loaded score. For MuseScore 3, LilyPond and Verovio, the engraver's own reading of the file may still lose something. Each pair records this in its metadata (`ground_truth: reference, exact` or `ground_truth: reference, engraver input`), so that Stage 6 can report those engravers separately.
 
@@ -65,6 +65,24 @@ No piece may appear in more than one pool, including in different arrangements, 
 
 This split depends only on the seed and the work key, so it does not change when candidates are added or removed, and it can be recomputed at any time.
 
+The work key alone does not keep the pools apart. Uploaders write the composer in many ways ("J. S. Bach (1685-1750)", "Johann Pachelbel Arranged by Melanie Dean", "Misc Praise Songs"), so arrangements of one piece get different keys and land in different pools. Measured on 6 October 2026, at least 12 development pieces had copies in the training pool (Amazing Grace, Canon in D, Joy to the World and others). The near-copy rules below close that gap. The key itself is kept, so the selected sets did not have to be redrawn because of it.
+
+### Near copies
+
+A score is a near copy of a selected piece if, after cleaning both:
+
+- the titles are the same, and the title is distinctive, or the composers match, or either composer is unknown; or
+- its title contains the selected title as a phrase ("Pachelbel's Canon in D (woodwind)" contains "Canon in D"), and the selected title has at least two distinctive words or the composers match.
+
+Cleaning: the title loses catalogue numbers, the noise words of the work key and the composer's own surname. The composer string loses dates and bracketed text, is cut at the first arranger, editor or lyricist word (arr, arranged, transcribed, lyrics, words and so on), and becomes the surname of the last name left. Strings such as "Misc", "Traditional", "Anon" or "Unknown" count as no composer. A title made only of form names, keys, tempo words and numbers ("Prelude in C minor", "Song 1") is generic, because many different pieces share it, so it needs the composer to match. The word lists are in `src/omr/corpus/labels.py`.
+
+The rules are used in two places:
+
+- **Drawing the sets:** a candidate that is a near copy of a piece already chosen is skipped (step 6 below).
+- **The training pool:** every training-pool score that is a near copy of a development or regression piece is removed (see "Training pool").
+
+The rules lean towards removing too much. In a sample of removed scores, nearly all were true copies, and the rest were other settings of the same words (another "Amazing Grace" hymn tune).
+
 **Seed: 20261005.** It is stored in `src/omr/corpus/config.py` (which holds every number in these rules) and in the metadata of every exported pair.
 
 ## Drawing the sets
@@ -76,6 +94,7 @@ Both sets are drawn by the same procedure from their own eligible pool.
 3. Within a texture, at each step take the candidate that helps the most unmet minimums, in this order of importance: priority features (guitar) first, then genre minimums, then the other feature minimums. Ties are broken by shuffled order.
 4. OpenScore may fill at most 40 percent of the voice-with-piano and chamber quotas, so that MuseScore.com styles of writing are represented as well.
 5. If a quota cannot be filled, take what there is, and write the shortfall to the log and to the selection file. Do not relax the filters to fill it.
+6. Skip a candidate that shares a work key with a chosen score, or is a near copy of one.
 
 ### Development set: 300 scores
 
@@ -97,7 +116,11 @@ The regression set is committed to the repository (Stage 7), so it has stricter 
 
 ### Training pool
 
-Everything else that passes the filters. It is not exported in Phase 0, except the small sample Stage 10 needs.
+Everything else that passes the filters, less the near copies of every development and regression piece. It is not exported in Phase 0, except the small sample Stage 10 needs.
+
+`scripts/build_corpus.py training` writes the pool (`work/training-pool.txt`) and the removed near copies (`work/training-near-copies.txt`) under the corpus folder. It also warns if any selected score is a near copy of another selected score, in the same set or the other. Run it again whenever a selection file changes.
+
+On 6 October 2026: 62,400 training candidates by metadata (60,996 PDMX, 1,404 OpenScore), 287 removed as near copies, 62,113 kept. These are metadata counts. The size, notation and round-trip filters have not yet been applied to the training pool, so the usable number will be lower.
 
 ## Exports
 
@@ -139,9 +162,10 @@ Added on 5 October 2026 when the generator was written. The code is in `src/omr/
 - **Voice and keyboard detection** uses the `instrument-sound` identifiers MuseScore writes (voice.soprano, keyboard.piano and so on). Only when a part has no sound identifier does the part name decide. This stops a bass guitar counting as a bass voice.
 - **OpenScore** repositories already contain `.mxl` files beside the MuseScore files, so those are used as the source MusicXML instead of converting the MuseScore files. The MuseScore 4 round trip still runs on them. String quartets longer than 200 bars are dropped by the size rule, which leaves very few chamber scores from that source.
 - **Public-domain composer list** (`scripts/public_domain_composers.txt`). A composer string matches if a listed phrase occurs in it as whole words. A string that also mentions an arranger, editor, transcriber or lyricist (words such as arr, arranged, by, after, text, lyrics) never matches, because the arranger's work may still be in copyright. The list is a first draft of composers with confidently known death dates. The owner must review it.
-- **Round trip results are cached** in `work/roundtrip/` under the corpus folder, one record per candidate, and the reference MusicXML is kept there. Selection is lazy: the best candidate is chosen first and checked, and a failure only costs the check for that candidate.
+- **Round trip results are cached** in `work/roundtrip/` under the corpus folder, one record per candidate, and the reference MusicXML is kept there. Selection is lazy: the best candidate is chosen first and checked, and a failure only costs the check for that candidate. Each record carries the version of the check that made it (`CHECK_VERSION` in `roundtrip.py`). A passing record from an older version is checked again before use. Version 2 (6 October 2026) rejects files musicdiff cannot parse. Version 1 had passed two such development scores, which were replaced.
+- **"Exact" ground truth** means exact in notes and rests. A sample of 63 scores showed MuseScore 4 re-reading its own reference with no note or rest differences. One score lost some "dim." text marks, and two swapped the order of dynamics on the same beat. At the start of Stage 6, each MuseScore 4 pair gets its own MusicXML (written from the same input as its PDF) as its ground truth, with the comparison against the shared reference recorded in its metadata.
 - **Page limit.** The regression page limit uses the page count of the MuseScore 4 export in the default font.
-- **Uniqueness.** No two scores in a set share a work key.
+- **Uniqueness.** No two scores in a set share a work key or are near copies of each other (the draw skips them). Across the two sets, `build_corpus.py training` checks for near copies and warns. On 6 October 2026 it found none.
 - **Failed exports are not retried** on a re-run unless `--retry-failures` is given, because timeouts and wrong-font results would only fail again. Each failure is in the log, in a `failure.txt` beside the job, and in `index.txt`.
 - **Layout under the corpus folder:** `sources/` (downloads), `work/` (candidate cache and round-trip records), `generated/<set>/<score id>/reference.musicxml`, `generated/<set>/<score id>/<job>/score.pdf` and `metadata.txt`, and `generated/<set>/index.txt`. The selection files are in `docs/corpus-selection/`.
 

@@ -280,3 +280,33 @@ def test_export_check_allows_text_only_pages_but_needs_music(tmp_path):
         generate.check_pdf(tmp_path / "text.pdf", spec)
     with pytest.raises(engravers.ExportError):
         generate.check_pdf(DATA / "lilypond.pdf", spec)  # wrong engraver and font
+
+
+@pytest.mark.parametrize(
+    "name,legacy",
+    [
+        ("UTYSZR+Emmentaler-20", True),
+        ("feta20", True),
+        ("Opus Std", True),
+        ("OpusSpecialStd", True),
+        ("EngraverFontSet", True),
+        ("Maestro", True),
+        ("Broadway Copyist", True),
+        # companion text fonts and ordinary text fonts are not music
+        ("OpusText", False),
+        ("Opus Text Std", False),
+        ("Reprise Text", False),
+        ("Inkpen2 Text", False),
+        ("Engraver Text NCS", False),
+        ("JazzText", False),
+        ("Maestro Times", False),
+        ("Engravers MT", False),
+        ("EngraversGothic BT", False),
+        ("AshleyScriptMTStd", False),
+        ("Times-Roman", False),
+    ],
+)
+def test_legacy_font_names(name, legacy):
+    from omr.pdf.evidence import is_legacy_name
+
+    assert is_legacy_name(name) is legacy

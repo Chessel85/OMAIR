@@ -23,6 +23,12 @@ class RoundTrip:
     reason: str
     reference: str | None = None  # path of the kept reference MusicXML
     pages: int = 0                # pages in the MuseScore 4 PDF (default font)
+    version: int = 1              # CHECK_VERSION when the record was made
+
+
+# Version 2 treats a musicdiff parse failure as a failure (version 1 passed it),
+# so a passing record from an older version is checked again.
+CHECK_VERSION = 2
 
 
 def cache_dir():
@@ -36,16 +42,37 @@ def check(candidate, timeout=240):
     folder = cache_dir()
     record = folder / f"{candidate.id}.json"
     if record.is_file():
-        return RoundTrip(**json.loads(record.read_text(encoding="utf-8")))
+        cached = RoundTrip(**json.loads(record.read_text(encoding="utf-8")))
+        if not cached.ok or cached.version >= CHECK_VERSION:
+            return cached
     result = _run(candidate, folder, timeout)
+    result.version = CHECK_VERSION
     record.write_text(json.dumps(result.__dict__), encoding="utf-8")
     return result
 
 
-def _run(candidate, folder, timeout):
-    from musicdiff import diff
+def compare_notes(first, second, diff=None):
+    """None if musicdiff finds no difference in notes or rests, else the reason.
+
+    musicdiff returns None (not 0) when a file fails to parse, so only an
+    explicit 0 is a pass.
+    """
+    if diff is None:
+        from musicdiff import diff
     from musicdiff.detaillevel import DetailLevel
 
+    try:
+        edits = diff(str(first), str(second), visualize_diffs=False, detail=DetailLevel.NotesAndRests)
+    except Exception as error:
+        return f"musicdiff failed: {error}"
+    if edits is None:
+        return "musicdiff could not parse one of the files"
+    if edits != 0:
+        return f"musicdiff found {edits} differences in notes or rests"
+    return None
+
+
+def _run(candidate, folder, timeout):
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         source = tmp / "source.musicxml"
@@ -61,13 +88,9 @@ def _run(candidate, folder, timeout):
             return RoundTrip(False, f"export failed: {error}")
         except Exception as error:
             return RoundTrip(False, f"could not read the PDF or MusicXML: {error}")
-        try:
-            edits = diff(str(first.musicxml), str(again), visualize_diffs=False,
-                         detail=DetailLevel.NotesAndRests)
-        except Exception as error:
-            return RoundTrip(False, f"musicdiff failed: {error}")
-        if edits:
-            return RoundTrip(False, f"musicdiff found {edits} differences in notes or rests", pages=pages)
+        failure = compare_notes(first.musicxml, again)
+        if failure:
+            return RoundTrip(False, failure, pages=pages)
         kept = folder / f"{candidate.id}.reference.musicxml"
         shutil.copyfile(first.musicxml, kept)
         return RoundTrip(True, "ok", str(kept), pages)

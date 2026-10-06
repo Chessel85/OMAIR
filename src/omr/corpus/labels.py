@@ -247,3 +247,141 @@ def pool_of(key, seed=config.SEED):
     if x < config.DEVELOPMENT_SHARE:
         return "development"
     return "training"
+
+
+# --------------------------------------------------- near copies of a piece
+#
+# The work key above decides the pools and is kept unchanged, so that the
+# selected sets stay as they are. These rules find near copies of a selected
+# piece in the training pool (spec, "Keeping the training pool clean").
+
+# Words before an arranger, editor or lyricist: the composer string is cut there.
+CREDIT_CUT_WORDS = {
+    "arr", "arranged", "arrangement", "arranger", "rearranged", "transcribed", "transcription",
+    "orch", "orchestrated", "orchestration", "adapted", "adaptation", "edited", "ed", "editor",
+    "harmonized", "harmonised", "harmonization", "lyrics", "lyricist", "words", "text", "feat",
+    "featuring", "performed", "played", "cover",
+}
+# Labels that come before a composer's name and are not part of it.
+CREDIT_LABEL_WORDS = {
+    "music", "composer", "composed", "comp", "by", "written", "org", "original", "song", "from",
+    "english", "german", "french", "latin", "italian", "spanish",
+}
+# Composer strings that name no one.
+UNKNOWN_COMPOSER_WORDS = {
+    "misc", "traditional", "trad", "anon", "anonymous", "unknown", "unbekannt", "various",
+    "composer", "tunes", "songs",
+}
+
+# A title made only of these words (and numbers) names a form, not a piece:
+# many different pieces share it, so the composer must match as well.
+GENERIC_TITLE_WORDS = {
+    # forms
+    "prelude", "preludes", "praeludium", "fugue", "fuga", "invention", "sinfonia", "sonata", "sonatina",
+    "etude", "study", "studies", "exercise", "exercises", "waltz", "valse", "walzer", "minuet", "menuet",
+    "menuetto", "minuetto", "march", "marche", "marsch", "dance", "danse", "tanz", "theme", "variations",
+    "variation", "nocturne", "mazurka", "polonaise", "polka", "scherzo", "rondo", "rondino", "gavotte",
+    "bourree", "gigue", "jig", "reel", "hornpipe", "sarabande", "allemande", "courante", "air", "aria",
+    "arietta", "chorale", "choral", "hymn", "canon", "lullaby", "berceuse", "romance", "romanze",
+    "impromptu", "bagatelle", "fantasia", "fantasy", "fantasie", "toccata", "suite", "partita",
+    "intermezzo", "ballade", "elegy", "elegie", "serenade", "serenata", "song", "songs", "lied", "chanson",
+    "piece", "pieces", "duet", "duo", "trio", "quartet", "quintet", "concerto", "symphony", "overture",
+    "chorus", "anthem", "carol", "psalm", "mass", "missa", "kyrie", "gloria", "credo", "sanctus",
+    "agnus", "dei", "magnificat", "ave", "maria", "requiem", "blues", "rag", "tango", "bolero",
+    "intro", "outro", "untitled", "new", "my", "first", "little", "short", "simple", "melody", "tune",
+    "improvisation", "sketch", "movement", "mvt", "mov", "part", "no", "nr", "num", "number",
+    # keys and tempo words
+    "a", "b", "c", "d", "e", "f", "g", "h", "flat", "sharp", "major", "minor", "dur", "moll",
+    "allegro", "allegretto", "andante", "andantino", "adagio", "moderato", "presto", "largo", "lento",
+    "vivace", "grave", "maestoso", "cantabile", "con", "moto", "non", "troppo", "ma", "poco",
+    # small words
+    "of", "on", "to", "with", "from", "major", "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x",
+}
+
+
+def clean_composer(composer):
+    """The surname of the composer named in a credit string, or "" if it names
+    no one. Dates and bracketed text are removed, and the string is cut at the
+    first arranger, editor or lyricist word."""
+    text = re.sub(r"\([^)]*\)|\[[^\]]*\]", " ", composer or "")
+    # Credits that have lost a space: "Nat King ColeArr.", "Mel Tormearr."
+    text = re.sub(r"([a-z])(Arr\b|By\b|Lyrics\b|Words\b)", r"\1 \2", text)
+    text = re.sub(r"([a-z])(arr\.)", r"\1 \2", text)
+    text = re.sub(r"\d+", " ", text)
+    head = text.split(",")[0]
+    words = _plain(head).split()
+    kept = []
+    for w in words:
+        if w in CREDIT_CUT_WORDS:
+            break
+        if w in CREDIT_LABEL_WORDS:
+            continue
+        kept.append(w)
+    if not kept or any(w in UNKNOWN_COMPOSER_WORDS for w in kept):
+        return ""
+    if "," in text and len(kept) == 1:  # "Bach, Johann Sebastian"
+        return kept[0]
+    return kept[-1]
+
+
+def piece_title(title, composer=""):
+    """The title with catalogue numbers, noise words and the composer's own
+    name removed, for matching copies of one piece."""
+    text = CATALOGUE.sub(" ", _plain(title))
+    surname = clean_composer(composer)
+    return " ".join(w for w in text.split() if w not in NOISE_WORDS and w != surname)
+
+
+def is_generic_title(cleaned):
+    """True if a cleaned title names only a form, key, tempo or number."""
+    return all(w in GENERIC_TITLE_WORDS or w.isdigit() for w in cleaned.split())
+
+
+def distinctive_words(cleaned):
+    """The words of a cleaned title that are not form, key or small words."""
+    return {w for w in cleaned.split() if w not in GENERIC_TITLE_WORDS and not w.isdigit()}
+
+
+class NearCopyIndex:
+    """The selected pieces, for finding their near copies elsewhere.
+
+    A score is a near copy of a selected piece if, after cleaning:
+
+    - its title is the same, and the title is distinctive, or the composers
+      match, or either composer is unknown; or
+    - its title contains the selected title as a phrase ("Pachelbel's Canon in
+      D major" contains "canon d"), and the selected title has at least two
+      distinctive words or the composers match.
+
+    One-word and generic titles ("Falling", "Prelude in C minor") need the
+    composer for a phrase match, or they would catch unrelated pieces.
+    """
+
+    def __init__(self, selected):
+        self.titles = {}
+        self._phrases = None  # (padded key, strong, composers), rebuilt after add
+        for title, composer in selected:
+            self.add(title, composer)
+
+    def add(self, title, composer):
+        key = piece_title(title, composer)
+        if key:
+            self.titles.setdefault(key, set()).add(clean_composer(composer))
+            self._phrases = None
+
+    def match(self, title, composer):
+        key = piece_title(title, composer)
+        who = clean_composer(composer)
+        composers = self.titles.get(key)
+        if composers is not None:
+            if not is_generic_title(key):
+                return True
+            return not who or "" in composers or who in composers
+        padded = f" {key} "
+        if self._phrases is None:
+            self._phrases = [(f" {k} ", len(distinctive_words(k)) >= 2, who_set)
+                             for k, who_set in self.titles.items()]
+        for phrase, strong, composers in self._phrases:
+            if phrase in padded and (strong or (who and who in composers)):
+                return True
+        return False

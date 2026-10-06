@@ -250,3 +250,115 @@ def test_verovio_svg_fix_adds_stroke_and_unwraps_inner_svg():
 def test_all_expected_font_names_have_a_pdf_name():
     for font in list(engravers.MUSESCORE4_FONTS) + list(engravers.MUSESCORE3_FONTS):
         assert font in engravers.PDF_FONT_NAMES
+
+
+@pytest.mark.parametrize(
+    "result,passes",
+    [(0, True), (3, False), (None, False)],
+)
+def test_round_trip_passes_only_on_an_explicit_zero(result, passes):
+    """musicdiff returns None when a file fails to parse; that is not a pass."""
+    pytest.importorskip("musicdiff")
+    from omr.corpus import roundtrip
+
+    failure = roundtrip.compare_notes("a.musicxml", "b.musicxml", diff=lambda *a, **k: result)
+    assert (failure is None) is passes
+
+
+def test_round_trip_failure_when_musicdiff_raises():
+    pytest.importorskip("musicdiff")
+    from omr.corpus import roundtrip
+
+    def boom(*a, **k):
+        raise ValueError("bad file")
+
+    assert "bad file" in roundtrip.compare_notes("a", "b", diff=boom)
+
+
+def test_round_trip_cache_rechecks_passes_from_an_older_check(tmp_path, monkeypatch):
+    import json
+
+    from omr.corpus import roundtrip
+
+    monkeypatch.setattr(roundtrip, "cache_dir", lambda: tmp_path)
+    runs = []
+
+    def fake_run(candidate, folder, timeout):
+        runs.append(candidate.id)
+        return roundtrip.RoundTrip(False, "musicdiff could not parse one of the files")
+
+    monkeypatch.setattr(roundtrip, "_run", fake_run)
+    old_pass = type("C", (), {"id": "old-pass"})()
+    old_fail = type("C", (), {"id": "old-fail"})()
+    (tmp_path / "old-pass.json").write_text(json.dumps({"ok": True, "reason": "ok"}))
+    (tmp_path / "old-fail.json").write_text(json.dumps({"ok": False, "reason": "differences"}))
+    assert not roundtrip.check(old_pass).ok  # re-run under the current check
+    assert not roundtrip.check(old_fail).ok  # a failure stays a failure, not re-run
+    assert runs == ["old-pass"]
+    assert json.loads((tmp_path / "old-pass.json").read_text())["version"] == roundtrip.CHECK_VERSION
+    roundtrip.check(old_pass)
+    assert runs == ["old-pass"]  # now read from the cache
+
+
+@pytest.mark.parametrize(
+    "credit,surname",
+    [
+        ("J. S. Bach (1685-1750)", "bach"),
+        ("Wolfgang Amadeus Mozart 1756-1791", "mozart"),
+        ("Bach, Johann Sebastian", "bach"),
+        ("Johann Pachelbel Arranged by Melanie Dean", "pachelbel"),
+        ("Music by Richard Rodgers", "rodgers"),
+        ("Comp. Nat King ColeArr. J.T. Wolken", "cole"),
+        ("Robert Wells and Mel Tormearr. by David Buckley", "torme"),
+        ("Misc Praise Songs", ""),
+        ("Trad.", ""),
+        ("Rearranged By:Daniel De Richie", ""),
+        ("English Words by AP Graves", ""),
+        ("", ""),
+    ],
+)
+def test_clean_composer_finds_the_surname(credit, surname):
+    assert labels.clean_composer(credit) == surname
+
+
+def test_near_copies_of_a_selected_piece():
+    index = labels.NearCopyIndex([
+        ("Amazing Grace", "John Newton (1725-1807)"),
+        ("Canon in D", "Johann Pachelbel Arranged by Melanie Dean"),
+        ("Falling", "Shan Lee Rowe"),
+        ("Mozart - Voi che sapete", "Wolfgang Amadeus Mozart 1756-1791"),
+    ])
+    # same title, any composer, when the title is distinctive
+    assert index.match("Amazing Grace", "Misc Praise Songs")
+    assert index.match("Voi che sapete", "Mozart")
+    # the title as a phrase inside a longer one, when it has two distinctive words
+    assert index.match("Amazing Grace Horn Trio", "Arr. Deirdre Johnson")
+    # generic titles need the composer, or no composer
+    assert index.match("Canon in D", "Pachelbel")
+    assert index.match("Canon in D", "")
+    assert index.match("Pachelbel's Canon in D (woodwind)", "Johann Pachelbel")
+    assert not index.match("Canon in D", "Some Student")
+    assert not index.match("Prelude in C minor", "J. S. Bach")
+    # one-word titles do not catch longer, unrelated titles
+    assert not index.match("Can't Help Falling In Love", "Elvis Presley")
+    assert index.match("Falling (choir)", "Shan Lee Rowe")
+
+
+def test_training_pool_drops_near_copies_and_selection_skips_them(monkeypatch):
+    from omr.corpus import training
+    from omr.corpus.roundtrip import RoundTrip
+
+    pieces = [("development", "d1", "Amazing Grace", "John Newton")]
+    copy = Candidate("t1", "PDMX", "p", "m", "Amazing Grace (3 trombones)", "Trad", None, "", "k1", "training")
+    other = Candidate("t2", "PDMX", "p", "m", "Greensleeves", "Trad", None, "", "k2", "training")
+    kept, copies = training.split_training([copy, other], pieces)
+    assert [c.id for c in kept] == ["t2"] and [c.id for c in copies] == ["t1"]
+    assert training.repeated_selections(pieces + [("regression", "r1", "Amazing Grace in G", "")])
+
+    monkeypatch.setattr(select.roundtrip, "check", lambda c: RoundTrip(True, "ok", "/r", 1))
+    a = Candidate("a", "PDMX", "p", "m", "Amazing Grace", "Newton", "sacred", "", "ka", "development",
+                  texture="piano", genre="sacred")
+    b = Candidate("b", "PDMX", "p", "m", "Amazing Grace in G", "", "sacred", "", "kb", "development",
+                  texture="piano", genre="sacred")
+    chosen, _ = select.select_set("development", [a, b], ProgressLog("t"), composers=set())
+    assert len(chosen) == 1

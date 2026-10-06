@@ -70,6 +70,7 @@ def select_set(name, candidates, log, composers=None):
         pool = [c for c in pool if regression_allowed(c, composers)]
     log.info(f"{name}: {len(pool)} eligible candidates.")
     chosen, genre_counts, feature_counts, used_keys = [], {}, {}, set()
+    near_copies = labels.NearCopyIndex([])
     shortfalls = []
     for texture in config.TEXTURES:
         quota = cfg["textures"][texture]
@@ -84,6 +85,9 @@ def select_set(name, candidates, log, composers=None):
                 break
             best = max(allowed, key=lambda c: _gain(c, cfg, genre_counts, feature_counts))
             remaining.remove(best)
+            if near_copies.match(best.title, best.composer):
+                log.info(f"{name}: skipped {best.id} ({best.title}): a near copy of a piece already chosen.")
+                continue
             trip = roundtrip.check(best)
             if trip.ok and name == "regression" and trip.pages > config.REGRESSION_MAX_PAGES:
                 trip = roundtrip.RoundTrip(False, f"{trip.pages} pages is over the limit of {config.REGRESSION_MAX_PAGES}")
@@ -93,6 +97,7 @@ def select_set(name, candidates, log, composers=None):
                 continue
             chosen.append((best, trip))
             used_keys.add(best.work_key)
+            near_copies.add(best.title, best.composer)
             genre_counts[best.genre] = genre_counts.get(best.genre, 0) + 1
             for f in best.features:
                 feature_counts[f] = feature_counts.get(f, 0) + 1

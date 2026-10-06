@@ -40,7 +40,7 @@ Each font is put into exactly one class. Apply the tests in this order.
 3. **Unknown, probably music.** Not in either class above, but at least 10 of its glyphs have their centre inside a staff (see staves below), and fewer than half of its glyphs are letters, digits or punctuation. Report it as "unknown font, probably music" and list it, so that Stage 8 can grow the legacy list.
 4. **Text font.** Everything else.
 
-Legacy list (match on the name after the subset prefix, ignoring case, spaces and hyphens, as a prefix): Emmentaler, Feta, Opus, Helsinki, Reprise, Inkpen2, Norfolk, Maestro, Petrucci, Jazz, Engraver, Broadway Copyist, Sonata, Tamburo, Seville, Toccata, Pori, Ash. Stage 8 will extend it. A font whose name is on the list but which passes test 1 is SMuFL (for example the SMuFL Finale Maestro that MuseScore 4 writes as "FinaleMaestro").
+Legacy list (match on the name after the subset prefix, ignoring case, spaces and hyphens, as a prefix that ends at a word boundary: the next character must not be a lower-case letter, so "Engravers MT" and "AshleyScript" do not match; a name containing "text" or "times" is never legacy, because Opus Text, Reprise Text, Engraver Text and Maestro Times are the text companions of these fonts): Emmentaler, Feta, Opus, Helsinki, Reprise, Inkpen2, Norfolk, Maestro, Petrucci, Jazz, Engraver, Broadway Copyist, Sonata, Tamburo, Seville, Toccata, Pori, Ash. Stage 8 will extend it. A font whose name is on the list but which passes test 1 is SMuFL (for example the SMuFL Finale Maestro that MuseScore 4 writes as "FinaleMaestro").
 
 Glyphs with no usable Unicode value still count. LilyPond's Emmentaler arrives with every character as U+FFFD, so for legacy fonts the glyph ID is the key. Phase 1 will need the glyph names from the embedded font program, which PyMuPDF does not expose; that is a Phase 1 question, not an inspector one.
 
@@ -208,5 +208,6 @@ Done when (from the plan): every file in the generated corpus is classified as i
 ## Open points for later stages
 
 - Stage 8 extends the legacy font list and calibrates the C and D thresholds.
+- First task of Stage 8: replace the letter test in "Unknown, probably music" (test 3 under "Music font identification") with a position test. Legacy 8-bit music fonts put their symbols on letters and punctuation (a treble clef on "&", a notehead on "q"), so the letter test classes them as text. The new test: at least 10 glyphs, and at least half of the font's glyphs, centred between the top and bottom lines of a staff. See `docs/notes/opus-review-findings.md`, Stage 4, finding 2.
 - Phase 1 needs glyph names from embedded fonts (for LilyPond and other legacy fonts), which needs a small font-reading dependency such as fontTools (MIT). Add it to the licence register when it is added.
 - Systems (staves joined by a barline or brace) are not detected by the inspector. Phase 1 does that.

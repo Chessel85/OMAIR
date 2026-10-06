@@ -34,9 +34,26 @@ def strip_subset_prefix(name):
     return SUBSET_PREFIX.sub("", name)
 
 
+# Companion text fonts of legacy music fonts (Opus Text, Engraver Text,
+# Maestro Times) are text, not music.
+LEGACY_TEXT_MARKERS = ("text", "times")
+
+
 def is_legacy_name(name):
-    squashed = _squash(strip_subset_prefix(name))
-    return any(squashed.startswith(_squash(legacy)) for legacy in LEGACY_FONTS)
+    """The name starts with a listed legacy font as a whole word: the next
+    character is not a lower-case letter. So "EngraverFontSet" and "Opus Std"
+    match, but "Engravers MT" and "AshleyScript" do not."""
+    compact = re.sub(r"[\s\-_]", "", strip_subset_prefix(name))
+    squashed = compact.lower()
+    if any(marker in squashed for marker in LEGACY_TEXT_MARKERS):
+        return False
+    for legacy in LEGACY_FONTS:
+        prefix = _squash(legacy)
+        if squashed.startswith(prefix):
+            rest = compact[len(prefix):]
+            if not rest or not rest[0].islower():
+                return True
+    return False
 
 
 def is_smufl_text_name(name):
@@ -267,7 +284,7 @@ def find_staves(candidates, glyph_centres):
                 break
         else:
             merged.append([y, x0, x1, t])
-    # 3. group lines whose x ranges overlap by 80 percent of the shorter one
+    # 3. group lines whose x ranges overlap by 80 percent of the longer one
     groups = []
     for line in merged:
         for g in groups:
