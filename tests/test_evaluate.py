@@ -415,3 +415,15 @@ def test_decimal_durations_and_divisions_are_read_exactly(tmp_path):
            + note("E4", 6).replace("<duration>6</duration>", "<duration>1.25</duration>"))
     s = events.read(write(tmp_path, "d.musicxml", score(("Flute", [bar]))))
     assert [n.onset for n in s.notes] == [0, 1, Fraction(3, 2)]
+
+
+def test_voice_numbers_are_local_to_each_output_part(tmp_path):
+    # The ground truth has one piano part with a voice on each staff. The output
+    # writes the two staves as two parts, each with its notes in voice 1.
+    # These are two different voices, so the grouping is right: no voice errors.
+    truth = score(("Piano", [attributes(staves=2, clefs=("G2", "F4")) + four_quarters(first=" ") + backup(48)
+                             + "".join(note(p, voice=2, staff=2) for p in "C3 D3 E3 F3".split())]))
+    output = score(("Piano right", [four_quarters()]),
+                   ("Piano left", [attributes(clefs=("F4",)) + "".join(note(p) for p in "C3 D3 E3 F3".split())]))
+    fig = compare(tmp_path, truth, output)
+    assert accuracy(fig) == 1 and fig["diagnostics"]["voice"] == {"right": 8, "of": 8}

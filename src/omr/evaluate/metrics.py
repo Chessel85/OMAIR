@@ -105,7 +105,7 @@ def _voice_errors(result):
     shares most exact matches with; count matched notes that disagree."""
     pairs = collections.defaultdict(collections.Counter)
     for t, o in result.exact:
-        pairs[(result.truth_segment.get(t.bar), t.part, o.voice)][t.voice] += 1
+        pairs[(result.truth_segment.get(t.bar), t.part, o.part, o.voice)][t.voice] += 1
     return sum(sum(c.values()) - max(c.values()) for c in pairs.values())
 
 
