@@ -9,6 +9,8 @@ Checked on 5 October 2026 on the development laptop (Windows 11). All commands r
 - Works for `.pdf`, `.mscz` and `.musicxml` output. Converting a `.mscz` back to `.musicxml` also works.
 - A one-bar test score took about 1 to 2 seconds.
 - Version: `MuseScore4.exe --long-version`
+- One run can write several outputs with a job file: `MuseScore4.exe -S style.mss -j job.json`, where `job.json` is `[{"in": "in.musicxml", "out": ["out.pdf", "out.musicxml"]}]`. The style file applies to every output. The corpus uses this so that each PDF and its MusicXML come from one run. Checked on 6 October 2026: the MusicXML is identical to a separate `-S style.mss -o out.musicxml` run, and the PDF matches a separate PDF run.
+- The style changes the MusicXML. Without the style file, a score drawn in Finale Broadway at a 2 mm staff space was written with `music-font` Leland and different bar widths and positions (about 1,500 changed lines). So the MusicXML that matches a PDF must be written with the same style file.
 
 ## MuseScore 3 (3.3.4, Microsoft Store package)
 

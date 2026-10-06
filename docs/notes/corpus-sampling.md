@@ -28,7 +28,12 @@ A score is a candidate only if all of these hold.
 - **Specialised notation out (REC-9).** No tablature staves, no unpitched percussion staves, no figured bass. These are a later phase, and would only add noise to the Phase 1 numbers.
 - **Round trip.** MuseScore 4 imports the MusicXML and exports it again. The re-exported file is the **reference MusicXML** for the score. MuseScore 3 then imports the reference and exports it again, and musicdiff compares the two. A score is dropped if musicdiff finds any difference in notes or rests, or cannot parse either file (musicdiff then returns no count, which is not a pass). This removes scores that MusicXML tools cannot read the same way, which is the plan's round-trip filter.
 
-The reference MusicXML is the ground truth for every export of that score, and every engraver is fed the reference, not the original file. For MuseScore 4 this is exact, because its PDF and its MusicXML come from the same loaded score. For MuseScore 3, LilyPond and Verovio, the engraver's own reading of the file may still lose something. Each pair records this in its metadata (`ground_truth: reference, exact` or `ground_truth: reference, engraver input`), so that Stage 6 can report those engravers separately.
+Every engraver is fed the reference, not the original file. The ground truth of a pair depends on the engraver:
+
+- **MuseScore 4:** the pair's own MusicXML, `score.musicxml` beside its PDF. One MuseScore 4 run writes both files from the same input with the same style file, so the MusicXML holds exactly what the PDF shows, including that layout's positions and system breaks. It is recorded as exact. Re-reading the shared reference is not always exact: in a sample of 63 scores, one lost 5 of 8 "dim." marks.
+- **MuseScore 3, LilyPond and Verovio:** the shared reference MusicXML. The engraver's own reading of the file may still lose something, so it is recorded as "engraver input", and Stage 6 reports those engravers separately.
+
+Each pair's metadata names its ground-truth file (`ground truth file: score.musicxml` or `ground truth file: ../reference.musicxml`, relative to the job folder) and its kind (`ground truth: exact` or `ground truth: engraver input`). A MuseScore 4 pair also records how its own MusicXML differs from the shared reference, by musicdiff in notes and rests and in all objects (`difference from shared reference: 0 in notes and rests, 2 in all objects`). A difference in notes or rests is also a warning in the export log.
 
 ## Labels computed for each candidate
 
@@ -124,7 +129,7 @@ On 6 October 2026: 62,400 training candidates by metadata (60,996 PDMX, 1,404 Op
 
 ## Exports
 
-Every development and regression score is exported as a pair (PDF and the reference MusicXML) through these engravers. The command lines are in `docs/notes/tool-commands.md`.
+Every development and regression score is exported as a pair (a PDF and its ground-truth MusicXML, as described under "Round trip") through these engravers. The command lines are in `docs/notes/tool-commands.md`.
 
 Base exports, for every score (the plan's done condition):
 
@@ -145,7 +150,7 @@ Every export is checked with the inspector's JSON output before it is accepted: 
 
 ## Metadata for each pair
 
-A small text file beside each pair, with one "name: value" line each: source (PDMX or OpenScore) and source path, work key, title, composer, set (development or regression), texture, genre, features, engraver, engraver version, font, staff size, ground truth (as above), seed, and the date of export.
+A small text file beside each pair, with one "name: value" line each: source (PDMX or OpenScore) and source path, work key, title, composer, set (development or regression), texture, genre, features, engraver, engraver version, font, staff size, ground truth file and ground truth (as above), the difference from the shared reference (MuseScore 4 only), seed, and the date of export.
 
 ## What is committed
 
@@ -163,12 +168,12 @@ Added on 5 October 2026 when the generator was written. The code is in `src/omr/
 - **OpenScore** repositories already contain `.mxl` files beside the MuseScore files, so those are used as the source MusicXML instead of converting the MuseScore files. The MuseScore 4 round trip still runs on them. String quartets longer than 200 bars are dropped by the size rule, which leaves very few chamber scores from that source.
 - **Public-domain composer list** (`scripts/public_domain_composers.txt`). A composer string matches if a listed phrase occurs in it as whole words. A string that also mentions an arranger, editor, transcriber or lyricist (words such as arr, arranged, by, after, text, lyrics) never matches, because the arranger's work may still be in copyright. The list is a first draft of composers with confidently known death dates. The owner must review it.
 - **Round trip results are cached** in `work/roundtrip/` under the corpus folder, one record per candidate, and the reference MusicXML is kept there. Selection is lazy: the best candidate is chosen first and checked, and a failure only costs the check for that candidate. Each record carries the version of the check that made it (`CHECK_VERSION` in `roundtrip.py`). A passing record from an older version is checked again before use. Version 2 (6 October 2026) rejects files musicdiff cannot parse. Version 1 had passed two such development scores, which were replaced.
-- **"Exact" ground truth** means exact in notes and rests. A sample of 63 scores showed MuseScore 4 re-reading its own reference with no note or rest differences. One score lost some "dim." text marks, and two swapped the order of dynamics on the same beat. At the start of Stage 6, each MuseScore 4 pair gets its own MusicXML (written from the same input as its PDF) as its ground truth, with the comparison against the shared reference recorded in its metadata.
+- **Per-pair ground truth for MuseScore 4** (6 October 2026). The export keeps the MusicXML that MuseScore 4 writes with its PDF. A MuseScore 4 job counts as done only if it has that file, so jobs made before this change were made again by the next `export` run. Metadata made before it (`ground truth: reference, engraver input`) is rewritten to the new two lines when the export run passes the job. `index.txt` lists each pair's ground-truth file.
 - **Page limit.** The regression page limit uses the page count of the MuseScore 4 export in the default font.
 - **Uniqueness.** No two scores in a set share a work key or are near copies of each other (the draw skips them). Across the two sets, `build_corpus.py training` checks for near copies and warns. On 6 October 2026 it found none.
 - **Failed exports are not retried** on a re-run unless `--retry-failures` is given, because timeouts and wrong-font results would only fail again. Each failure is in the log, in a `failure.txt` beside the job, and in `index.txt`.
 - **Exports run in parallel.** `export SET --workers N` runs up to N exports at once, each in its own process (default 3; `--workers 1` runs them one at a time in the main process). Only the main process writes the log, so each line is still one whole event, but lines can finish out of order; each names its score and job. Free space is checked before each score's jobs start, and a stop lets the running jobs finish, so the run resumes as before. The measured speed-up is in `docs/notes/tool-commands.md`.
-- **Layout under the corpus folder:** `sources/` (downloads), `work/` (candidate cache and round-trip records), `generated/<set>/<score id>/reference.musicxml`, `generated/<set>/<score id>/<job>/score.pdf` and `metadata.txt`, and `generated/<set>/index.txt`. The selection files are in `docs/corpus-selection/`.
+- **Layout under the corpus folder:** `sources/` (downloads), `work/` (candidate cache and round-trip records), `generated/<set>/<score id>/reference.musicxml`, `generated/<set>/<score id>/<job>/score.pdf` and `metadata.txt` (and `score.musicxml` for MuseScore 4), and `generated/<set>/index.txt`. The selection files are in `docs/corpus-selection/`.
 
 ## Guitar and tablature (decision of 5 October 2026)
 

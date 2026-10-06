@@ -14,6 +14,10 @@ from omr import inspect as inspector
 from omr import parallel, paths
 from omr.corpus import config, engravers, roundtrip
 
+# The ground-truth file of a pair, relative to its job folder.
+MS4_TRUTH = "score.musicxml"
+SHARED_TRUTH = "../reference.musicxml"
+
 
 def output_dir(set_name):
     return paths.require_corpus_dir() / "generated" / set_name
@@ -75,7 +79,7 @@ def check_pdf(pdf, spec):
         raise engravers.ExportError(f"the PDF uses music font(s) {sorted(names)}, not {wanted}")
 
 
-def metadata_text(candidate, set_name, spec, result, ground_truth):
+def metadata_text(candidate, set_name, spec, result, truth_file, truth, difference=None):
     fields = [
         ("source", candidate.source), ("source path", candidate.source_path),
         ("work key", candidate.work_key), ("title", candidate.title),
@@ -85,18 +89,67 @@ def metadata_text(candidate, set_name, spec, result, ground_truth):
         ("engraver", result.engraver), ("engraver version", result.version),
         ("font", spec["font"]),
         ("staff size", f"{spec['staff_mm']} mm" if spec.get("staff_mm") else "default"),
-        ("ground truth", ground_truth), ("seed", config.SEED),
-        ("date of export", datetime.date.today().isoformat()),
+        ("ground truth file", truth_file), ("ground truth", truth),
     ]
+    if difference:
+        fields.append(("difference from shared reference", difference))
+    fields += [("seed", config.SEED), ("date of export", datetime.date.today().isoformat())]
     return "".join(f"{k}: {v}\n" for k, v in fields)
+
+
+def compare_with_reference(answer, reference, diff=None):
+    """Compare a pair's own MusicXML with the shared reference by musicdiff.
+
+    Returns (text for the metadata, number of note and rest differences or
+    None when musicdiff could not compare the files).
+    """
+    if diff is None:
+        from musicdiff import diff
+    from musicdiff.detaillevel import DetailLevel
+
+    counts = []
+    for level in (DetailLevel.NotesAndRests, DetailLevel.AllObjects):
+        try:
+            edits = diff(str(answer), str(reference), visualize_diffs=False, detail=level)
+        except Exception as error:
+            return f"could not be compared, musicdiff failed: {' '.join(str(error).split())[:200]}", None
+        if edits is None:
+            return "could not be compared, musicdiff could not parse one of the files", None
+        counts.append(edits)
+    return f"{counts[0]} in notes and rests, {counts[1]} in all objects", counts[0]
+
+
+def job_is_done(out, spec):
+    """True if the job has its metadata and, for MuseScore 4, its own MusicXML.
+
+    MuseScore 4 jobs made before 6 October 2026 kept no MusicXML, so they are
+    made again on the next run to get their ground truth.
+    """
+    if not (out / "metadata.txt").is_file():
+        return False
+    return spec["engraver"] != "MuseScore 4" or (out / MS4_TRUTH).is_file()
+
+
+OLD_TRUTH_LINE = "ground truth: reference, engraver input\n"
+
+
+def upgrade_metadata(out):
+    """Rewrite the ground-truth line of metadata made before 6 October 2026."""
+    meta = out / "metadata.txt"
+    text = meta.read_text(encoding="utf-8")
+    if OLD_TRUTH_LINE in text:
+        new = f"ground truth file: {SHARED_TRUTH}\nground truth: engraver input\n"
+        meta.write_text(text.replace(OLD_TRUTH_LINE, new), encoding="utf-8")
 
 
 def run_export(set_name, candidate, job_name, spec, reference, out):
     """Make one export and its metadata file. Runs in a worker process.
 
-    Returns (status, message, seconds), where status is "made" or "failed"
-    and the message is the reason for a failure. The worker never writes to
-    the log, so that only the main process does and lines are never mixed.
+    Returns (status, message, seconds, note differences). Status is "made"
+    or "failed". The message is the reason for a failure, or for a MuseScore 4
+    pair the difference between its own MusicXML and the shared reference.
+    The worker never writes to the log, so that only the main process does and
+    lines are never mixed.
     """
     started = time.time()
     try:
@@ -104,19 +157,22 @@ def run_export(set_name, candidate, job_name, spec, reference, out):
             shutil.rmtree(out)
         result = _run_job(spec, reference, out)
         check_pdf(result.pdf, spec)
-        truth = "reference, exact" if result.engraver == "MuseScore 4" else "reference, engraver input"
-        if result.musicxml:
-            result.musicxml.unlink(missing_ok=True)  # the shared reference is the ground truth
-        (out / "metadata.txt").write_text(
-            metadata_text(candidate, set_name, spec, result, truth), encoding="utf-8")
-        return "made", "", time.time() - started
+        if result.engraver == "MuseScore 4":
+            # Its own MusicXML, written with the PDF from the same input, is the ground truth.
+            difference, notes = compare_with_reference(result.musicxml, reference)
+            text = metadata_text(candidate, set_name, spec, result, MS4_TRUTH, "exact", difference)
+        else:
+            difference, notes = "", 0
+            text = metadata_text(candidate, set_name, spec, result, SHARED_TRUTH, "engraver input")
+        (out / "metadata.txt").write_text(text, encoding="utf-8")
+        return "made", difference, time.time() - started, notes
     except engravers.ExportError as error:
         message = str(error)
     except Exception as error:
         message = f"unexpected error {error!r}"
     out.mkdir(parents=True, exist_ok=True)
     (out / "failure.txt").write_text(f"{message}\n", encoding="utf-8")
-    return "failed", message, time.time() - started
+    return "failed", message, time.time() - started, None
 
 
 def generate_set(set_name, chosen, log, min_free_gb=config.MIN_FREE_GB, retry_failures=False,
@@ -139,11 +195,16 @@ def generate_set(set_name, chosen, log, min_free_gb=config.MIN_FREE_GB, retry_fa
         def collect(block):
             nonlocal made, failed
             for future, (number, candidate, job_name, spec) in parallel.finished(running, block):
-                status, message, seconds = future.result()
+                status, message, seconds, notes = future.result()
                 where = f"{set_name} {number} of {len(chosen)}: {candidate.id} {job_name}"
                 if status == "made":
                     made += 1
-                    log.info(f"{where} ({spec['font']}) done in {seconds:.0f} seconds.")
+                    compared = f" Difference from the shared reference: {message}." if message else ""
+                    log.info(f"{where} ({spec['font']}) done in {seconds:.0f} seconds.{compared}")
+                    if message and notes != 0:
+                        log.warning(f"{where}: its MusicXML differs from the shared reference in notes "
+                                    f"or rests, or could not be compared ({message}). "
+                                    "Its own MusicXML is still its ground truth.")
                 else:
                     failed += 1
                     log.error(f"{where} failed: {message}")
@@ -165,7 +226,11 @@ def generate_set(set_name, chosen, log, min_free_gb=config.MIN_FREE_GB, retry_fa
                 shutil.copyfile(trip.reference, reference)
             for job_name, spec in jobs[candidate.id]:
                 out = score_dir / job_name
-                if (out / "metadata.txt").is_file() or ((out / "failure.txt").is_file() and not retry_failures):
+                if job_is_done(out, spec):
+                    upgrade_metadata(out)
+                    skipped += 1
+                    continue
+                if (out / "failure.txt").is_file() and not retry_failures:
                     skipped += 1
                     continue
                 future = pool.submit(run_export, set_name, candidate, job_name, spec, reference, out)
@@ -177,6 +242,12 @@ def generate_set(set_name, chosen, log, min_free_gb=config.MIN_FREE_GB, retry_fa
     return made, failed
 
 
+def ground_truth_path(job):
+    """The ground-truth MusicXML of a pair: its own for MuseScore 4, else the shared reference."""
+    own = job / MS4_TRUTH
+    return own if own.is_file() else job.parent / "reference.musicxml"
+
+
 def folder_size_gb(folder):
     return sum(f.stat().st_size for f in Path(folder).rglob("*") if f.is_file()) / 1024**3
 
@@ -184,7 +255,7 @@ def folder_size_gb(folder):
 def write_index(set_name, chosen):
     """A text index of every pair and every failure, one line each."""
     root = output_dir(set_name)
-    lines = ["# status | id | job | font | pdf | reference MusicXML or reason"]
+    lines = ["# status | id | job | font | pdf | ground-truth MusicXML or reason"]
     for candidate, _ in chosen:
         score_dir = root / candidate.id
         if not score_dir.is_dir():
@@ -195,7 +266,7 @@ def write_index(set_name, chosen):
                 font = next((l.split(": ", 1)[1] for l in meta.read_text(encoding="utf-8").splitlines()
                              if l.startswith("font: ")), "")
                 lines.append(" | ".join(["pair", candidate.id, job.name, font.strip(),
-                                         str(job / "score.pdf"), str(score_dir / "reference.musicxml")]))
+                                         str(job / "score.pdf"), str(ground_truth_path(job))]))
             elif (job / "failure.txt").is_file():
                 reason = (job / "failure.txt").read_text(encoding="utf-8").strip()
                 lines.append(" | ".join(["failure", candidate.id, job.name, "", "", reason]))

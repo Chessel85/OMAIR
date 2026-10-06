@@ -1,11 +1,12 @@
 """Exporters: one per engraver, all with the same interface.
 
 Each exporter takes a MusicXML file and writes a PDF (and, for MuseScore 4, the
-reference MusicXML). Commands and the reasons for them are in
+MusicXML of exactly what the PDF shows). Commands and the reasons for them are in
 `docs/notes/tool-commands.md`.
 """
 
 import glob
+import json
 import os
 import re
 import shutil
@@ -144,7 +145,12 @@ def set_staff_size(musicxml_bytes, staff_space_mm):
 
 
 def export_musescore4(source, out_dir, font="Leland", staff_space_mm=None, timeout=300):
-    """Export PDF and reference MusicXML with MuseScore 4 in the requested font."""
+    """Export the PDF and its MusicXML with MuseScore 4 in the requested font.
+
+    One run writes both files (a job file with two outputs) with the same style
+    file, so the MusicXML holds exactly what the PDF shows, including the
+    positions and system breaks of that layout. It is the pair's ground truth.
+    """
     exe = musescore4_path()
     if not exe:
         raise ExportError("MuseScore 4 was not found")
@@ -153,6 +159,8 @@ def export_musescore4(source, out_dir, font="Leland", staff_space_mm=None, timeo
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     symbol, text_font = MUSESCORE4_FONTS[font]
+    pdf = out_dir / "score.pdf"
+    musicxml = out_dir / "score.musicxml"
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         data = Path(source).read_bytes()
@@ -167,14 +175,14 @@ def export_musescore4(source, out_dir, font="Leland", staff_space_mm=None, timeo
             f"<musicalTextFont>{text_font}</musicalTextFont></Style></museScore>\n",
             encoding="utf-8",
         )
-        pdf = out_dir / "score.pdf"
-        reference = out_dir / "reference.musicxml"
-        _run([exe, "-S", str(style), "-o", str(pdf), str(src)], timeout, "MuseScore 4 PDF export")
-        _run([exe, "-o", str(reference), str(src)], timeout, "MuseScore 4 MusicXML export")
+        job = tmp / "job.json"
+        job.write_text(json.dumps([{"in": str(src), "out": [str(pdf), str(musicxml)]}]), encoding="utf-8")
+        _run([exe, "-S", str(style), "-j", str(job)], timeout, "MuseScore 4 export")
     if not pdf.is_file():
         raise ExportError("MuseScore 4 reported success but wrote no PDF")
-    return ExportResult(pdf, reference if reference.is_file() else None,
-                        "MuseScore 4", _version([exe, "--long-version"]), font)
+    if not musicxml.is_file():
+        raise ExportError("MuseScore 4 reported success but wrote no MusicXML")
+    return ExportResult(pdf, musicxml, "MuseScore 4", _version([exe, "--long-version"]), font)
 
 
 def export_musescore3(source, out_dir, font="Emmentaler", timeout=300):

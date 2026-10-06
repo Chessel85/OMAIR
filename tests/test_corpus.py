@@ -364,34 +364,55 @@ def test_training_pool_drops_near_copies_and_selection_skips_them(monkeypatch):
     assert len(chosen) == 1
 
 
-def test_export_run_records_pairs_and_failures_and_resumes(tmp_path, monkeypatch):
-    """The export loop, with stand-in engravers: LilyPond fails, the rest succeed."""
-    from omr.corpus.roundtrip import RoundTrip
+def fake_export_job(spec, reference, out):
+    """A stand-in engraver: LilyPond fails, the rest succeed, and MuseScore 4
+    also writes its own MusicXML."""
+    if spec["engraver"] == "LilyPond":
+        raise engravers.ExportError("musicxml2ly timed out after 300 seconds")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "score.pdf").write_bytes(b"%PDF")
+    musicxml = None
+    if spec["engraver"] == "MuseScore 4":
+        musicxml = out / "score.musicxml"
+        musicxml.write_text("<score-partwise/>", encoding="utf-8")
+    return engravers.ExportResult(out / "score.pdf", musicxml, spec["engraver"], "1.0", spec["font"])
 
-    def fake_job(spec, reference, out):
-        if spec["engraver"] == "LilyPond":
-            raise engravers.ExportError("musicxml2ly timed out after 300 seconds")
-        out.mkdir(parents=True, exist_ok=True)
-        (out / "score.pdf").write_bytes(b"%PDF")
-        return engravers.ExportResult(out / "score.pdf", None, spec["engraver"], "1.0", spec["font"])
+
+def fake_export_run(tmp_path, monkeypatch, scores=3):
+    from omr.corpus.roundtrip import RoundTrip
 
     monkeypatch.setattr(generate, "output_dir", lambda name: tmp_path / name)
     monkeypatch.setattr(generate.paths, "check_free_space", lambda folder, gb: 500.0)
-    monkeypatch.setattr(generate, "_run_job", fake_job)
+    monkeypatch.setattr(generate, "_run_job", fake_export_job)
     monkeypatch.setattr(generate, "check_pdf", lambda pdf, spec: None)
+    monkeypatch.setattr(generate, "compare_with_reference",
+                        lambda answer, reference: ("0 in notes and rests, 2 in all objects", 0))
     reference = tmp_path / "ref.musicxml"
     reference.write_text("<score-partwise/>", encoding="utf-8")
-    chosen = [(make_candidate(i, "piano"), RoundTrip(True, "ok", str(reference), 1)) for i in range(3)]
+    return [(make_candidate(i, "piano"), RoundTrip(True, "ok", str(reference), 1)) for i in range(scores)]
+
+
+def test_export_run_records_pairs_and_failures_and_resumes(tmp_path, monkeypatch):
+    """The export loop, with stand-in engravers: LilyPond fails, the rest succeed."""
+    chosen = fake_export_run(tmp_path, monkeypatch)
     stream = io.StringIO()
     log = ProgressLog("t", stream=stream)
 
     assert generate.generate_set("development", chosen, log, workers=1) == (15, 3)
     root = tmp_path / "development"
-    assert (root / "c0" / "musescore4-base" / "metadata.txt").is_file()
+    ms4 = (root / "c0" / "musescore4-base" / "metadata.txt").read_text(encoding="utf-8")
+    assert "ground truth file: score.musicxml\nground truth: exact\n" in ms4
+    assert "difference from shared reference: 0 in notes and rests, 2 in all objects\n" in ms4
+    ms3 = (root / "c0" / "musescore3-base" / "metadata.txt").read_text(encoding="utf-8")
+    assert "ground truth file: ../reference.musicxml\nground truth: engraver input\n" in ms3
+    assert "difference from shared reference" not in ms3
     assert "timed out" in (root / "c1" / "lilypond" / "failure.txt").read_text(encoding="utf-8")
     index = (root / "index.txt").read_text(encoding="utf-8")
     assert index.count("\npair |") == 15 and index.count("\nfailure |") == 3
+    assert str(root / "c0" / "musescore4-base" / "score.musicxml") in index
+    assert str(root / "c0" / "reference.musicxml") in index
     assert "development 2 of 3: c1 lilypond failed: musicxml2ly timed out" in stream.getvalue()
+    assert "Difference from the shared reference: 0 in notes and rests, 2 in all objects." in stream.getvalue()
 
     # A second run skips everything already made or failed.
     assert generate.generate_set("development", chosen, log, workers=1) == (0, 0)
@@ -411,3 +432,49 @@ def test_export_run_stops_cleanly_when_the_drive_is_nearly_full(tmp_path, monkey
                                          ProgressLog("t", stream=stream), workers=1)
     assert (made, failed) == (0, 1)
     assert "Stopping cleanly so the run can be resumed: only 50 GB free" in stream.getvalue()
+
+
+def test_old_musescore4_jobs_are_made_again_and_old_metadata_is_upgraded(tmp_path, monkeypatch):
+    """Jobs made before the per-pair ground truth: MuseScore 4 kept no MusicXML,
+    and the others recorded "reference, engraver input"."""
+    chosen = fake_export_run(tmp_path, monkeypatch, scores=1)
+    log = ProgressLog("t", stream=io.StringIO())
+    generate.generate_set("development", chosen, log, workers=1)
+    root = tmp_path / "development" / "c0"
+    (root / "musescore4-variant" / "score.musicxml").unlink()
+    meta = root / "verovio" / "metadata.txt"
+    text = meta.read_text(encoding="utf-8")
+    meta.write_text(text.replace("ground truth file: ../reference.musicxml\nground truth: engraver input\n",
+                                 "ground truth: reference, engraver input\n"), encoding="utf-8")
+
+    assert generate.generate_set("development", chosen, log, workers=1) == (1, 0)
+    assert (root / "musescore4-variant" / "score.musicxml").is_file()
+    assert meta.read_text(encoding="utf-8") == text
+
+
+def test_comparison_with_the_shared_reference():
+    calls = []
+
+    def diff(a, b, visualize_diffs, detail):
+        calls.append(detail.name)
+        return {"NotesAndRests": 0, "AllObjects": 3}[detail.name]
+
+    assert generate.compare_with_reference("a", "b", diff=diff) == ("0 in notes and rests, 3 in all objects", 0)
+    assert calls == ["NotesAndRests", "AllObjects"]
+    text, notes = generate.compare_with_reference("a", "b", diff=lambda *a, **k: None)
+    assert notes is None and "could not parse" in text
+
+    def broken(*a, **k):
+        raise ValueError("bad\nfile")
+
+    text, notes = generate.compare_with_reference("a", "b", diff=broken)
+    assert notes is None and text == "could not be compared, musicdiff failed: bad file"
+
+
+def test_differences_in_notes_are_a_warning(tmp_path, monkeypatch):
+    chosen = fake_export_run(tmp_path, monkeypatch, scores=1)
+    monkeypatch.setattr(generate, "compare_with_reference",
+                        lambda answer, reference: ("2 in notes and rests, 5 in all objects", 2))
+    log = ProgressLog("t", stream=io.StringIO())
+    generate.generate_set("development", chosen, log, workers=1)
+    assert log.warnings == 2  # the two MuseScore 4 jobs
