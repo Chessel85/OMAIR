@@ -274,7 +274,7 @@ ACC-6).</li>
 <p>Everything listed here is free, runs offline, and works from the
 command line or a text editor.</p>
 <ul>
-<li><strong>Language: Python 3.12.</strong> It has the strongest
+<li><strong>Language: Python 3.14.</strong> It has the strongest
 ecosystem for both machine learning and music, and it works well with a
 screen reader.</li>
 <li><strong>PDF handling: PyMuPDF</strong> (AGPL) extracts glyphs,
@@ -470,15 +470,15 @@ set contains only public-domain material, in keeping with C-4.</li>
 <h3 id="training-on-the-development-laptop">4.9 Training on the
 development laptop</h3>
 <p>All training runs on the laptop: an NVIDIA T500 GPU with 2 GB of
-memory, a 6-core CPU and 32 GB of RAM. Training is designed around those
-limits.</p>
+memory, a 4-core (8-thread) CPU and 32 GB of RAM. Training is designed
+around those limits.</p>
 <p>How much training each part needs:</p>
 <ul>
 <li><strong>The vector path (Phase 1) needs no training.</strong> It
 uses geometry, font tables and rules. Most born-digital PDFs will go
 through this path.</li>
 <li><strong>Rendering training data is CPU work.</strong> The training
-images come from rendering scores in MuseScore and Verovio. The 6 cores
+images come from rendering scores in MuseScore and Verovio. The 4 cores
 handle this in overnight batches.</li>
 <li><strong>The symbol detector and the layout detector are small
 detection models</strong> with a few million parameters, such as YOLO
@@ -581,8 +581,8 @@ dataset, model and dependency (C-3).</li>
 </ul>
 <h3 id="hardware-and-accounts">5.3 Hardware and accounts</h3>
 <ul>
-<li><strong>Development laptop:</strong> 6-core CPU and 32 GB of
-RAM.</li>
+<li><strong>Development laptop:</strong> 4-core (8-thread) CPU and 32 GB
+of RAM.</li>
 <li><strong>GPU:</strong> NVIDIA T500 with 2 GB of memory (Turing
 generation, CUDA 13.2 driver). It does all the training, within the
 limits described in section 4.9. It cannot train or run large

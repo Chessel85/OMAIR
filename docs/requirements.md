@@ -81,7 +81,7 @@ Note accuracy means the proportion of notes whose pitch, onset and duration all 
 | ID | Name | Requirement | Priority | Phase | Source |
 | --- | --- | --- | --- | --- | --- |
 | OP-1 | Fully offline | The system runs fully offline. It makes no network calls at run time and depends on no paid or cloud service. | Must | All | PO |
-| OP-2 | Laptop hardware | The system runs on an ordinary laptop with a 6-core CPU, 32 GB of RAM, and either no GPU or a small one (2 GB, for example an NVIDIA T500). A GPU is optional and only speeds things up. | Must | All | VS |
+| OP-2 | Laptop hardware | The system runs on an ordinary laptop with a 4-core (8-thread) CPU, 32 GB of RAM, and either no GPU or a small one (2 GB, for example an NVIDIA T500). A GPU is optional and only speeds things up. | Must | All | VS |
 | OP-3 | Speed | A vector PDF page converts in under 10 seconds. A raster page or a photo converts in under 60 seconds, on the CPU alone. | Should | Not assigned | D (targets to be confirmed) |
 | OP-4 | Operating systems | Windows 11 is the primary platform. Linux and macOS are desirable. | Should | Not assigned | D |
 
@@ -111,7 +111,7 @@ Note accuracy means the proportion of notes whose pitch, onset and duration all 
 | C-3 | Licence-compatible components | Every bundled dependency, model weight file and dataset must have a licence compatible with redistribution under C-2. Components licensed for non-commercial use only may be used for internal comparison, but must not be shipped. A licence register records each one. | Must | D |
 | C-4 | Copyrighted scores | Copyrighted scores, including most user uploads on MuseScore.com, must not be committed to the public repository. They stay in a local, git-ignored folder. | Must | D |
 | C-5 | No-cost development | Development uses only free tools and incurs no cost. Training runs on the development laptop. Free cloud GPU quotas (Kaggle, Colab) may optionally speed training up, but nothing may depend on paid compute. | Must | VS and PO |
-| C-7 | Trainable on the development laptop | Every model the system ships must be trainable or fine-tunable on the development laptop (2 GB GPU, 6-core CPU, 32 GB RAM) within a few days per run. | Must | PO |
+| C-7 | Trainable on the development laptop | Every model the system ships must be trainable or fine-tunable on the development laptop (2 GB GPU, 4-core CPU, 32 GB RAM) within a few days per run. | Must | PO |
 | C-6 | Available engraving software | The project has access to MuseScore (versions 3 and 4) and to the free engravers Dorico SE, LilyPond and Verovio. Sibelius and Finale are not available, so ground truth for their output must come from published editions that provide both a PDF and a MusicXML or source file. | Must | PO |
 
 ## Open items

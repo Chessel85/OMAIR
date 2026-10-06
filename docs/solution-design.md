@@ -242,12 +242,12 @@ This stage applies explicit musical rules and scores each candidate reading:
 
 ### 4.9 Training on the development laptop
 
-All training runs on the laptop: an NVIDIA T500 GPU with 2 GB of memory, a 6-core CPU and 32 GB of RAM. Training is designed around those limits.
+All training runs on the laptop: an NVIDIA T500 GPU with 2 GB of memory, a 4-core (8-thread) CPU and 32 GB of RAM. Training is designed around those limits.
 
 How much training each part needs:
 
 - **The vector path (Phase 1) needs no training.** It uses geometry, font tables and rules. Most born-digital PDFs will go through this path.
-- **Rendering training data is CPU work.** The training images come from rendering scores in MuseScore and Verovio. The 6 cores handle this in overnight batches.
+- **Rendering training data is CPU work.** The training images come from rendering scores in MuseScore and Verovio. The 4 cores handle this in overnight batches.
 - **The symbol detector and the layout detector are small detection models** with a few million parameters, such as YOLO nano or small. Fine-tuning them from pretrained weights fits in 2 GB, with these techniques:
   - training on image tiles (for example 640 to 1024 pixels) instead of whole pages;
   - small batches, combined with gradient accumulation;
@@ -291,7 +291,7 @@ Practical arrangements:
 
 ### 5.3 Hardware and accounts
 
-- **Development laptop:** 6-core CPU and 32 GB of RAM.
+- **Development laptop:** 4-core (8-thread) CPU and 32 GB of RAM.
 - **GPU:** NVIDIA T500 with 2 GB of memory (Turing generation, CUDA 13.2 driver). It does all the training, within the limits described in section 4.9. It cannot train or run large transformers. For inference, the CPU through ONNX Runtime is the default, and the GPU is optional.
 - **Accounts:** a GitHub account (public repository). A free Kaggle account is optional.
 - **Disk space:** 100 to 200 GB for corpora, renders and models.
