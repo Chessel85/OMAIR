@@ -396,6 +396,8 @@ def test_export_check_allows_text_only_pages_but_needs_music(tmp_path):
     [
         ("UTYSZR+Emmentaler-20", True),
         ("feta20", True),
+        ("PFAEmmentaler-20", True),
+        ("feta-alphabet20", True),
         ("Opus Std", True),
         ("OpusSpecialStd", True),
         ("EngraverFontSet", True),

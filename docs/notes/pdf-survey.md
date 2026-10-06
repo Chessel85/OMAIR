@@ -32,8 +32,12 @@ Survey of 7 October 2026. Written by Sonnet from the counts in `survey/survey-co
 - The PDMX sample is MuseScore.com uploads, which may differ from the PDFs people share through IMSLP, so it cannot stand for the whole internet.
 - No scan was tested beyond the one D page, and no Type 3 font.
 
+## Decision
+
+The owner decided on 7 October 2026 not to collect Sibelius or Finale files for now. This is an accepted open risk. Revisit before the Phase 1 gate.
+
 ## Suggested next steps
 
 1. Get real Sibelius and Finale PDFs by another route: files the owner has, the IMSLP list chosen by hand, or other sources whose terms allow it. Then rerun `run_survey.py inspect` and `report`.
-2. Add `PFAEmmentaler-*` and `feta-alphabet20` to the legacy font list.
+2. Done: `PFAEmmentaler` and `feta-alphabet` are on the legacy font list.
 3. Opus analyses these counts and decides whether the Phase 1 plan changes.

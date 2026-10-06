@@ -16,7 +16,7 @@ SUBSET_PREFIX = re.compile(r"^[A-Z]{6}\+")
 # Legacy music fonts, matched as a prefix of the name with case, spaces and
 # hyphens ignored. Stage 8 extends this list.
 LEGACY_FONTS = (
-    "Emmentaler", "Feta", "Opus", "Helsinki", "Reprise", "Inkpen2", "Norfolk",
+    "Emmentaler", "PFAEmmentaler", "Feta", "Feta-alphabet", "Opus", "Helsinki", "Reprise", "Inkpen2", "Norfolk",
     "Maestro", "Petrucci", "Jazz", "Engraver", "Broadway Copyist", "Sonata",
     "Tamburo", "Seville", "Toccata", "Pori", "Ash",
 )
