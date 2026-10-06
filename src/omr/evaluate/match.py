@@ -12,7 +12,7 @@ from fractions import Fraction
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
-JOIN_PENALTY = 0.1     # extra cost for joining two bars against one
+JOIN_PENALTY = 1.5     # extra cost for joining two bars against one, in notes and rests
 BAND_MARGIN = 20       # bars either side of the diagonal searched, beyond the difference in counts
 PROPERTY_COST = 0.4    # step 4: cost for each of pitch, onset and duration that differs
 
@@ -120,11 +120,10 @@ def _counter(events_by_bar, bars, offsets):
     return counter
 
 
-def _similarity(a, b):
-    total = sum(a.values()) + sum(b.values())
-    if total == 0:
-        return 1.0
-    return 2 * sum((a & b).values()) / total
+def _unmatched(a, b):
+    """Events in either bar with no exact partner in the other: the note and
+    rest errors that pairing these bars would leave."""
+    return sum(a.values()) + sum(b.values()) - 2 * sum((a & b).values())
 
 
 def align_bars(truth, output, staff_map):
@@ -154,7 +153,10 @@ def align_bars(truth, output, staff_map):
         a = truth_single[truth_bars[0]] if len(truth_bars) == 1 else truth_joined[truth_bars[0]]
         b = output_single[output_bars[0]] if len(output_bars) == 1 else output_joined[output_bars[0]]
         extra = JOIN_PENALTY if len(truth_bars) + len(output_bars) > 2 else 0.0
-        return 1.0 - _similarity(a, b) + extra
+        return _unmatched(a, b) + extra
+
+    def unpaired_cost(single, bar):
+        return max(1, sum(single[bar].values()))
 
     for i in range(n + 1):
         for j in range(max(0, i - band), min(m, i + band) + 1):
@@ -177,7 +179,12 @@ def align_bars(truth, output, staff_map):
                     continue
                 truth_bars = list(range(i, i + di))
                 output_bars = list(range(j, j + dj))
-                c = pair_cost(truth_bars, output_bars) if di and dj else 1.0
+                if di and dj:
+                    c = pair_cost(truth_bars, output_bars)
+                elif di:
+                    c = unpaired_cost(truth_single, i)
+                else:
+                    c = unpaired_cost(output_single, j)
                 if here + c < cost[i + di, j + dj] - 1e-12:
                     cost[i + di, j + dj] = here + c
                     step[(i + di, j + dj)] = (di, dj)
@@ -231,7 +238,7 @@ class _Placed:
 
 def _pair_exact(truth_placed, output_placed, truth_staff_of):
     """Multiset intersection on the key. Among notes with the same key, pair
-    those on the same staff first, so staff errors are not invented."""
+    those on the same staff and voice first, so staff and voice errors are not invented."""
     by_key_truth = collections.defaultdict(list)
     by_key_output = collections.defaultdict(list)
     for p in truth_placed:
@@ -243,16 +250,26 @@ def _pair_exact(truth_placed, output_placed, truth_staff_of):
         ts, os_ = by_key_truth.get(key, []), by_key_output.get(key, [])
         used = set()
         pairs = []
-        for t in ts:
-            choice = next((k for k, o in enumerate(os_) if k not in used
-                           and truth_staff_of(o.note) == (t.note.part, t.note.staff)), None)
-            if choice is None:
-                choice = next((k for k, o in enumerate(os_) if k not in used), None)
-            if choice is None:
-                left_truth.append(t)
-            else:
-                used.add(choice)
-                pairs.append((t, os_[choice]))
+        waiting = list(ts)
+        # Round 1: same staff and same voice label; round 2: same staff; round 3: any.
+        # Every round pairs only identical keys, so the count of exact matches is
+        # the same whatever the rounds choose; they only avoid inventing staff or voice errors.
+        tests = (
+            lambda t, o: truth_staff_of(o.note) == (t.note.part, t.note.staff) and o.note.voice == t.note.voice,
+            lambda t, o: truth_staff_of(o.note) == (t.note.part, t.note.staff),
+            lambda t, o: True,
+        )
+        for test in tests:
+            still = []
+            for t in waiting:
+                choice = next((k for k, o in enumerate(os_) if k not in used and test(t, o)), None)
+                if choice is None:
+                    still.append(t)
+                else:
+                    used.add(choice)
+                    pairs.append((t, os_[choice]))
+            waiting = still
+        left_truth += waiting
         exact += pairs
         left_output += [o for k, o in enumerate(os_) if k not in used]
     return exact, left_truth, left_output

@@ -59,18 +59,20 @@ Matching runs in four steps, each limited to what the step before allowed.
 
 ### Step 2: bars
 
-The ground-truth bars and the predicted bars are lined up in one sequence for the whole score (bars are shared by all parts) by dynamic programming, like an edit distance. The allowed moves and their costs:
+The ground-truth bars and the predicted bars are lined up in one sequence for the whole score (bars are shared by all parts) by dynamic programming, like an edit distance. Costs are counted in events (notes and rests, all groups together), so the alignment chosen is the one that leaves the fewest note and rest errors. The allowed moves and their costs:
 
-- Pair one ground-truth bar with one predicted bar: cost 1 minus the bars' similarity. Similarity is twice the number of exactly equal events (notes and rests, all groups together) divided by the total number of events in both bars. Two bars with no events (for example two empty bars) have similarity 1.
-- Join two ground-truth bars against one predicted bar, or the reverse: cost 1 minus the similarity of the joined bars, plus 0.1. The second bar's onsets are moved on by the first bar's length. This handles a missing or extra barline without turning every note into an error.
-- Leave out a ground-truth bar (a missing bar) or a predicted bar (an extra bar): cost 1.
+- Pair one ground-truth bar with one predicted bar: the number of events in either bar with no exactly equal partner in the other.
+- Join two ground-truth bars against one predicted bar, or the reverse: the same count for the joined bars, plus 1.5. The second bar's onsets are moved on by the first bar's length. This handles a missing or extra barline without turning every note into an error. The extra 1.5 means a join is chosen only when it saves at least two errors.
+- Leave out a ground-truth bar (a missing bar) or a predicted bar (an extra bar): the number of events in it, and at least 1.
+- When two alignments cost the same, one-to-one pairing is preferred.
+- An earlier version used shares (1 minus the share of events in common). On the development set it joined two bars wrongly: two identical one-note bars, the second with a wrong note value, cost as much as a missing bar, so joining neighbouring bars came out cheaper. Counting events fixes this, and a test reproduces the case.
 - To keep this fast, the search stays within a band around the diagonal, as wide as the difference in bar counts plus 20 bars.
 
 The result is a list of aligned bar pairs (one-to-one, two-to-one, one-to-two, or unpaired). A missing or misplaced barline is a structural error, and it costs no note errors when the notes themselves are right.
 
 ### Step 3: exact note matches
 
-Within each aligned bar pair and matching group, a note is an **exact match** when its onset, pitch and duration all equal those of a predicted note. Exact matches are counted as a multiset intersection on (onset, pitch, duration, grace order). This count has only one answer, so it does not depend on any heuristic. Two identical notes (a unison in two voices) match two identical predicted notes.
+Within each aligned bar pair and matching group, a note is an **exact match** when its onset, pitch and duration all equal those of a predicted note. Exact matches are counted as a multiset intersection on (onset, pitch, duration, grace order). This count has only one answer, so it does not depend on any heuristic. Two identical notes (a unison in two voices) match two identical predicted notes. Among identical notes, pairs are chosen with the same staff and the same voice number first, then the same staff, then any. This never changes the count of exact matches; it only avoids inventing staff or voice errors.
 
 - Voice, staff and chord grouping play no part, so voices numbered differently, a chord split into two voices or two voices merged into chords make no difference to note accuracy.
 - Onsets are strict, as the requirement says. A missing dot early in a bar moves the later notes of that voice, and they count as onset errors. The diagnostic figure "pitch and duration accuracy" (onset ignored within the bar) shows when this is happening.
@@ -97,7 +99,7 @@ All metrics are reported per file and overall. Overall figures add up the counts
   - pitch and duration accuracy (onset ignored within the bar) and sounding-pitch accuracy (spelling ignored): the notes that match on those properties, divided by the larger of the ground-truth and output note counts;
   - rest accuracy: rests matching in onset and duration, divided by the larger of the two rest counts;
   - staff, voice and tie accuracy: the share of exact matches with the right staff, voice grouping, or tie start and stop.
-- **Voice accuracy** compares groupings, not voice numbers. Within each bar, each predicted voice is mapped to the ground-truth voice it shares most exact matches with, and a matched note whose voices do not correspond under that mapping is a voice error. Two output voices may map to the same ground-truth voice, so merging voices into chords, or splitting a chord into voices, is not a voice error.
+- **Voice accuracy** compares groupings, not voice numbers. Within each bar, each predicted voice is mapped to the ground-truth voice it shares most exact matches with, and a matched note whose voices do not correspond under that mapping is a voice error. Two output voices may map to the same ground-truth voice, so merging voices into chords, or splitting a chord into voices, is not a voice error. Identical notes (a unison in two voices) could be paired either way, so the mapping is taken from the notes that pair unambiguously. A predicted voice that appears only among identical notes is mapped to the ground-truth voices those notes leave over once the other voices are mapped. A group of identical notes then counts only the voice errors that no pairing of the group avoids.
 
 ### Structural correctness (ACC-1)
 
@@ -190,7 +192,7 @@ Small MusicXML pairs written for the tests, with the right metric values worked 
 - `--predictions FOLDER`: compare existing outputs instead of running a recogniser.
 - `--engraver`, `--font`, `--genre`, `--texture`, `--limit N`: run on a subset.
 - `--workers N`, `--cpu-only`, `--timeout SECONDS`, `--no-musicdiff` (musicdiff is the slowest step, about as slow as the rest put together).
-- `python scripts/check_harness.py --set regression` runs both test recognisers over a set and checks every pair's figures (the Stage 6 done condition).
+- `python scripts/check_harness.py --set regression` runs both test recognisers over a set and checks every pair's figures (the Stage 6 done condition). `--only perfect` or `--only damaged` runs one of them, and `--no-musicdiff` skips musicdiff.
 - `--out FOLDER`: where the reports go (default `evaluations/<date>-<recogniser>-<set>` under the corpus folder; the regression set's results go in the repository, Stage 7).
 
 ## Decisions

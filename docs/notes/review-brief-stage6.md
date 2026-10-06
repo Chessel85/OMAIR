@@ -12,7 +12,7 @@ The definitions are in `docs/notes/evaluation-spec.md`. The owner accepted its d
 4. **The damaged recogniser** (`src/omr/evaluate/recognisers.py`): does each kind of damage really have the effect it claims, in every case, or only in the cases tested?
 5. The runner, reports and command line (`harness.py`, `report.py`, `describe.py`, `src/omr/cli.py`): plain-text output, locations in words, failed files.
 
-Run `python -m pytest` first (153 tests pass on Windows). Then `python scripts/check_harness.py --set regression` (about 3 minutes) runs both test recognisers over the 256 regression pairs and checks each pair's figures.
+Run `python -m pytest` first (158 tests pass on Windows). Then `python scripts/check_harness.py --set regression` (about 3 minutes) runs both test recognisers over the 256 regression pairs and checks each pair's figures.
 
 ## What was checked
 
@@ -23,9 +23,10 @@ Run `python -m pytest` first (153 tests pass on Windows). Then `python scripts/c
 
 ## Where mistakes are most likely
 
-- **Bar alignment costs.** A join costs 0.1 more than a one-to-one pair, and a missing bar costs 1. Check that a wrong bar cannot be preferred over a join, or a join over a correct pairing, in realistic cases (for example several empty bars in a row, or repeated identical bars, where many alignments cost the same).
+- **Bar alignment costs.** Costs are counted in unmatched notes and rests; a join adds 1.5, and a missing bar costs its event count (at least 1). The first version used shares and joined bars wrongly on one development score (two identical one-note bars, the second with a wrong value); a test now reproduces it. Check that a wrong bar cannot be preferred over a join, or a join over a correct pairing, in realistic cases (for example several empty bars in a row, or long runs of identical bars, where many alignments cost the same).
 - **The band** in the alignment is the difference in bar counts plus 20. A recogniser that loses a whole page of bars early and adds bars later could need more.
 - **Staff pairing by order** when the counts agree. If a recogniser writes the parts in another order, every note becomes an error. The spec accepts this; decide whether it should.
+- **Identical notes** (a unison in two voices) are paired by same staff and voice number first, then staff, then any. The first version paired by staff only and invented voice errors on one development score. Pairing by voice number is not enough when the numbers are swapped, so the voice figure also treats a group of identical notes as pairable either way (five tests cover these cases, including one where a real voice error sits next to a unison and must still be counted). Check that the rounds can never change the exact-match count, and that the voice figure cannot hide a real voice error inside a unison.
 - **Step 4 pairing** can pair two unrelated notes that share only one property, which names the error oddly but does not change the accuracy. Check that it really never changes M, E or the error count.
 - **Grace notes**: the order number counts grace notes since the voice's last main note. Check grace notes in several voices, and a grace note at the end of a bar.
 - **Voices**: a voice label in MusicXML is local to its part, so voice accuracy groups output notes by output part and voice label. (This was wrong in the first version and was found while writing this brief; `test_voice_numbers_are_local_to_each_output_part` covers it.) Check cross-staff voices.

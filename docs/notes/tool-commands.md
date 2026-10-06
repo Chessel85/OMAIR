@@ -82,7 +82,15 @@ So the default is 3 workers (`omr.parallel.DEFAULT_WORKERS`). It gives nearly al
 
 ## Not installed
 
-- **Dorico SE:** parked. It is not accessible with a screen reader, so it is not installed and not used for now. Stage 5 proceeds with MuseScore 4, MuseScore 3, LilyPond and Verovio. Revisit if Dorico becomes usable.
+- **Dorico SE:** parked. It is not accessible with a screen reader, so it is not installed and not used for now. Stage 5 proceeds with MuseScore 4, MuseScore 3, LilyPond and Verovio. Whether it is needed is decided by the Stage 8 survey: if Dorico PDFs are a large share of real files, revisit it; if they are rare, it stays parked.
+- **What automating Dorico would take** (looked up on 6 October 2026):
+  - Dorico has no command-line conversion and no headless mode.
+  - Since Dorico 4 it has a Remote Control API: a program on the same computer connects over a WebSocket (by default `ws://127.0.0.1:4560`, set in Preferences) and can send most of Dorico's internal commands, which should include importing MusicXML and exporting PDF. Dorico must be running with its window open.
+  - The first connection sends `{"message": "connect", "clientName": "...", "handshakeVersion": "1.0"}`. Dorico then shows a dialog that must be accepted once, and returns a session token, which the client sends back with `acceptsessiontoken`. Later connections reuse the token.
+  - **Not confirmed: whether Dorico SE has the API.** Every source found was tested on Dorico Pro or did not name an edition. Test it after installing: with SE running, check whether anything is listening on port 4560 (`netstat -ano | findstr 4560`).
+  - **To check: the SE player limit.** SE has allowed only 2 players per project (not verified for version 6). If so, SE can export single lines, piano, and voice with piano, but not choirs, chamber music or ensembles.
+  - To install: a Steinberg account, the Steinberg Download Assistant and Activation Manager, then Dorico SE 6 (free). Turning on Remote Control in Preferences and accepting the first connection may need sighted help.
+  - Sources: Scoring Notes on Notation Express for Dorico 4; Steinberg forum threads "Preferences - Remote", "Connecting to Dorico 5 API" and "Odla music input device".
 
 ## NVIDIA
 

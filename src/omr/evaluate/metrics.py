@@ -102,11 +102,50 @@ def _intersection(truth_placed, output_placed, key):
 
 def _voice_errors(result):
     """Within each bar, map each output voice to the ground-truth voice it
-    shares most exact matches with; count matched notes that disagree."""
-    pairs = collections.defaultdict(collections.Counter)
+    shares most exact matches with; count matched notes that disagree.
+
+    Identical notes (a unison in two voices) could be paired either way, so
+    the mapping is taken from the unambiguous pairs, and a group of identical
+    notes counts only the voice errors that no pairing of the group avoids."""
+    groups = collections.defaultdict(list)
     for t, o in result.exact:
-        pairs[(result.truth_segment.get(t.bar), t.part, o.part, o.voice)][t.voice] += 1
-    return sum(sum(c.values()) - max(c.values()) for c in pairs.values())
+        groups[(result.truth_segment.get(t.bar), t.part, (t.bar, t.key))].append((t, o))
+
+    def voice_of(o):
+        return (o.part, o.voice)
+
+    votes = collections.defaultdict(collections.Counter)
+    for (segment, part, _), pairs in groups.items():
+        if len(pairs) == 1:
+            t, o = pairs[0]
+            votes[(segment, part, voice_of(o))][t.voice] += 1
+    # A voice seen only in identical notes is mapped to the ground-truth voices
+    # those notes leave over once the voices already mapped are accounted for.
+    first = {key: counter.most_common(1)[0][0] for key, counter in votes.items()}
+    for (segment, part, _), pairs in groups.items():
+        if len(pairs) < 2:
+            continue
+        left = collections.Counter(t.voice for t, _ in pairs)
+        left -= collections.Counter(first[(segment, part, voice_of(o))] for _, o in pairs
+                                    if (segment, part, voice_of(o)) in first)
+        for _, o in pairs:
+            key = (segment, part, voice_of(o))
+            if key not in first:
+                voice = left.most_common(1)[0][0] if +left else None
+                votes[key][voice] += 1
+                if voice is not None:
+                    left[voice] -= 1
+    mapping = {key: counter.most_common(1)[0][0] for key, counter in votes.items()}
+    errors = 0
+    for (segment, part, _), pairs in groups.items():
+        truth_voices = collections.Counter(t.voice for t, _ in pairs)
+        mapped = collections.Counter(mapping.get((segment, part, voice_of(o))) for _, o in pairs)
+        if len(pairs) == 1:
+            t, o = pairs[0]
+            errors += mapping[(segment, part, voice_of(o))] != t.voice
+        else:
+            errors += len(pairs) - sum((truth_voices & mapped).values())
+    return errors
 
 
 # ------------------------------------------------------------------ structure

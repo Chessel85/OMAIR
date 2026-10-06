@@ -427,3 +427,65 @@ def test_voice_numbers_are_local_to_each_output_part(tmp_path):
                    ("Piano left", [attributes(clefs=("F4",)) + "".join(note(p) for p in "C3 D3 E3 F3".split())]))
     fig = compare(tmp_path, truth, output)
     assert accuracy(fig) == 1 and fig["diagnostics"]["voice"] == {"right": 8, "of": 8}
+
+
+def test_one_wrong_note_in_a_run_of_identical_short_bars_does_not_shift_the_bars(tmp_path):
+    # Found on the development set: two identical one-note bars, and the second
+    # note's value is wrong. The bars must still pair one to one: 1 duration error,
+    # no structural mismatch (an alignment cost in shares, not counts, joined bars here).
+    def bars(last):
+        return [attributes(time="2/4") + note("A4", 24), note("A4", 18) + note("D4", 6),
+                note("E4", 6) + note("F#4", 6) + note("G4", 6) + note("A4", 6),
+                note("B4", 24), note("B4", 24, typ=last), rest(24, whole_bar=True)]
+    fig = compare(tmp_path, score(("Piano", bars("half"))), score(("Piano", bars("whole"))))
+    assert fig["notes"]["wrong by kind"] == {"duration": 1}
+    assert fig["structure"]["correct"]
+
+
+def test_identical_notes_in_two_voices_pair_by_voice(tmp_path):
+    # Found on the development set: the same note in voices 5 and 6, and the
+    # output changes the voice-5 copy. The voice-6 copies must pair with each
+    # other, so no voice error is invented.
+    piano = attributes(staves=2, clefs=("G2", "F4"))
+    def bar(first):
+        return (piano + note("C5", 48) + backup(48) + note(first, 24, voice=5, staff=2) + note("C3", 24, voice=5, staff=2)
+                + backup(48) + note("Ab3", 24, voice=6, staff=2) + note("F3", 24, voice=6, staff=2))
+    fig = compare(tmp_path, score(("Piano", [bar("Ab3")])), score(("Piano", [bar("Ab4")])))
+    assert fig["notes"]["wrong by kind"] == {"pitch": 1}
+    assert fig["diagnostics"]["voice"] == {"right": 4, "of": 4}
+
+
+def test_swapped_voice_numbers_with_a_unison_are_not_voice_errors(tmp_path):
+    # Found on the development set: voices 1 and 2 swapped in the output, and both
+    # voices end on the same B4. Whichever way the two B4s are paired, the
+    # voices correspond, so there are no voice errors.
+    def bar(upper, lower):
+        return (attributes() + note("F4", 6, voice=upper) + note("G4", 6, voice=upper) + note("A4", 6, voice=upper)
+                + note("B4", 30, voice=upper, typ="half", dots=0)
+                + backup(48) + note("D4", 18, voice=lower) + note("B4", 30, voice=lower, typ="half", dots=0))
+    fig = compare(tmp_path, score(("Alto", [bar(1, 2)])), score(("Alto", [bar(2, 1)])))
+    assert accuracy(fig) == 1
+    assert fig["diagnostics"]["voice"] == {"right": 6, "of": 6}
+
+
+def test_swapped_voices_where_one_voice_has_two_copies_of_the_unison(tmp_path):
+    # Found on the development set: B4 once in voice 1 and twice in voice 2
+    # (a doubled note), voices swapped in the output. No voice errors.
+    def bar(upper, lower):
+        return (attributes() + note("F4", 6, voice=upper) + note("G4", 6, voice=upper) + note("A4", 6, voice=upper)
+                + note("B4", 30, voice=upper, typ="half", dots=0)
+                + backup(48) + rest(18, voice=lower) + note("B4", 30, voice=lower, typ="half", dots=0)
+                + note("B4", 30, voice=lower, typ="half", dots=0, chord=True))
+    fig = compare(tmp_path, score(("Alto", [bar(1, 2)])), score(("Alto", [bar(2, 1)])))
+    assert accuracy(fig) == 1
+    assert fig["diagnostics"]["voice"] == {"right": 6, "of": 6}
+
+
+def test_a_real_voice_error_inside_a_unison_is_still_counted(tmp_path):
+    # Two voices share a B4. In the output the lower voice's other note moves to
+    # the upper voice: one voice error, and the unison must not hide it.
+    def bar(d_voice):
+        return (attributes() + note("F4", 18, voice=1) + note("B4", 30, voice=1, typ="half", dots=0)
+                + backup(48) + note("D4", 18, voice=d_voice) + note("B4", 30, voice=2, typ="half", dots=0))
+    fig = compare(tmp_path, score(("Alto", [bar(2)])), score(("Alto", [bar(1)])))
+    assert fig["diagnostics"]["voice"] == {"right": 3, "of": 4}

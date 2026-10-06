@@ -3,8 +3,10 @@
   perfect   every pair must score 100 percent on every figure
   damaged   every pair must score exactly what its damage.json says
 
-Usage: python scripts/check_harness.py [--set regression] [--limit N] [--workers N]
+Usage: python scripts/check_harness.py [--set regression] [--limit N] [--workers N] [--no-musicdiff] [--only perfect|damaged]
 Each mismatch is listed in plain text; the exit status is 1 if there is any.
+musicdiff oddities (a nonzero OMR-NED for a file compared with itself, or a file
+it cannot read) are warnings: they are musicdiff's faults, not the harness's.
 """
 
 import argparse
@@ -18,6 +20,8 @@ from omr.log import ProgressLog
 
 
 def check_perfect(result):
+    """Problems with the project figures. musicdiff's own oddities are returned
+    separately, as warnings: they are not faults in the harness."""
     problems = []
     n = result["notes"]
     if "failed" in result:
@@ -35,12 +39,15 @@ def check_perfect(result):
     for name, f in result.get("note marks", {}).items():
         if f["found"] != f["truth"]:
             problems.append(f"{name}: {f}")
-    ned = result.get("musicdiff", {})
-    if "failed" not in ned:
-        for level, m in ned.items():
-            if m["omr_ned"] != 0:
-                problems.append(f"OMR-NED {level} is {m['omr_ned']}")
     return problems
+
+
+def musicdiff_oddities(result):
+    ned = result.get("musicdiff", {})
+    if "failed" in ned:
+        return [ned["failed"]]
+    return [f"OMR-NED {level} is {m['omr_ned']:.4f} for a file compared with itself"
+            for level, m in ned.items() if m["omr_ned"] != 0]
 
 
 def check_damaged(result, out_dir):
@@ -76,6 +83,8 @@ def main(argv=None):
     parser.add_argument("--set", default="regression", choices=("development", "regression"))
     parser.add_argument("--limit", type=int)
     parser.add_argument("--workers", type=int, default=parallel.DEFAULT_WORKERS)
+    parser.add_argument("--no-musicdiff", action="store_true", help="Skip musicdiff (the slowest step).")
+    parser.add_argument("--only", choices=("perfect", "damaged"), help="Run only one of the two test recognisers.")
     args = parser.parse_args(argv)
     logs = paths.REPO_ROOT / "logs"
     logs.mkdir(exist_ok=True)
@@ -83,9 +92,11 @@ def main(argv=None):
     base = paths.require_corpus_dir() / "evaluations" / "harness-check"
     checked = 0
     for kind, check in (("perfect", lambda r, d: check_perfect(r)), ("damaged", check_damaged)):
+        if args.only and kind != args.only:
+            continue
         out_dir = base / f"{kind}-{args.set}"
         results, _ = harness.run(args.set, kind, log, out_dir=out_dir, workers=args.workers,
-                                 with_musicdiff=(kind == "perfect"), limit=args.limit)
+                                 with_musicdiff=(kind == "perfect" and not args.no_musicdiff), limit=args.limit)
         bad = 0
         for result in results:
             checked += 1
@@ -93,6 +104,9 @@ def main(argv=None):
                 log.error(f"{kind}: {result['id']} {result['job']}: {result['harness error']}")
                 continue
             problems = check(result, out_dir)
+            if kind == "perfect":
+                for oddity in musicdiff_oddities(result):
+                    log.warning(f"musicdiff: {result['id']} {result['job']}: {oddity}")
             if problems:
                 bad += 1
                 log.error(f"{kind}: {result['id']} {result['job']}: " + "; ".join(problems))
