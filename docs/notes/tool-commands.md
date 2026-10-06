@@ -57,6 +57,22 @@ Verovio writes SVG, not PDF. The corpus converts the SVG to PDF with PyMuPDF, wh
 
 The music symbols in the result are filled outlines, not font characters, so these are Type B pages. Text (titles, lyrics) stays as real text in Times.
 
+## Running several exports at once
+
+Measured on 6 October 2026, on mains power with the Balanced power plan. The processor is an Intel Core i7-1185G7, with 4 cores, 8 threads and 32 GB of memory. The test was the 6 export jobs for each of the first 4 development scores (24 jobs), run through `generate.run_export` into a scratch folder on the corpus drive.
+
+- 1 worker: 93 seconds.
+- 3 workers: 56 seconds, about 1.7 times faster.
+- 4 workers: 54 seconds, hardly better than 3.
+- Every job succeeded in every run, and every PDF had the same number of pages as the Stage 5 export made one at a time. So MuseScore 3, MuseScore 4, LilyPond and Verovio can all run as several copies at once without clashing.
+
+The gain is smaller than the core count suggests, for two reasons, both measured with `typeperf`:
+
+- One job at a time already kept the processor 30 to 35 percent busy, about 2.5 to 3 of the 8 threads, because MuseScore uses several threads of its own.
+- With 3 workers the processor was 65 to 75 percent busy, but its clock speed fell from about 140 percent of the base speed to about 115 percent. That is the laptop's power limit.
+
+So the default is 3 workers (`omr.parallel.DEFAULT_WORKERS`). It gives nearly all of the gain and leaves the machine usable during a batch.
+
 ## Java (Eclipse Temurin OpenJDK 25.0.4.1)
 
 - Installed by the owner from `OpenJDK25U-jdk_x64_windows_hotspot_25.0.4.1_1.msi`.

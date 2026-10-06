@@ -15,6 +15,7 @@ These conventions meet AX-2 and AX-3. They exist so that a blind developer using
 - Each line starts with the date, the time, a level word (INFO, WARNING or ERROR) and the name of the job, so that a screen reader reads the useful part first after the stamp.
 - Jobs report a failure on one item and carry on with the rest, where that makes sense. Each failure is logged with its reason.
 - Jobs that may be interrupted are resumable.
+- Jobs made of many independent items (exports, evaluating many files) run them on several processor cores with `omr.parallel`, and take a `--workers N` option (default 3; 1 runs the items one at a time, which is easiest for debugging). Only the main process writes the log, so lines may finish out of order, and each line names its item.
 
 ## Exit status
 

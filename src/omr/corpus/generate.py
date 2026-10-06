@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from omr import inspect as inspector
-from omr import paths
+from omr import parallel, paths
 from omr.corpus import config, engravers, roundtrip
 
 
@@ -91,51 +91,87 @@ def metadata_text(candidate, set_name, spec, result, ground_truth):
     return "".join(f"{k}: {v}\n" for k, v in fields)
 
 
-def generate_set(set_name, chosen, log, min_free_gb=config.MIN_FREE_GB, retry_failures=False):
+def run_export(set_name, candidate, job_name, spec, reference, out):
+    """Make one export and its metadata file. Runs in a worker process.
+
+    Returns (status, message, seconds), where status is "made" or "failed"
+    and the message is the reason for a failure. The worker never writes to
+    the log, so that only the main process does and lines are never mixed.
+    """
+    started = time.time()
+    try:
+        if out.exists():
+            shutil.rmtree(out)
+        result = _run_job(spec, reference, out)
+        check_pdf(result.pdf, spec)
+        truth = "reference, exact" if result.engraver == "MuseScore 4" else "reference, engraver input"
+        if result.musicxml:
+            result.musicxml.unlink(missing_ok=True)  # the shared reference is the ground truth
+        (out / "metadata.txt").write_text(
+            metadata_text(candidate, set_name, spec, result, truth), encoding="utf-8")
+        return "made", "", time.time() - started
+    except engravers.ExportError as error:
+        message = str(error)
+    except Exception as error:
+        message = f"unexpected error {error!r}"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "failure.txt").write_text(f"{message}\n", encoding="utf-8")
+    return "failed", message, time.time() - started
+
+
+def generate_set(set_name, chosen, log, min_free_gb=config.MIN_FREE_GB, retry_failures=False,
+                 workers=parallel.DEFAULT_WORKERS):
     """Export a whole set. Returns (pairs made, failures). A job that failed in
     an earlier run is not retried unless retry_failures is true: timeouts and
-    wrong-font results would only fail again."""
+    wrong-font results would only fail again.
+
+    Up to `workers` exports run at once, each in its own process. Free space is
+    checked before each score's jobs are started, and a stop lets the jobs
+    already running finish, so the run can be resumed.
+    """
     root = output_dir(set_name)
     root.mkdir(parents=True, exist_ok=True)
     jobs = plan_jobs(chosen)
     made = failed = skipped = 0
-    for number, (candidate, trip) in enumerate(chosen, 1):
-        try:
-            free = paths.check_free_space(root, min_free_gb)
-        except paths.CorpusDirError as error:
-            log.error(f"Stopping cleanly so the run can be resumed: {error}")
-            return made, failed + 1
-        score_dir = root / candidate.id
-        score_dir.mkdir(exist_ok=True)
-        reference = score_dir / "reference.musicxml"
-        if not reference.is_file():
-            shutil.copyfile(trip.reference, reference)
-        for job_name, spec in jobs[candidate.id]:
-            out = score_dir / job_name
-            if (out / "metadata.txt").is_file() or ((out / "failure.txt").is_file() and not retry_failures):
-                skipped += 1
-                continue
-            started = time.time()
+    with parallel.pool(workers) as pool:
+        running = {}
+
+        def collect(block):
+            nonlocal made, failed
+            for future, (number, candidate, job_name, spec) in parallel.finished(running, block):
+                status, message, seconds = future.result()
+                where = f"{set_name} {number} of {len(chosen)}: {candidate.id} {job_name}"
+                if status == "made":
+                    made += 1
+                    log.info(f"{where} ({spec['font']}) done in {seconds:.0f} seconds.")
+                else:
+                    failed += 1
+                    log.error(f"{where} failed: {message}")
+
+        for number, (candidate, trip) in enumerate(chosen, 1):
+            while len(running) >= 2 * workers:
+                collect(block=True)
+            collect(block=False)
             try:
-                if out.exists():
-                    shutil.rmtree(out)
-                result = _run_job(spec, reference, out)
-                check_pdf(result.pdf, spec)
-                truth = "reference, exact" if result.engraver == "MuseScore 4" else "reference, engraver input"
-                if result.musicxml:
-                    result.musicxml.unlink(missing_ok=True)  # the shared reference is the ground truth
-                (out / "metadata.txt").write_text(
-                    metadata_text(candidate, set_name, spec, result, truth), encoding="utf-8")
-                made += 1
-                log.info(f"{set_name} {number} of {len(chosen)}: {candidate.id} {job_name} ({spec['font']}) done in {time.time() - started:.0f} seconds.")
-            except engravers.ExportError as error:
+                paths.check_free_space(root, min_free_gb)
+            except paths.CorpusDirError as error:
+                log.error(f"Stopping cleanly so the run can be resumed: {error}")
                 failed += 1
-                log.error(f"{set_name} {number} of {len(chosen)}: {candidate.id} {job_name} failed: {error}")
-                (out / "failure.txt").parent.mkdir(parents=True, exist_ok=True)
-                (out / "failure.txt").write_text(f"{error}\n", encoding="utf-8")
-            except Exception as error:
-                failed += 1
-                log.error(f"{set_name} {number} of {len(chosen)}: {candidate.id} {job_name} failed unexpectedly: {error!r}")
+                break
+            score_dir = root / candidate.id
+            score_dir.mkdir(exist_ok=True)
+            reference = score_dir / "reference.musicxml"
+            if not reference.is_file():
+                shutil.copyfile(trip.reference, reference)
+            for job_name, spec in jobs[candidate.id]:
+                out = score_dir / job_name
+                if (out / "metadata.txt").is_file() or ((out / "failure.txt").is_file() and not retry_failures):
+                    skipped += 1
+                    continue
+                future = pool.submit(run_export, set_name, candidate, job_name, spec, reference, out)
+                running[future] = (number, candidate, job_name, spec)
+        while running:
+            collect(block=True)
     write_index(set_name, chosen)
     log.info(f"{set_name}: {made} exports made, {skipped} already present or failed earlier, {failed} failed in this run. Corpus folder size {folder_size_gb(root):.2f} GB.")
     return made, failed

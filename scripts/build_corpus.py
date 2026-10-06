@@ -16,7 +16,7 @@ import collections
 import sys
 from pathlib import Path
 
-from omr import paths
+from omr import parallel, paths
 from omr.corpus import config, generate, select, sources
 from omr.log import ProgressLog
 
@@ -76,7 +76,9 @@ def cmd_export(args, log):
     chosen = [(c, roundtrip.check(c)) for c in select.read_selection(args.set, candidates)]
     if args.limit:
         chosen = chosen[: args.limit]
-    made, failed = generate.generate_set(args.set, chosen, log, retry_failures=args.retry_failures)
+    log.info(f"Running up to {args.workers} exports at once.")
+    made, failed = generate.generate_set(args.set, chosen, log, retry_failures=args.retry_failures,
+                                         workers=args.workers)
     return f"{made} exports made, {failed} failed for {args.set}"
 
 
@@ -111,9 +113,16 @@ def main(argv=None):
         if name == "export":
             p.add_argument("--limit", type=int, help="Only the first N scores.")
             p.add_argument("--retry-failures", action="store_true")
+            p.add_argument("--workers", type=int, default=parallel.DEFAULT_WORKERS,
+                           help=f"Exports to run at once (default {parallel.DEFAULT_WORKERS}; 1 runs them one at a time).")
     sub.add_parser("training")
     sub.add_parser("report")
     args = parser.parse_args(argv)
+    if getattr(args, "workers", None) is not None:
+        try:
+            parallel.check_workers(args.workers)
+        except ValueError as error:
+            parser.error(str(error))
     log = make_log(f"build-corpus-{args.command}")
     try:
         summary = {"candidates": cmd_candidates, "composers": cmd_composers, "select": cmd_select,

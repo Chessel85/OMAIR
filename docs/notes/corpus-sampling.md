@@ -167,6 +167,7 @@ Added on 5 October 2026 when the generator was written. The code is in `src/omr/
 - **Page limit.** The regression page limit uses the page count of the MuseScore 4 export in the default font.
 - **Uniqueness.** No two scores in a set share a work key or are near copies of each other (the draw skips them). Across the two sets, `build_corpus.py training` checks for near copies and warns. On 6 October 2026 it found none.
 - **Failed exports are not retried** on a re-run unless `--retry-failures` is given, because timeouts and wrong-font results would only fail again. Each failure is in the log, in a `failure.txt` beside the job, and in `index.txt`.
+- **Exports run in parallel.** `export SET --workers N` runs up to N exports at once, each in its own process (default 3; `--workers 1` runs them one at a time in the main process). Only the main process writes the log, so each line is still one whole event, but lines can finish out of order; each names its score and job. Free space is checked before each score's jobs start, and a stop lets the running jobs finish, so the run resumes as before. The measured speed-up is in `docs/notes/tool-commands.md`.
 - **Layout under the corpus folder:** `sources/` (downloads), `work/` (candidate cache and round-trip records), `generated/<set>/<score id>/reference.musicxml`, `generated/<set>/<score id>/<job>/score.pdf` and `metadata.txt`, and `generated/<set>/index.txt`. The selection files are in `docs/corpus-selection/`.
 
 ## Guitar and tablature (decision of 5 October 2026)

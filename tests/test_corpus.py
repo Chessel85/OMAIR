@@ -362,3 +362,52 @@ def test_training_pool_drops_near_copies_and_selection_skips_them(monkeypatch):
                   texture="piano", genre="sacred")
     chosen, _ = select.select_set("development", [a, b], ProgressLog("t"), composers=set())
     assert len(chosen) == 1
+
+
+def test_export_run_records_pairs_and_failures_and_resumes(tmp_path, monkeypatch):
+    """The export loop, with stand-in engravers: LilyPond fails, the rest succeed."""
+    from omr.corpus.roundtrip import RoundTrip
+
+    def fake_job(spec, reference, out):
+        if spec["engraver"] == "LilyPond":
+            raise engravers.ExportError("musicxml2ly timed out after 300 seconds")
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "score.pdf").write_bytes(b"%PDF")
+        return engravers.ExportResult(out / "score.pdf", None, spec["engraver"], "1.0", spec["font"])
+
+    monkeypatch.setattr(generate, "output_dir", lambda name: tmp_path / name)
+    monkeypatch.setattr(generate.paths, "check_free_space", lambda folder, gb: 500.0)
+    monkeypatch.setattr(generate, "_run_job", fake_job)
+    monkeypatch.setattr(generate, "check_pdf", lambda pdf, spec: None)
+    reference = tmp_path / "ref.musicxml"
+    reference.write_text("<score-partwise/>", encoding="utf-8")
+    chosen = [(make_candidate(i, "piano"), RoundTrip(True, "ok", str(reference), 1)) for i in range(3)]
+    stream = io.StringIO()
+    log = ProgressLog("t", stream=stream)
+
+    assert generate.generate_set("development", chosen, log, workers=1) == (15, 3)
+    root = tmp_path / "development"
+    assert (root / "c0" / "musescore4-base" / "metadata.txt").is_file()
+    assert "timed out" in (root / "c1" / "lilypond" / "failure.txt").read_text(encoding="utf-8")
+    index = (root / "index.txt").read_text(encoding="utf-8")
+    assert index.count("\npair |") == 15 and index.count("\nfailure |") == 3
+    assert "development 2 of 3: c1 lilypond failed: musicxml2ly timed out" in stream.getvalue()
+
+    # A second run skips everything already made or failed.
+    assert generate.generate_set("development", chosen, log, workers=1) == (0, 0)
+    assert "0 exports made, 18 already present or failed earlier" in stream.getvalue()
+
+
+def test_export_run_stops_cleanly_when_the_drive_is_nearly_full(tmp_path, monkeypatch):
+    from omr import paths
+
+    def full(folder, gb):
+        raise paths.CorpusDirError("only 50 GB free")
+
+    monkeypatch.setattr(generate, "output_dir", lambda name: tmp_path / name)
+    monkeypatch.setattr(generate.paths, "check_free_space", full)
+    stream = io.StringIO()
+    made, failed = generate.generate_set("development", [(make_candidate(0, "piano"), None)],
+                                         ProgressLog("t", stream=stream), workers=1)
+    assert (made, failed) == (0, 1)
+    assert "Stopping cleanly so the run can be resumed: only 50 GB free" in stream.getvalue()
