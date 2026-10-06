@@ -90,6 +90,8 @@ def classify(ev, raster_fn):
                 warnings.append(f"unknown font, probably music: {font.name}")
                 if font.font_type == "Type3":
                     notes.append(f"{font.name} is a Type 3 font: Phase 1 would need to fingerprint its glyph procedures")
+            elif font.cls == "text" and font.on_staves >= 10:
+                warnings.append(f"text font with {font.on_staves} glyphs on staves, check it is not music: {font.name}")
         if ev.hidden_text_glyphs:
             notes.append("hidden text layer, probably OCR")
             warnings.append("hidden text layer, probably OCR")

@@ -69,9 +69,10 @@ class FontUse:
     pua_glyphs: int = 0
     smufl_glyphs: int = 0
     unmapped_glyphs: int = 0
-    text_glyphs: int = 0  # letters, digits and punctuation
     glyph_ids: set = field(default_factory=set)
     centres: list = field(default_factory=list)  # glyph centres, for the staff test
+    origins: list = field(default_factory=list)  # glyph origins (on the baseline), likewise
+    on_staves: int = 0  # glyphs whose origin or centre is inside a staff
     cls: str = "text"
 
     def to_dict(self):
@@ -83,6 +84,7 @@ class FontUse:
             "pua_glyphs": self.pua_glyphs,
             "unmapped_glyphs": self.unmapped_glyphs,
             "distinct_glyph_ids": len(self.glyph_ids),
+            "glyphs_on_staves": self.on_staves,
         }
 
 
@@ -166,7 +168,7 @@ def read_text_glyphs(page):
         use = fonts.get(name)
         if use is None:
             use = fonts[name] = FontUse(name, font_types.get(name, "unknown"))
-        for code, glyph_id, _origin, bbox in span["chars"]:
+        for code, glyph_id, origin, bbox in span["chars"]:
             use.glyphs += 1
             use.glyph_ids.add(glyph_id)
             if PUA[0] <= code <= PUA[1]:
@@ -175,17 +177,25 @@ def read_text_glyphs(page):
                 use.smufl_glyphs += 1
             if code == 0xFFFD or code < 32:
                 use.unmapped_glyphs += 1
-            else:
-                ch = chr(code)
-                if ch.isalnum() or ch in ".,;:!?'\"()[]-/ ":
-                    use.text_glyphs += 1
             use.centres.append(((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2))
+            use.origins.append((origin[0], origin[1]))
     return fonts, hidden
+
+
+# An unknown font is probably music when at least this share of its glyphs
+# (and at least 10 glyphs) sit on staves. Measured on about 4,150 pages with
+# real music fonts: at one half, 11 percent of pages fail; at one quarter, 1 of
+# 445 files is missed. Text fonts stay far below it. Stage 8 re-measures this
+# on the legacy fonts found in real files.
+STAFF_SHARE = 0.25
+MIN_ON_STAVES = 10
 
 
 def classify_fonts(fonts, staves):
     """Put each font into one class (spec, 'Music font identification')."""
+    boxes = _plausible_boxes(staves)
     for use in fonts.values():
+        use.on_staves = _glyphs_on_staves(use, boxes)
         if is_smufl_text_name(use.name):
             use.cls = "smufl_text"
         elif use.glyphs >= 5 and use.pua_glyphs >= 0.8 * use.glyphs and (
@@ -194,23 +204,38 @@ def classify_fonts(fonts, staves):
             use.cls = "smufl"
         elif is_legacy_name(use.name):
             use.cls = "legacy"
-        elif use.glyphs >= 10 and use.text_glyphs < use.glyphs / 2 and (
-            _glyphs_in_staves(use, staves) >= 10
-        ):
+        elif use.on_staves >= MIN_ON_STAVES and use.on_staves >= STAFF_SHARE * use.glyphs:
             use.cls = "unknown_music"
         else:
             use.cls = "text"
 
 
-def _glyphs_in_staves(use, staves):
-    margin = staves.staff_space_pt or 5.0
-    total = 0
-    for x, y in use.centres:
-        for x0, x1, top, bottom in staves.boxes:
-            if x0 <= x <= x1 and top - margin <= y <= bottom + margin:
-                total += 1
-                break
-    return total
+def _plausible_boxes(staves):
+    """Five-line staves are four staff spaces tall. A box far from that is
+    probably five evenly spaced text rules (such as "cresc." lines), not a staff."""
+    space = staves.staff_space_pt
+    if not space:
+        return list(staves.boxes)
+    return [b for b in staves.boxes if abs((b[3] - b[2]) - 4 * space) <= 0.25 * 4 * space]
+
+
+def _inside(boxes, x, y):
+    return any(x0 <= x <= x1 and top <= y <= bottom for x0, x1, top, bottom in boxes)
+
+
+def _glyphs_on_staves(use, boxes):
+    """Count glyphs whose centre or origin is between the top and bottom lines
+    of a staff (no margin, so fingerings and lyrics do not count). The centre
+    alone is unreliable: the PDF library gives every glyph the font's full
+    ascender-to-descender box, so the centre can sit most of a staff space from
+    the ink. Legacy fonts put the baseline at the staff position, so the origin
+    is checked too. The character is not tested: legacy 8-bit music fonts put
+    symbols on letters and punctuation."""
+    return sum(
+        1
+        for centre, origin in zip(use.centres, use.origins)
+        if _inside(boxes, *centre) or _inside(boxes, *origin)
+    )
 
 
 # ---------------------------------------------------------- vector shapes

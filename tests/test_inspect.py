@@ -143,6 +143,115 @@ def test_text_only_page_has_no_music(tmp_path):
     assert decision.type == "N"
 
 
+def _renamed_font(fontname):
+    """A copy of a built-in font whose own name is `fontname`: the name the
+    inspector sees comes from the font file, not from the page's resource name."""
+    import io
+
+    ttlib = pytest.importorskip("fontTools.ttLib")
+    matplotlib = pytest.importorskip("matplotlib")
+    source = Path(matplotlib.get_data_path()) / "fonts" / "ttf" / "DejaVuSans.ttf"
+    font = ttlib.TTFont(str(source))
+    for record in font["name"].names:
+        if record.nameID in (1, 4, 6, 16):
+            record.string = fontname
+    out = io.BytesIO()
+    font.save(out)
+    return out.getvalue()
+
+
+def _staff_page(tmp_path, name, fontname, on_staff, above_staff=0, near_above=0, extra_staves=0):
+    """One page with a drawn five-line staff and letters placed on it under a
+    made-up font name, as a legacy 8-bit music font would put its symbols.
+    `above_staff` letters are far above the staff, `near_above` are half a staff
+    space above its top line (origin and centre both outside), and
+    `extra_staves` adds real staves lower down so that the median staff space
+    is well established."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_font(fontname=fontname, fontbuffer=_renamed_font(fontname))
+    top, space = 200.0, 7.0
+    for k in range(1 + extra_staves):
+        for i in range(5):
+            y = top + k * 100 + i * space
+            page.draw_line((50, y), (550, y), width=0.5)
+    for i in range(on_staff):
+        # baseline so that the glyph centre and origin fall inside the staff
+        page.insert_text((70 + i * 20, top + 2.5 * space + 3), "q", fontname=fontname, fontsize=10)
+    for i in range(above_staff):
+        page.insert_text((70 + i * 20, top - 40), "q", fontname=fontname, fontsize=10)
+    for i in range(near_above):
+        page.insert_text((70 + i * 20, top - 0.5 * space), "q", fontname=fontname, fontsize=10)
+    doc.save(tmp_path / name)
+    return tmp_path / name
+
+
+def _classes(path):
+    ev, decision = page_result(path)
+    return {f.name: f.cls for f in ev.fonts}, ev, decision
+
+
+def test_unknown_font_with_letters_on_a_staff_is_probably_music(tmp_path):
+    classes, ev, decision = _classes(_staff_page(tmp_path, "legacy.pdf", "MadeUpMusic", on_staff=20))
+    assert classes == {"MadeUpMusic": "unknown_music"}
+    assert any("unknown font, probably music: MadeUpMusic" in w for w in decision.warnings)
+    assert ev.fonts[0].to_dict()["glyphs_on_staves"] == 20
+
+
+def test_unknown_font_with_letters_above_the_staff_is_text(tmp_path):
+    classes, _, _ = _classes(_staff_page(tmp_path, "above.pdf", "MadeUpText", on_staff=0, above_staff=20))
+    assert set(classes.values()) == {"text"}
+
+
+def test_unknown_font_with_a_quarter_of_its_glyphs_on_the_staff_is_music(tmp_path):
+    classes, _, _ = _classes(_staff_page(tmp_path, "quarter.pdf", "MadeUpQuarter", on_staff=12, above_staff=30))
+    assert set(classes.values()) == {"unknown_music"}
+
+
+def test_unknown_font_below_a_quarter_on_the_staff_is_text(tmp_path):
+    classes, _, _ = _classes(_staff_page(tmp_path, "tenth.pdf", "MadeUpTenth", on_staff=12, above_staff=40))
+    assert set(classes.values()) == {"text"}
+
+
+def test_unknown_font_needs_at_least_ten_glyphs_on_the_staff(tmp_path):
+    # 15 glyphs in all, so the whole-font minimum is met; only 9 are on the staff
+    classes, _, _ = _classes(_staff_page(tmp_path, "nine.pdf", "MadeUpNine", on_staff=9, above_staff=6))
+    assert set(classes.values()) == {"text"}
+
+
+def test_glyphs_just_above_the_top_line_do_not_count(tmp_path):
+    classes, _, _ = _classes(_staff_page(tmp_path, "margin.pdf", "MadeUpMargin", on_staff=0, near_above=20))
+    assert set(classes.values()) == {"text"}
+
+
+def test_text_font_with_many_glyphs_on_staves_gets_a_warning(tmp_path):
+    path = _staff_page(tmp_path, "warn.pdf", "MadeUpWarn", on_staff=12, above_staff=60)
+    classes, _, decision = _classes(path)
+    assert set(classes.values()) == {"text"}
+    assert any("text font with 12 glyphs on staves" in w for w in decision.warnings)
+
+
+def test_five_widely_spaced_rules_are_not_a_staff_for_the_font_test(tmp_path):
+    """Five evenly spaced text rules (as in a long "cresc." line, seen in a real
+    quartet score) make a box far taller than four staff spaces."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_font(fontname="MadeUpItalic", fontbuffer=_renamed_font("MadeUpItalic"))
+    for k in range(3):  # real staves, space 7
+        for i in range(5):
+            y = 100 + k * 60 + i * 7
+            page.draw_line((50, y), (550, y), width=0.5)
+    for i in range(5):  # false staff, gap 34
+        y = 400 + i * 34
+        page.draw_line((50, y), (550, y), width=0.5)
+    for i in range(20):
+        page.insert_text((70 + i * 20, 400 + 2 * 34 + 3), "q", fontname="MadeUpItalic", fontsize=10)
+    doc.save(tmp_path / "false.pdf")
+    classes, ev, _ = _classes(tmp_path / "false.pdf")
+    assert ev.staves.five_line >= 4
+    assert set(classes.values()) == {"text"}
+
+
 def test_hidden_text_layer_is_noted_and_does_not_count_as_a_font(raster_png, tmp_path):
     ev, decision = page_result(wrap_image(raster_png, tmp_path / "ocr.pdf", hidden_text=True))
     assert decision.type == "C"
@@ -321,7 +430,7 @@ def test_smufl_font_needs_some_standard_range_glyphs(smufl, optional, expected):
     from omr.pdf import evidence
 
     use = evidence.FontUse("Petaluma", glyphs=smufl + optional, pua_glyphs=smufl + optional,
-                           smufl_glyphs=smufl, text_glyphs=0)
+                           smufl_glyphs=smufl)
     staves = evidence.Staves()
     evidence.classify_fonts({"Petaluma": use}, staves)
     assert use.cls == expected
