@@ -26,6 +26,8 @@ DEFAULT_TIMEOUT_S = 600
 BUILT_IN = {
     "perfect": [sys.executable, "-m", "omr.evaluate.recognisers", "perfect", "{pdf}", "{out}", "--truth", "{truth}"],
     "damaged": [sys.executable, "-m", "omr.evaluate.recognisers", "damaged", "{pdf}", "{out}", "--truth", "{truth}"],
+    "audiveris": [sys.executable, "-m", "omr.baselines", "audiveris", "{pdf}", "{out}"],
+    "homr": [sys.executable, "-m", "omr.baselines", "homr", "{pdf}", "{out}"],
 }
 
 

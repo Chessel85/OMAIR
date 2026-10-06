@@ -124,7 +124,7 @@ These were settled by a default rule so that work is not blocked. Change any you
 ### homr
 
 - Kind: model
-- Version: to be pinned in Stage 9
+- Version: 0.7.0 (installed in Stage 9)
 - Licence: AGPL-3.0 (github.com/liebharc/homr). The weights licence was not separately seen.
 - Use: Baseline in Stage 9, and a possible starting point for the sequence reader.
 - Source: solution-design.md and recollection. Not yet checked.
