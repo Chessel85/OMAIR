@@ -1,6 +1,6 @@
 # Evaluation harness specification (`omr evaluate`)
 
-Draft of 6 October 2026, for Stage 6 of `docs/plans/phase0.md`. It covers DEV-1 and the metrics for ACC-1 to ACC-6 in `requirements.md`. The owner decides the points listed under "Decisions for the owner" at the end. Everything else is the specification Sonnet implements and Opus reviews the code against.
+Version 1, 6 October 2026, for Stage 6 of `docs/plans/phase0.md`. It covers DEV-1 and the metrics for ACC-1 to ACC-6 in `requirements.md`. The owner accepted the decisions listed at the end on 6 October 2026. This is the specification the harness implements and the code review checks against.
 
 ## Purpose and principles
 
@@ -25,7 +25,7 @@ The harness reads both files with its own reader, built on the standard XML libr
 ### Bars
 
 - A **bar** is one `measure` element of a part, in written order. A pickup bar (`implicit="yes"`, often numbered 0) is a bar. So is the second half of a bar split at a repeat or a system break. Repeats and endings are not expanded.
-- A **multi-bar rest** (`multiple-rest` with count N) counts as N bars, each holding a whole-bar rest. A file that writes the N bars out and a file that writes one bar with the count therefore give the same bars.
+- A **multi-bar rest** counts as the bars it stands for. MusicXML always writes each of those bars as its own `measure` element (the `multiple-rest` count only tells an engraver to draw them as one), so they are counted as written.
 - **Bar length** is how far the bar's content reaches: the largest end position of any note, rest or `forward` in the bar. It is used to join two bars when a barline is missing.
 - The printed number (`number` attribute) and, in the ground truth, the page and system (from `print` elements with `new-page` and `new-system`) are kept for the report. MuseScore 4 ground truth writes these, because its MusicXML comes from the same layout as its PDF.
 
@@ -167,7 +167,7 @@ Small MusicXML pairs written for the tests, with the right metric values worked 
 - grace notes, before a note and before a chord, and a grace note missing in the output;
 - a cross-staff note in a piano part, drawn on the other staff in the output (no note error, one staff error);
 - a pickup bar and a split bar at a repeat;
-- a multi-bar rest written as one bar with a count against the same rest written out;
+- a multi-bar rest (its bars written out, with the `multiple-rest` count) against the same bars without the count;
 - a missed barline and an extra barline;
 - the same piano music as one part with two staves and as two parts;
 - a unison in two voices;
@@ -189,14 +189,14 @@ Small MusicXML pairs written for the tests, with the right metric values worked 
 - `--workers N`, `--cpu-only`, `--timeout SECONDS`.
 - `--out FOLDER`: where the reports go (default `evaluations/<date>-<recogniser>-<set>` under the corpus folder; the regression set's results go in the repository, Stage 7).
 
-## Decisions for the owner
+## Decisions
 
-Each has a recommendation. They can be accepted together.
+Accepted by the owner on 6 October 2026.
 
-1. **Extra notes count as errors** (note accuracy = M / (T + E)). The alternative, M / T, ignores added notes, so a recogniser could add notes without losing accuracy. Recommended: count them.
-2. **Spelling counts.** C sharp in place of D flat is a pitch error, because braille music and a sighted reader both show the spelling. Sounding-pitch accuracy is reported alongside. Recommended: spelling counts.
-3. **Onsets are strict,** as the requirement says, so one missing dot can make the rest of a voice in that bar wrong. The pitch-and-duration figure shows how often this happens. Recommended: strict, with the diagnostic figure.
-4. **Grace notes are in note accuracy,** matched by pitch, position before their main note and notated value. Recommended: include them, as REC-2 lists them.
-5. **Failed files count as zero** in the overall figures, and accuracy over completed files is reported as well. Recommended: count them as zero, because a file the tool cannot convert is a failure for the user.
-6. **Navigation marks are part of structural correctness.** The requirement lists repeats, and the marks decide the order in which the music is played. Recommended: include them.
-7. **TEDn** may wait if no usable implementation exists. OMR-NED from musicdiff is reported meanwhile. Recommended: let it wait, and record it as an open item.
+1. **Extra notes count as errors** (note accuracy = M / (T + E)). The alternative, M / T, ignores added notes, so a recogniser could add notes without losing accuracy.
+2. **Spelling counts.** C sharp in place of D flat is a pitch error, because braille music and a sighted reader both show the spelling. Sounding-pitch accuracy is reported alongside.
+3. **Onsets are strict,** as the requirement says, so one missing dot can make the rest of a voice in that bar wrong. The pitch-and-duration figure shows how often this happens.
+4. **Grace notes are in note accuracy,** matched by pitch, position before their main note and notated value. REC-2 lists them.
+5. **Failed files count as zero** in the overall figures, and accuracy over completed files is reported as well. A file the tool cannot convert is a failure for the user.
+6. **Navigation marks are part of structural correctness.** The requirement lists repeats, and the marks decide the order in which the music is played.
+7. **TEDn** waits if no usable implementation exists, and is recorded as an open item. OMR-NED from musicdiff is reported meanwhile.

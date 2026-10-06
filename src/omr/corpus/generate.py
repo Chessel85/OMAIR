@@ -88,7 +88,7 @@ def metadata_text(candidate, set_name, spec, result, truth_file, truth, differen
         ("features", ", ".join(candidate.features) or "none"),
         ("engraver", result.engraver), ("engraver version", result.version),
         ("font", spec["font"]),
-        ("staff size", f"{spec['staff_mm']} mm" if spec.get("staff_mm") else "default"),
+        ("staff size", staff_size_text(spec)),
         ("ground truth file", truth_file), ("ground truth", truth),
     ]
     if difference:
@@ -119,13 +119,23 @@ def compare_with_reference(answer, reference, diff=None):
     return f"{counts[0]} in notes and rests, {counts[1]} in all objects", counts[0]
 
 
-def job_is_done(out, spec):
-    """True if the job has its metadata and, for MuseScore 4, its own MusicXML.
+def staff_size_text(spec):
+    return f"{spec['staff_mm']} mm" if spec.get("staff_mm") else "default"
 
-    MuseScore 4 jobs made before 6 October 2026 kept no MusicXML, so they are
-    made again on the next run to get their ground truth.
+
+def job_is_done(out, spec):
+    """True if the job has its metadata, made with the font and staff size the
+    plan now gives it, and, for MuseScore 4, its own MusicXML.
+
+    A redraw of the selection moves the font rotation, so a job kept from
+    before it may have another font; it is made again. MuseScore 4 jobs made
+    before 6 October 2026 kept no MusicXML, so they are made again too.
     """
-    if not (out / "metadata.txt").is_file():
+    meta = out / "metadata.txt"
+    if not meta.is_file():
+        return False
+    fields = dict(line.split(": ", 1) for line in meta.read_text(encoding="utf-8").splitlines() if ": " in line)
+    if fields.get("font") != spec["font"] or fields.get("staff size") != staff_size_text(spec):
         return False
     return spec["engraver"] != "MuseScore 4" or (out / MS4_TRUTH).is_file()
 

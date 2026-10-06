@@ -310,3 +310,18 @@ def test_legacy_font_names(name, legacy):
     from omr.pdf.evidence import is_legacy_name
 
     assert is_legacy_name(name) is legacy
+
+
+@pytest.mark.parametrize("smufl, optional, expected", [
+    (19, 99, "smufl"),     # Petaluma percussion page: 16 percent standard range, but 19 glyphs
+    (2, 18, "smufl"),      # small page: 10 percent standard range
+    (3, 97, "text"),       # almost all outside the standard range: not taken as SMuFL
+])
+def test_smufl_font_needs_some_standard_range_glyphs(smufl, optional, expected):
+    from omr.pdf import evidence
+
+    use = evidence.FontUse("Petaluma", glyphs=smufl + optional, pua_glyphs=smufl + optional,
+                           smufl_glyphs=smufl, text_glyphs=0)
+    staves = evidence.Staves()
+    evidence.classify_fonts({"Petaluma": use}, staves)
+    assert use.cls == expected

@@ -188,7 +188,9 @@ def classify_fonts(fonts, staves):
     for use in fonts.values():
         if is_smufl_text_name(use.name):
             use.cls = "smufl_text"
-        elif use.glyphs >= 5 and use.pua_glyphs >= 0.8 * use.glyphs and use.smufl_glyphs >= 0.2 * use.glyphs:
+        elif use.glyphs >= 5 and use.pua_glyphs >= 0.8 * use.glyphs and (
+            use.smufl_glyphs >= 0.1 * use.glyphs or use.smufl_glyphs >= 10
+        ):
             use.cls = "smufl"
         elif is_legacy_name(use.name):
             use.cls = "legacy"

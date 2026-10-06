@@ -478,3 +478,17 @@ def test_differences_in_notes_are_a_warning(tmp_path, monkeypatch):
     log = ProgressLog("t", stream=io.StringIO())
     generate.generate_set("development", chosen, log, workers=1)
     assert log.warnings == 2  # the two MuseScore 4 jobs
+
+
+def test_a_job_with_another_font_than_the_plan_is_made_again(tmp_path, monkeypatch):
+    """After a redraw the font rotation moves; a kept job with the old font is redone."""
+    chosen = fake_export_run(tmp_path, monkeypatch, scores=1)
+    log = ProgressLog("t", stream=io.StringIO())
+    generate.generate_set("development", chosen, log, workers=1)
+    meta = tmp_path / "development" / "c0" / "musescore3-variant" / "metadata.txt"
+    planned = dict(generate.plan_jobs(chosen)["c0"])["musescore3-variant"]["font"]
+    other = next(f for f in config.MS3_VARIANT_FONTS if f != planned)
+    meta.write_text(meta.read_text(encoding="utf-8").replace(f"font: {planned}\n", f"font: {other}\n"),
+                    encoding="utf-8")
+    assert generate.generate_set("development", chosen, log, workers=1) == (1, 0)
+    assert f"font: {planned}\n" in meta.read_text(encoding="utf-8")
