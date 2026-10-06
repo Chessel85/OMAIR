@@ -7,6 +7,7 @@ Thresholds are starting values. If you change one, change the spec too.
 from dataclasses import dataclass, field
 
 MIN_SYMBOLS = 10  # music glyphs or repeated shapes needed to call a page A or B
+FEW_SYMBOLS = 3   # enough when staves are also found (the last page of a score is often sparse)
 BIG_IMAGE = 0.50
 SMALL_IMAGE = 0.10
 UNEVEN_BACKGROUND = 40
@@ -99,13 +100,15 @@ def classify(ev, raster_fn):
         kind, conf, reason, extra = split_raster(ev, _measure(ev, raster_fn))
         notes.extend(extra)
         return finish(kind, conf, f"An image covers {coverage * 100:.0f} percent of the page and there are no music symbols in the vector content. {reason}")
-    # 2. type A
-    if glyphs >= MIN_SYMBOLS and glyphs >= repeated:
-        conf = "high" if staves >= 1 else "medium"
+    # 2. type A (a few glyphs are enough when staves are found, with medium confidence)
+    few = staves >= 1 and glyphs >= FEW_SYMBOLS
+    if (glyphs >= MIN_SYMBOLS or few) and glyphs >= repeated:
+        conf = "high" if staves >= 1 and glyphs >= MIN_SYMBOLS else "medium"
         return finish("A", conf, f"{_plural(glyphs, 'music glyph')} in {music_font_names(ev)}, and {staves_text(staves)} found from vector lines.")
     # 3. type B
-    if repeated >= MIN_SYMBOLS and repeated > glyphs:
-        conf = "high" if staves >= 1 else "medium"
+    few = staves >= 1 and repeated >= FEW_SYMBOLS
+    if (repeated >= MIN_SYMBOLS or few) and repeated > glyphs:
+        conf = "high" if staves >= 1 and repeated >= MIN_SYMBOLS else "medium"
         return finish("B", conf, f"{repeated} outlined shapes are repeated ({ev.outlined['distinct']} distinct shapes in all) and {staves_text(staves)} found from vector lines.")
     # 4. vector, symbols not found
     if staves >= 1:

@@ -226,3 +226,57 @@ def test_report_has_no_tables_or_art(capsys):
     main(["inspect", str(DATA / "ms4_leland.pdf")])
     out = capsys.readouterr().out
     assert "|" not in out and "+--" not in out
+
+
+# ------------------------------------------------- sparse pages and export checks
+
+
+def _evidence(glyphs=0, repeated=0, staves=0, coverage=0.0):
+    from omr.pdf import evidence as E
+
+    fonts = [E.FontUse("Leland", glyphs=glyphs, cls="smufl")] if glyphs else []
+    return E.PageEvidence(
+        page=1, width_pt=595, height_pt=842, rotation=0, fonts=fonts, hidden_text_glyphs=0,
+        lines={"horizontal": 0, "vertical": 0, "other": 0},
+        filled={"rectangles": 0, "polygons": 0, "curved": 0},
+        staves=E.Staves(five_line=staves, staff_space_pt=5.0 if staves else None),
+        outlined={"count": repeated, "distinct": 1, "top_repeats": [repeated], "repeated_instances": repeated},
+        images=[], image_coverage=coverage,
+    )
+
+
+def test_sparse_last_page_with_staves_is_type_a_with_medium_confidence():
+    from omr.pdf import classify
+
+    decision = classify.classify(_evidence(glyphs=7, staves=3), lambda: None)
+    assert (decision.type, decision.confidence) == ("A", "medium")
+    decision = classify.classify(_evidence(repeated=6, staves=2), lambda: None)
+    assert (decision.type, decision.confidence) == ("B", "medium")
+
+
+def test_staves_with_almost_no_symbols_stay_low_confidence_b():
+    from omr.pdf import classify
+
+    decision = classify.classify(_evidence(glyphs=2, staves=3), lambda: None)
+    assert (decision.type, decision.confidence) == ("B", "low")
+    assert classify.classify(_evidence(glyphs=5), lambda: None).type == "N"
+
+
+def test_export_check_allows_text_only_pages_but_needs_music(tmp_path):
+    from omr.corpus import engravers, generate
+
+    spec = {"engraver": "MuseScore 4", "font": "Leland"}
+    doc = pymupdf.open()
+    page = doc.new_page()
+    for i in range(10):
+        page.insert_text((72, 100 + i * 20), "A title page with only words on it.")
+    doc.insert_pdf(pymupdf.open(DATA / "ms4_leland.pdf"))
+    doc.save(tmp_path / "with_title.pdf")
+    generate.check_pdf(tmp_path / "with_title.pdf", spec)  # does not raise
+    only_text = pymupdf.open()
+    only_text.new_page().insert_text((72, 100), "Words only.")
+    only_text.save(tmp_path / "text.pdf")
+    with pytest.raises(engravers.ExportError):
+        generate.check_pdf(tmp_path / "text.pdf", spec)
+    with pytest.raises(engravers.ExportError):
+        generate.check_pdf(DATA / "lilypond.pdf", spec)  # wrong engraver and font

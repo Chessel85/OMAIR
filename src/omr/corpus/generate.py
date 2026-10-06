@@ -59,8 +59,10 @@ def check_pdf(pdf, spec):
     result = inspector.inspect_file(pdf)
     kinds = {decision.type for _, decision in result["results"]}
     expected = "B" if spec["engraver"] == "Verovio" else "A"
-    if kinds != {expected}:
-        raise engravers.ExportError(f"the inspector found page types {sorted(kinds)}, expected only {expected}")
+    # Text-only pages (a title page, a page of notes) are normal in an export and
+    # are classed N. At least one page must have music, and none may be another type.
+    if expected not in kinds or not kinds <= {expected, "N"}:
+        raise engravers.ExportError(f"the inspector found page types {sorted(kinds)}, expected {expected} (and N for text-only pages)")
     if spec["engraver"] == "Verovio":
         return
     wanted = engravers.PDF_FONT_NAMES.get(spec["font"], spec["font"])

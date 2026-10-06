@@ -98,9 +98,9 @@ Definitions used below:
 The rules:
 
 1. **Raster.** Image coverage is at least 50 percent, and music glyphs are under 10, and repeated shapes are under 10. The type is C or D (see the next section).
-2. **Type A.** Music glyphs are at least 10, and at least as many as repeated shapes. Confidence is high if staves are 1 or more, otherwise medium.
-3. **Type B.** Repeated shapes are at least 10, and more than music glyphs. Confidence is high if staves are 1 or more, otherwise medium.
-4. **Vector, symbols not found.** Staves are 1 or more, but neither music glyphs nor repeated shapes reach 10. This is reported as Type B with low confidence and the reason "staves found but no music symbols identified". It catches outlines that are not repeated (for example every notehead drawn at a slightly different scale) and must be looked at by hand in Stage 8.
+2. **Type A.** Music glyphs are at least 10, and at least as many as repeated shapes. Confidence is high if staves are 1 or more, otherwise medium. A sparse page is also Type A, with medium confidence, if staves are 1 or more and music glyphs are 3 or more (added after the first corpus run: the last page of a score often has only a few notes).
+3. **Type B.** Repeated shapes are at least 10, and more than music glyphs. Confidence is high if staves are 1 or more, otherwise medium. As for Type A, 3 or more repeated shapes are enough, with medium confidence, when staves are found.
+4. **Vector, symbols not found.** Staves are 1 or more, but neither music glyphs nor repeated shapes reach 3. This is reported as Type B with low confidence and the reason "staves found but no music symbols identified". It catches outlines that are not repeated (for example every notehead drawn at a slightly different scale) and must be looked at by hand in Stage 8.
 5. **Raster, partial.** Image coverage is between 10 and 50 percent and none of the above matched. The type is C or D with low confidence, reason "music may be in a smaller image".
 6. **No music.** Anything else.
 
