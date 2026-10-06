@@ -8,5 +8,6 @@ onnxruntime
 ultralytics
 music21
 musicdiff
+scipy
 verovio
 pytest

@@ -93,8 +93,11 @@ All metrics are reported per file and overall. Overall figures add up the counts
 - The **errors** are the T minus M ground-truth notes not matched exactly, plus the E extra notes. A wrong note counts once.
 - **Note accuracy = M / (T + E)**, which is the number of correct notes divided by the correct notes plus the errors. It is 100 percent only if every note is right and nothing is added.
 - Also reported: recall (M / T), precision (M / number of predicted notes), and the count of each kind of error.
-- Diagnostic figures, not used for the targets: pitch and duration accuracy (onset ignored within the bar), sounding-pitch accuracy (spelling ignored), staff accuracy and voice accuracy among exact matches, tie accuracy, and rest accuracy.
-- **Voice accuracy** compares groupings, not voice numbers. Within each bar, each predicted voice is mapped to the ground-truth voice it shares most exact matches with, and a matched note whose voices do not correspond under that mapping is a voice error.
+- Diagnostic figures, not used for the targets:
+  - pitch and duration accuracy (onset ignored within the bar) and sounding-pitch accuracy (spelling ignored): the notes that match on those properties, divided by the larger of the ground-truth and output note counts;
+  - rest accuracy: rests matching in onset and duration, divided by the larger of the two rest counts;
+  - staff, voice and tie accuracy: the share of exact matches with the right staff, voice grouping, or tie start and stop.
+- **Voice accuracy** compares groupings, not voice numbers. Within each bar, each predicted voice is mapped to the ground-truth voice it shares most exact matches with, and a matched note whose voices do not correspond under that mapping is a voice error. Two output voices may map to the same ground-truth voice, so merging voices into chords, or splitting a chord into voices, is not a voice error.
 
 ### Structural correctness (ACC-1)
 
@@ -114,7 +117,7 @@ Every mismatch is listed in words, for example "Bar 17: the ground truth has a b
 - A ground-truth **dynamic** is found if the output has the same dynamic (same text, such as mf) in the same matching group, in the aligned bar, with an onset no more than one beat away (a beat is the time signature's lower number), on the same staff if both files give one.
 - A ground-truth **hairpin** is found if the output has a hairpin of the same kind (crescendo or diminuendo) whose start meets the same rule. Whether its end is also right is reported separately.
 - **Marking recall = markings found / ground-truth markings.** ACC-6 asks for at least 90 percent on vector input. Precision is reported too.
-- Articulations, fermatas, ornaments and slurs are scored on exactly matched notes: the share of ground-truth marks of each kind that the matched predicted note also has (for a slur, both its start and end notes). Tempo and expression text, lyrics and chord symbols are scored the same way as dynamics, by text, bar and onset. These are diagnostic figures for REC-4 to REC-6.
+- Articulations, fermatas, ornaments, technical marks (such as fingering), arpeggios, slurs and lyrics are scored on exactly matched notes: the share of ground-truth marks of each kind that the matched predicted note also has. A slur is scored by its ends: each slur start or stop on a ground-truth note must be on the matched note too. A lyric must have the same text. Tempo and expression text and chord symbols are scored the same way as dynamics, by text, bar and onset. These are diagnostic figures for REC-4 to REC-6.
 - Pairs whose ground truth is "engraver input" (MuseScore 3, LilyPond, Verovio) may show markings the engraver did not draw. Marking figures are therefore reported separately for exact and engraver-input pairs, and only exact pairs count for ACC-6.
 
 ### Error flagging (ACC-4)
@@ -136,7 +139,7 @@ The recogniser may write a **flag file** beside its MusicXML, `flags.json`:
 
 ## Recogniser interface
 
-- A recogniser is a command template, for example `python -m omr.recognisers.perfect {pdf} {out}`. The harness fills in the pair's PDF and an output folder, and the command writes `{out}/score.musicxml` and, optionally, `{out}/flags.json`.
+- A recogniser is a command template, for example `python my_omr.py {pdf} {out}`. The harness fills in the pair's PDF and an output folder, and the command writes `{out}/score.musicxml` and, optionally, `{out}/flags.json`. On Windows the template is run as one command line, with each filled-in path quoted. The test recognisers also get `{truth}`, the ground-truth file; a real recogniser must never use it.
 - Built-in names: `perfect` and `damaged` (below), and later `omr` (the project's own pipeline) and the Stage 9 baselines.
 - The harness times each run (wall clock) and records it. With `--cpu-only`, it hides the GPU from the recogniser (`CUDA_VISIBLE_DEVICES` set to empty), for the OP-2 timings in Stage 9.
 - Each run has a time limit (default 600 seconds). A run that fails, times out or writes no MusicXML is a **failed file**. Its notes all count as missing, it is not structurally correct, and the report lists it with the reason. The report also gives the accuracy over completed files only.
@@ -186,7 +189,8 @@ Small MusicXML pairs written for the tests, with the right metric values worked 
 - `omr evaluate --set development --recogniser perfect`: run a recogniser over a set and report.
 - `--predictions FOLDER`: compare existing outputs instead of running a recogniser.
 - `--engraver`, `--font`, `--genre`, `--texture`, `--limit N`: run on a subset.
-- `--workers N`, `--cpu-only`, `--timeout SECONDS`.
+- `--workers N`, `--cpu-only`, `--timeout SECONDS`, `--no-musicdiff` (musicdiff is the slowest step, about as slow as the rest put together).
+- `python scripts/check_harness.py --set regression` runs both test recognisers over a set and checks every pair's figures (the Stage 6 done condition).
 - `--out FOLDER`: where the reports go (default `evaluations/<date>-<recogniser>-<set>` under the corpus folder; the regression set's results go in the repository, Stage 7).
 
 ## Decisions
