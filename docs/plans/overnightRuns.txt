@@ -1,0 +1,16 @@
+To start a night                                                                                                        
+1. Plug in the laptop and set sleep to "never" while plugged in. A sleeping laptop stalls the run.                      
+2. In a terminal in the repository folder, with OMR_CORPUS_DIR set and the E: drive plugged in, run sh                  
+scripts/run_legato_night.sh.                                                                                            
+3. Run the same command again the next night. Finished files are skipped.                                               
+                                                                                                                        
+What it does                                                                                                            
+- Queue: 35 scores, 67 pages, about 23 hours of work, so roughly three nights. Each score is its MuseScore 4 (Leland)   
+export. The queue is a seeded round robin over genre and texture groups, so any first part of it is a fair spread.      
+- Left out: I left out the 25 scores of more than 4 pages, to avoid wasting nights on one long file.                    
+- Limits: it uses 3 cores and stops after 8.5 hours. It won't start a file that can't finish before then, and it plans  
+on 21 minutes a page.                                                                                                   
+- Results: each result is saved as it finishes. The log is E:\OMAIRCorpus\evaluations\legato-sample.log, with one line  
+per event and a summary at the end. Check progress any time with python scripts/run_legato_sample.py status.            
+- Scoring: the scoring command for the morning is in the plan.                                                          
+ 

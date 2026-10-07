@@ -142,10 +142,10 @@ These were settled by a default rule so that work is not blocked. Change any you
 ### LEGATO
 
 - Kind: model
-- Version: to be pinned
-- Licence: MIT, but the weights are gated on Hugging Face and the vision encoder comes from Llama 3.2, which has its own licence.
-- Use: Internal comparison baseline only, never shipped.
-- Source: solution-design.md and recollection. Not yet checked.
+- Version: `guangyangmusic/legato` (full model, about 107 million trained parameters), with the vision encoder from `meta-llama/Llama-3.2-11B-Vision`.
+- Licence: MIT for LEGATO's code and weights. Both repositories are gated on Hugging Face: LEGATO by automatic approval, and Llama by Meta's manual approval under the Llama 3.2 Community Licence, which also bars its multimodal rights to people and companies in the EU. The owner was approved on 7 October 2026. `legato-1.5` needs separate manual approval and is not used.
+- Use: Internal comparison baseline only, never shipped. Run in its own Python 3.12 environment under `tools/legato` on the corpus drive. The Llama licence needs "Built with Llama" and its notice if anything derived from it is ever distributed.
+- Source: Hugging Face model cards and repository metadata, checked 7 October 2026.
 - Status: ok
 
 ## External tools

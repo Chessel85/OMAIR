@@ -28,6 +28,7 @@ BUILT_IN = {
     "damaged": [sys.executable, "-m", "omr.evaluate.recognisers", "damaged", "{pdf}", "{out}", "--truth", "{truth}"],
     "audiveris": [sys.executable, "-m", "omr.baselines", "audiveris", "{pdf}", "{out}"],
     "homr": [sys.executable, "-m", "omr.baselines", "homr", "{pdf}", "{out}"],
+    "legato": [sys.executable, "-m", "omr.baselines", "legato", "{pdf}", "{out}"],
 }
 
 

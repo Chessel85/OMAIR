@@ -1,7 +1,9 @@
-"""Audiveris and homr as recognisers. Both run as separate processes, on the CPU.
+"""Audiveris, homr and LEGATO as recognisers. Each runs as a separate process, on the CPU.
 
-Where the tools live is set by `OMR_AUDIVERIS_DIR` and `OMR_HOMR_EXE`, and
-defaults to `tools/` under the corpus folder (`omr.paths`).
+Where the tools live is set by `OMR_AUDIVERIS_DIR`, `OMR_HOMR_EXE` and
+`OMR_LEGATO_DIR`, and defaults to `tools/` under the corpus folder (`omr.paths`).
+LEGATO has its own Python 3.12 environment, its repository and its model cache
+in that folder; it is a development baseline only and is never shipped.
 """
 
 import copy
@@ -18,6 +20,7 @@ from pathlib import Path
 from omr import paths
 
 HOMR_DPI = 300
+LEGATO_DPI = 150
 
 
 def _tools_dir():
@@ -30,6 +33,10 @@ def audiveris_dir():
 
 def homr_exe():
     return Path(os.environ.get("OMR_HOMR_EXE") or _tools_dir() / "homr-venv" / "Scripts" / "homr.exe")
+
+
+def legato_dir():
+    return Path(os.environ.get("OMR_LEGATO_DIR") or _tools_dir() / "legato")
 
 
 def _fail(message):
@@ -57,13 +64,13 @@ def run_audiveris(pdf, out):
     return 0
 
 
-def _page_images(pdf, folder):
+def _page_images(pdf, folder, dpi=HOMR_DPI):
     import pymupdf
     images = []
     with pymupdf.open(pdf) as doc:
         for number, page in enumerate(doc, 1):
             path = folder / f"page{number:03d}.png"
-            page.get_pixmap(dpi=HOMR_DPI).save(path)
+            page.get_pixmap(dpi=dpi).save(path)
             images.append(path)
     return images
 
@@ -109,9 +116,44 @@ def run_homr(pdf, out):
     return 0
 
 
+def _musescore_tidy(source, target):
+    """LEGATO's own pipeline passes the converted MusicXML through MuseScore to tidy it."""
+    from omr.corpus import engravers
+    exe = engravers.musescore4_path()
+    done = subprocess.run([str(exe), "-o", str(target), str(source)], capture_output=True, errors="replace")
+    return done.returncode == 0 and Path(target).exists()
+
+
+def run_legato(pdf, out):
+    root = legato_dir()
+    python = root / "venv" / "Scripts" / "python.exe"
+    if not python.exists():
+        return _fail(f"LEGATO not found at {root}")
+    env = dict(os.environ, HF_HOME=str(root / "hf"), CUDA_VISIBLE_DEVICES="", PYTHONUTF8="1")
+    with tempfile.TemporaryDirectory(dir=out) as work:
+        work = Path(work)
+        images = _page_images(pdf, work, LEGATO_DPI)
+        done = subprocess.run([str(python), str(Path(__file__).with_name("legato_infer.py")), str(root / "repo"),
+                               str(work)] + [str(i) for i in images], capture_output=True, text=True,
+                              errors="replace", env=env)
+        sys.stderr.write(done.stderr[-2000:])
+        outputs = []
+        for image in images:
+            xml = work / f"{image.stem}.xml"
+            if not xml.exists() or xml.stat().st_size == 0:
+                continue
+            tidy = work / f"{image.stem}.tidy.musicxml"
+            outputs.append(tidy if _musescore_tidy(xml, tidy) else xml)
+        if not outputs:
+            return _fail("LEGATO wrote no MusicXML. " + (done.stdout + done.stderr)[-400:])
+        _merge_pages(outputs, out / "score.musicxml")
+    return 0
+
+
 def main(argv):
-    if len(argv) != 3 or argv[0] not in ("audiveris", "homr"):
-        return _fail("usage: python -m omr.baselines audiveris|homr PDF OUT")
+    if len(argv) != 3 or argv[0] not in ("audiveris", "homr", "legato"):
+        return _fail("usage: python -m omr.baselines audiveris|homr|legato PDF OUT")
     out = Path(argv[2])
     out.mkdir(parents=True, exist_ok=True)
-    return (run_audiveris if argv[0] == "audiveris" else run_homr)(Path(argv[1]), out)
+    run = {"audiveris": run_audiveris, "homr": run_homr, "legato": run_legato}[argv[0]]
+    return run(Path(argv[1]), out)
