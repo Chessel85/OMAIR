@@ -9,7 +9,7 @@ Record a LEGATO baseline for Stage 9 on a spread of real scores. LEGATO is a dev
 ## What has been set up
 
 - LEGATO is installed under `E:\OMAIRCorpus\tools\legato` (its own Python 3.12 environment, the code, and 21 GB of weights). `python -m omr.baselines legato PDF OUT` runs it, and `omr evaluate --recogniser legato` can use it.
-- One-file test on 7 October: 57 minutes for 3 pages (1210, 1184 and 1010 seconds a page) with 3 threads. Note accuracy 73.9 percent, which is 99.5 percent once one wrong clef is corrected (see "Clef errors" below).
+- One-file test on 7 October: 57 minutes for 3 pages (1210, 1184 and 1010 seconds a page) with 3 threads. Note accuracy 99.3 percent under the clef rule (420 of 422 notes right, plus one clef error); 73.9 percent strict (see "Clef errors" below).
 - `scripts/run_legato_sample.py` builds the queue, runs it until a time limit, and reports status. `scripts/run_legato_night.sh` is the one command that starts a night.
 
 ## The queue
@@ -51,10 +51,9 @@ Timings from the night runs are usable for OP-2 as the CPU-alone figure for LEGA
 
 ## Clef errors (decision of 7 October 2026)
 
-- The owner decided that a misread clef should count as one mistake, for all models. LEGATO read a tenor part's octave-down treble clef as a plain treble clef, so every note in the part was an octave high. The harness counted 110 errors (73.9 percent), and 2 once the clef was fixed (99.5 percent).
-- This is a change to the metric, not only to LEGATO's score. It is a spec decision for `docs/notes/evaluation-spec.md`, with the existing tests and the "perfect" and "damaged" checks as guards. It is not done yet. A sensible form: when a whole part, or a whole run of bars, is wrong by a constant octave and a clef difference is reported at its start, count one error for the clef and score the notes as if the clef had been right.
-- The earlier Audiveris and homr results do not need new recogniser runs. Their outputs are all kept (`evaluations/baseline-sample-*/<id>/<job>/score.musicxml`), so they can be rescored with `omr evaluate --predictions` in minutes once the metric changes. The regression baseline (`regression/baseline.txt`) also needs a new baseline, recorded deliberately as `docs/notes/regression.md` describes.
-- Until then, quote LEGATO's figure with its cause beside it, and note any file where one clef or one key signature moves a whole part.
+- The owner decided that a misread clef counts as one mistake, for all models. It is decision 10 in `docs/notes/evaluation-spec.md` ("Clef errors"), and the harness applies it, so the night runs are scored with it automatically.
+- On the one-file test, LEGATO read a tenor part's octave-down treble clef as a plain treble clef. The clef rule moves those 110 notes back an octave: 108 are then right, and the clef counts as one error. Note accuracy is 99.3 percent; strict note accuracy (no clef rule) stays in the diagnostics at 73.9 percent.
+- Other mistakes that move many notes (a missed octave line, key signature or triplet) still count every note. Note any file where one of these moves a whole part.
 
 ## Risks and fallbacks
 

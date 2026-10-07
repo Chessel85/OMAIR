@@ -4,9 +4,15 @@ Step 1 pairs staves, step 2 lines up bars, step 3 counts exact matches (a
 multiset intersection, which has only one answer), and step 4 pairs the notes
 left over to name each error. Step 4 pairs as many notes as it can, so the
 counts have one answer whatever its costs choose.
+
+A misread clef counts as one error (spec, "Clef errors"): where the output
+reads a staff with a different clef from the ground truth, its notes there are
+moved by the difference and matched again, and the correction is kept only if
+it puts at least CLEF_MIN_GAIN notes right.
 """
 
 import collections
+import dataclasses
 from dataclasses import dataclass, field
 from fractions import Fraction
 
@@ -17,6 +23,9 @@ JOIN_PENALTY = 1.5     # extra cost for joining two bars against one, in notes a
 BAND_MARGIN = 20       # bars either side of the diagonal searched, beyond the difference in counts
 PROPERTY_COST = 1      # step 4: cost for each of pitch, onset and duration that differs
 ORDER_MARGIN = 0.3     # similarity gained for each moved staff before the parts are called out of order
+CLEF_MIN_GAIN = 2      # notes a clef correction must put right to be kept (it costs one error)
+STEPS = "CDEFGAB"
+CLEF_REFERENCE = {"G": ("G", 4, 2), "F": ("F", 3, 4), "C": ("C", 4, 3)}   # pitch on the clef's line, usual line
 
 
 @dataclass
@@ -49,6 +58,31 @@ class Match:
     extra: list = field(default_factory=list)       # output notes
     truth_segment: dict = field(default_factory=dict)   # truth bar -> segment index
     output_segment: dict = field(default_factory=dict)  # output bar -> segment index
+    clef_corrections: list = field(default_factory=list)  # ClefCorrection, one error each
+    output: object = None            # the output Score matched, with notes moved by clef corrections
+    original: dict = field(default_factory=dict)   # id of a moved note -> the note as the output wrote it
+    strict_exact: int = 0            # exact matches and extra notes with no clef correction
+    strict_extra: int = 0            # (the strict note accuracy diagnostic)
+
+    def as_written(self, note):
+        """An output note as the output wrote it, before any clef correction."""
+        return self.original.get(id(note), note)
+
+
+@dataclass
+class ClefCorrection:
+    """A run of notes on one output staff read with a different clef from the ground truth."""
+
+    truth_staff: tuple       # (part, staff) in the ground truth
+    output_staff: tuple      # (part, staff) in the output
+    truth_clef: str          # clef values as the reader writes them, such as "G 2 octave -1"
+    output_clef: str
+    shift: int               # diatonic steps added to the output's notes
+    first_bar: int           # ground-truth bars of the first and last notes
+    last_bar: int
+    output_bar: int          # output bar of the first note
+    indices: list = field(default_factory=list)   # positions of its notes in output.notes
+    gained: int = 0          # exact matches the correction gained
 
 
 # Step 1: staves
@@ -342,10 +376,33 @@ def _name_errors(left_truth, left_output):
 
 
 def match(truth, output):
-    """Match an output Score against a ground-truth Score."""
+    """Match an output Score against a ground-truth Score, counting each
+    misread clef as one error (spec, "Clef errors")."""
     staff_map = map_staves(truth, output)
+    strict = _match_notes(truth, output, staff_map)
+    strict.strict_exact, strict.strict_extra = len(strict.exact), len(strict.extra)
+    kept = _clef_regions(truth, output, strict)
+    while kept:
+        moved, original = _move(output, kept)
+        result = _match_notes(truth, moved, staff_map)
+        before = collections.Counter(id(o) for _, o in strict.exact)
+        after = collections.Counter(id(original.get(id(o), o)) for _, o in result.exact)
+        for c in kept:
+            ids = [id(output.notes[i]) for i in c.indices]
+            c.gained = sum(after[i] for i in ids) - sum(before[i] for i in ids)
+        good = [c for c in kept if c.gained >= CLEF_MIN_GAIN]
+        if len(good) == len(kept):
+            result.clef_corrections, result.original = kept, original
+            result.strict_exact, result.strict_extra = strict.strict_exact, strict.strict_extra
+            return result
+        kept = good
+    return strict
+
+
+def _match_notes(truth, output, staff_map):
+    """Steps 2 to 4 for one output Score."""
     segments = align_bars(truth, output, staff_map)
-    result = Match(staff_map, segments)
+    result = Match(staff_map, segments, output=output)
     for index, segment in enumerate(segments):
         for bar in segment.truth:
             result.truth_segment[bar] = index
@@ -364,6 +421,89 @@ def match(truth, output):
         result.missing += [p.note for p in missing]
         result.extra += [p.note for p in extra]
     return result
+
+
+# Clef errors
+
+
+def _clef_line(value):
+    """The diatonic number (step + 7 * octave) of a clef's bottom line, or None
+    for a clef with no pitch (percussion, tablature)."""
+    bits = value.split()
+    if not bits or bits[0] not in CLEF_REFERENCE:
+        return None
+    step, octave, usual_line = CLEF_REFERENCE[bits[0]]
+    line = int(bits[1]) if len(bits) > 1 and bits[1].isdigit() else usual_line
+    change = int(bits[3]) if len(bits) > 3 and bits[2] == "octave" else 0
+    return STEPS.index(step) + 7 * (octave + change) - 2 * (line - 1)
+
+
+def _clefs_by_staff(score):
+    clefs = collections.defaultdict(list)
+    for event in score.structure:
+        if event.kind == "clef":
+            clefs[(event.part, event.staff)].append(((event.bar, event.onset), event.value))
+    for events in clefs.values():
+        events.sort(key=lambda e: e[0])
+    return clefs
+
+
+def _clef_at(events, bar, onset):
+    """The clef in effect at a position: the last one at or before it."""
+    value = None
+    for position, clef in events:
+        if position > (bar, onset):
+            break
+        value = clef
+    return value
+
+
+def _clef_regions(truth, output, strict):
+    """The runs of output notes read with a different clef from the ground
+    truth at the same place, in the order of each output staff. A run ends at
+    a note where the clefs agree, or where either clef changes."""
+    truth_clefs, output_clefs = _clefs_by_staff(truth), _clefs_by_staff(output)
+    regions, current = [], {}
+    order = sorted(range(len(output.notes)), key=lambda i: (
+        output.notes[i].part, output.notes[i].staff, output.notes[i].bar, output.notes[i].onset))
+    for i in order:
+        note = output.notes[i]
+        staff = (note.part, note.staff)
+        target = strict.staff_map.get(staff)
+        position = to_truth_position(strict, note.bar, note.onset)
+        if target is None or position is None:
+            continue
+        written = _clef_at(output_clefs.get(staff, []), note.bar, note.onset)
+        right = _clef_at(truth_clefs.get(target, []), *position)
+        a, b = (_clef_line(right), _clef_line(written)) if written and right else (None, None)
+        if a is None or b is None or a == b:
+            current.pop(staff, None)
+            continue
+        region = current.get(staff)
+        if region is None or (region.truth_clef, region.output_clef) != (right, written):
+            region = ClefCorrection(target, staff, right, written, a - b, position[0], position[0], note.bar)
+            current[staff] = region
+            regions.append(region)
+        region.last_bar = position[0]
+        region.indices.append(i)
+    return regions
+
+
+def _move(output, corrections):
+    """A copy of the output with each correction's notes moved by its shift.
+    Returns the copy and {id of a moved note: the note as written}."""
+    shift_of = {i: c.shift for c in corrections for i in c.indices}
+    notes, original = [], {}
+    for i, note in enumerate(output.notes):
+        if i not in shift_of:
+            notes.append(note)
+            continue
+        number = STEPS.index(note.pitch.step) + 7 * note.pitch.octave + shift_of[i]
+        pitch = dataclasses.replace(note.pitch, step=STEPS[number % 7], octave=number // 7)
+        moved = dataclasses.replace(note, pitch=pitch)
+        notes.append(moved)
+        original[id(moved)] = note
+    return dataclasses.replace(output, notes=notes), original
 
 
 def groups(result, truth_items, output_items):

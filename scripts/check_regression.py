@@ -23,7 +23,7 @@ import tempfile
 from pathlib import Path
 
 from omr import parallel, paths
-from omr.evaluate import harness
+from omr.evaluate import harness, report
 from omr.log import ProgressLog
 
 SET_ROOT = paths.REPO_ROOT / "regression"
@@ -51,7 +51,7 @@ def figures(results):
     out["harness errors"] = len(results) - len(done)
     out["files failed"] = sum(1 for r in done if "failed" in r)
     exact = sum(r["notes"]["exact"] for r in done)
-    whole = sum(r["notes"]["truth"] + r["notes"]["extra"] for r in done)
+    whole = sum(report.note_accuracy(r["notes"])[1] for r in done)
     out["note accuracy"] = pct(exact, whole)
     out["files structurally correct"] = pct(sum(1 for r in done if r["structure"]["correct"]), len(done))
     exact_pairs = [r for r in done if r.get("meta", {}).get("ground truth") == "exact"]
@@ -60,13 +60,13 @@ def figures(results):
     out["dynamics and hairpins recall"] = pct(found, truth)
     flagged = [r for r in done if "flags" in r]
     if flagged:
-        errors = sum(r["notes"]["truth"] - r["notes"]["exact"] + r["notes"]["extra"] for r in done)
+        errors = sum(report.note_errors(r["notes"]) for r in done)
         out["note errors in flagged bars"] = pct(sum(r["flags"]["covered"] for r in flagged), errors)
     by_engraver = collections.defaultdict(lambda: [0, 0])
     for r in done:
         key = r.get("meta", {}).get("engraver", r["job"])
         by_engraver[key][0] += r["notes"]["exact"]
-        by_engraver[key][1] += r["notes"]["truth"] + r["notes"]["extra"]
+        by_engraver[key][1] += report.note_accuracy(r["notes"])[1]
     for key in sorted(by_engraver):
         out[f"note accuracy, {key}"] = pct(*by_engraver[key])
     return out

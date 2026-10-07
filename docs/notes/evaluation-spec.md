@@ -1,6 +1,6 @@
 # Evaluation harness specification (`omr evaluate`)
 
-Version 1, 6 October 2026, for Stage 6 of `docs/plans/phase0.md`. It covers DEV-1 and the metrics for ACC-1 to ACC-6 in `requirements.md`. The owner accepted the decisions listed at the end on 6 October 2026. This is the specification the harness implements and the code review checks against.
+Version 1.1, 7 October 2026, for Stage 6 of `docs/plans/phase0.md`. It covers DEV-1 and the metrics for ACC-1 to ACC-6 in `requirements.md`. The owner accepted the decisions listed at the end on 6 October 2026, and decision 10 (clef errors) on 7 October 2026. This is the specification the harness implements and the code review checks against.
 
 ## Purpose and principles
 
@@ -77,6 +77,18 @@ Within each aligned bar pair and matching group, a note is an **exact match** wh
 - Voice, staff and chord grouping play no part, so voices numbered differently, a chord split into two voices or two voices merged into chords make no difference to note accuracy.
 - Onsets are strict, as the requirement says. A missing dot early in a bar moves the later notes of that voice, and they count as onset errors. The diagnostic figure "pitch and duration accuracy" (onset ignored within the bar) shows when this is happening.
 
+### Clef errors
+
+A misread clef counts as one error, not as one error for every note under it (decision 10). For example, an octave-down treble clef read as a plain treble clef puts every note on that staff an octave high; that is one mistake, and a person fixing the file would make one change.
+
+- **Where the clefs differ.** For each output note, the harness finds the clef in effect at the note in the output (on the output's staff) and in the ground truth (on the paired ground-truth staff, at the aligned position from step 2). The clef in effect is the last clef at or before the note's bar and onset. A clef with no pitch (percussion, tablature) never differs in this sense.
+- **Regions.** Taking each output staff's notes in order, a region is a run of notes where the two clefs differ in the same way (the same ground-truth clef and the same output clef). A run ends at a note where the clefs agree or differ in another way. So a clef misread at each system is one region per system, and a missed clef change starts a region at the change.
+- **The correction.** The notes in a region are moved by the difference between the two clefs, in staff steps: the pitch of the bottom staff line under the ground-truth clef minus that under the output clef. A G clef on line 2 has E 4 on the bottom line, an F clef on line 4 has G 2, a C clef on line 3 has F 3, and an octave change moves the clef by 7 steps. The alteration (sharp or flat) is kept. An octave-down treble clef read as a plain treble clef moves the notes down 7 steps; a bass clef read as a treble clef moves them down 12.
+- **Kept only if it helps.** Steps 2 and 3 are run again with the moved notes. A region's correction is kept if its notes gain at least 2 exact matches (it costs one error, so it must put right more than it costs). If any region falls short, it is dropped and the others are tried again, until every region kept passes. An output that names the wrong clef but writes the right pitches therefore gains nothing, has no correction, and loses no notes; the clef is still a structural error.
+- **Counting.** Each kept region is one **clef error**, which counts in note accuracy (below). Its notes are scored as moved: those that now match are exact matches, and any still wrong are ordinary errors. The clef mismatch is also still listed under structural correctness, so the file is not structurally correct.
+- **Strict figures.** The note accuracy with no clef correction is kept as a diagnostic, "strict note accuracy".
+- Other errors that move many notes (a missed octave line, key signature or tuplet, or a missing dot that moves the rest of a voice) are not corrected. The owner decided on 7 October 2026 that triplet knock-ons would complicate the evaluation too much.
+
 ### Step 4: naming the remaining errors
 
 The notes left over after step 3 are paired to name each error.
@@ -92,10 +104,12 @@ All metrics are reported per file and overall. Overall figures add up the counts
 ### Note accuracy (ACC-1 to ACC-3)
 
 - Let T be the number of ground-truth notes, M the number of exact matches, and E the number of extra notes (step 4). In each bar pair and group, E is the number of predicted notes left over after step 3 minus the ground-truth notes left over, or 0 if that is negative.
-- The **errors** are the T minus M ground-truth notes not matched exactly, plus the E extra notes. In each bar pair and group this is the larger of the two leftover counts. A wrong note counts once.
-- **Note accuracy = M / (T + E)**, which is the number of correct notes divided by the correct notes plus the errors. It is 100 percent only if every note is right and nothing is added.
+- Let C be the number of clef errors (see "Clef errors"). M and E are counted after the clef corrections.
+- The **errors** are the T minus M ground-truth notes not matched exactly, plus the E extra notes, plus the C clef errors. In each bar pair and group the note errors are the larger of the two leftover counts. A wrong note counts once.
+- **Note accuracy = M / (T + E + C)**, which is the number of correct notes divided by the correct notes plus the errors. It is 100 percent only if every note is right, nothing is added, and every clef is read right.
 - Also reported: recall (M / T), precision (M / number of predicted notes), and the count of each kind of error.
 - Diagnostic figures, not used for the targets:
+  - strict note accuracy: M / (T + E) with no clef corrections, as the harness counted before decision 10;
   - pitch and duration accuracy (onset ignored within the bar) and sounding-pitch accuracy (spelling ignored): the notes that match on those properties, divided by the larger of the ground-truth and output note counts;
   - rest accuracy: rests matching in onset and duration, divided by the larger of the two rest counts;
   - staff, voice and tie accuracy: the share of exact matches with the right staff, voice grouping, or tie start and stop.
@@ -129,6 +143,7 @@ The recogniser may write a **flag file** beside its MusicXML, `flags.json`:
 - It contains `{"version": 1, "flags": [...]}`. Each flag has `"part"` (the part's position in the output, from 1), `"bar"` (the bar's position in the output, from 1, counted as in "Bars" above), and optionally `"staff"` (from 1), `"reason"` (text) and `"confidence"` (a number from 0 to 1).
 - Flags refer to the output's own bars, because the recogniser does not know the ground truth. The harness maps them through the bar alignment.
 - A note error is **covered** if a flag names its part and bar (and its staff, if the flag gives one). For a missing or wrong note, that is the predicted bar aligned to the note's ground-truth bar. For an extra note, it is the bar the extra note is in. An error in a ground-truth bar with no predicted bar is covered if a flag names the predicted bar just before or just after the gap.
+- A clef error is covered if a flag names the output part and bar of the first note in its region (and its staff, if the flag gives one).
 - **Flagging recall = covered errors / all note errors.** ACC-4 asks for at least 90 percent.
 - Because flagging every bar would score 100 percent, the report also gives the share of bars flagged and the share of flagged bars that really contain an error. A flagged bar contains an error if one of its flags covers an error by the rule above (so a flag naming the lower staff does not count an error on the upper staff, and the bars beside a gap count for the errors in it). OI-3 refines the target with these figures.
 - A missing flag file means no flags. So does a flag file that cannot be read: the notes are still scored, and the file's report says why the flags were not counted. The human-readable confidence report (OUT-3) is separate, and the recogniser writes it however it likes.
@@ -161,7 +176,7 @@ The recogniser may write a **flag file** beside its MusicXML, `flags.json`:
   - move a chord's other notes into a new voice (no note errors, voice accuracy unchanged, since splitting a chord into voices is not a voice error);
   - remove a barline by joining two bars (no note errors, one structural error in the bar count);
   - delete a dynamic (one dynamic missed), and delete a hairpin where no other hairpin of the same kind starts in that bar and part (one hairpin missed);
-  - remove a clef, key or time change after the first bar (one structural error).
+  - remove a clef, key or time change after the first bar (one structural error; the notes keep their pitches, so a removed clef gains nothing from a clef correction and none is made).
 - Each kind is applied once, in its own bar with a free bar either side, where the file has a suitable place. The join comes after all the others. A short or plain file may get fewer kinds of damage; `damage.json` says which were applied.
 - The damaged recogniser also writes a flag file that flags a known share of the damaged bars, so the flagging recall has a known value.
 
@@ -179,11 +194,12 @@ Small MusicXML pairs written for the tests, with the right metric values worked 
 - the same piano music as one part with two staves and as two parts;
 - a unison in two voices;
 - a different number of divisions in the two files for the same music;
-- an empty output file and a file that cannot be parsed.
+- an empty output file and a file that cannot be parsed;
+- clef errors: an octave-down treble clef read as treble, a bass clef read as treble, a missed clef change, a wrong clef with the right pitches (no correction), a region of one note (no correction), and a flag that covers a clef error.
 
 ## Reports
 
-- **Per file**, in plain text: the summary first ("pdmx-abc, MuseScore 4, Bravura: note accuracy 97.8 percent, 12 note errors in 6 bars, structurally correct"; the bars are ground-truth bars, and extra notes in output bars with no ground-truth partner count as one more), then the structural mismatches, then the errors bar by bar, in words. For example: "Bar 14 (page 2, system 3), Piano, upper staff, beat 3: expected F sharp 5 quarter note, found G 5 quarter note (pitch error)." The text report lists at most 50 errors per file and says how many more are in the JSON.
+- **Per file**, in plain text: the summary first ("pdmx-abc, MuseScore 4, Bravura: note accuracy 97.8 percent, 12 note errors in 6 bars, structurally correct"; the bars are ground-truth bars, and extra notes in output bars with no ground-truth partner count as one more), then the structural mismatches, then the errors bar by bar, in words. A clef error is listed at its first bar, with its last bar, the two clefs, how many notes it moved and how many it put right. For example: "Bar 14 (page 2, system 3), Piano, upper staff, beat 3: expected F sharp 5 quarter note, found G 5 quarter note (pitch error)." The text report lists at most 50 errors per file and says how many more are in the JSON.
 - **Overall**, in plain text, as headings and lists: the totals and the per-file note accuracy (median, lowest and highest), the totals against the targets (ACC-1, ACC-4, ACC-6), the marking figures for exact and engraver-input pairs separately, then each figure broken down by engraver, font, genre, texture and ground-truth kind (exact or engraver input), then the lowest 10 files, and the failed files.
 - **JSON**, with every count and every error, for later analysis and for the Stage 7 regression baseline.
 - The command ends with the usual one-line summary, and exit status 0 unless something failed to run.
@@ -210,3 +226,4 @@ Accepted by the owner on 6 October 2026.
 7. **TEDn** waits if no usable implementation exists, and is recorded as an open item. OMR-NED from musicdiff is reported meanwhile.
 8. **A wrong note is one error, whatever differs** (accepted after the Opus review). In each bar pair and group the errors are the larger of the leftover ground-truth and predicted note counts, so the count does not depend on how step 4 pairs notes.
 9. **Merging two voices into chords is a voice error** (accepted after the Opus review). Splitting a chord into voices is not.
+10. **A misread clef is one error** (owner, 7 October 2026). The notes under it are scored as if the clef had been read right, and the clef counts as one error in note accuracy as well as a structural mismatch (see "Clef errors"). Other errors that move many notes, such as a missed triplet, are not corrected, because that would complicate the evaluation too much.

@@ -26,12 +26,12 @@ def percent(part, whole):
 
 
 def note_accuracy(notes):
-    """M / (T + E), as counts (spec, "Note accuracy")."""
-    return notes["exact"], notes["truth"] + notes["extra"]
+    """M / (T + E + C), as counts, C being the clef errors (spec, "Note accuracy")."""
+    return notes["exact"], notes["truth"] + notes["extra"] + notes.get("clef errors", 0)
 
 
 def note_errors(notes):
-    return notes["truth"] - notes["exact"] + notes["extra"]
+    return notes["truth"] - notes["exact"] + notes["extra"] + notes.get("clef errors", 0)
 
 
 def error_words(result):
@@ -71,6 +71,10 @@ def per_file(result):
     lines += ["Notes",
               f"- {notes['truth']} notes in the ground truth, {notes['output']} in the output.",
               f"- {notes['exact']} exactly right, {notes['wrong']} wrong, {notes['missing']} missing, {notes['extra']} extra."]
+    if notes.get("clef errors"):
+        strict = result["diagnostics"]["strict note accuracy"]
+        lines.append(f"- {notes['clef errors']} clef error{'s' if notes['clef errors'] > 1 else ''}, each counted as one error. "
+                     f"Without the clef rule the note accuracy would be {percent(strict['matched'], strict['of'])}.")
     for kind, count in sorted(notes["wrong by kind"].items()):
         lines.append(f"- {count} with a {kind} difference." if kind != "spelling only" else
                      f"- {count} of the pitch errors are spelling only (the same sounding pitch).")
@@ -97,7 +101,8 @@ def per_file(result):
     if errors:
         lines += ["", f"Note errors, in bar order ({len(errors)})"]
         for e in errors[:MAX_ERRORS_LISTED]:
-            lines.append(f"- {e['where']}: expected {e['expected']}, found {e['found']} ({e['kind']}).")
+            lines.append(f"- {e['where']}: expected {e['expected']}, found {e['found']} ({e['kind']})."
+                         + (f" {e['words']}" if "words" in e else ""))
         if len(errors) > MAX_ERRORS_LISTED:
             lines.append(f"- {len(errors) - MAX_ERRORS_LISTED} more errors are listed in figures.json.")
     return "\n".join(lines) + "\n"
@@ -114,12 +119,13 @@ def _add(total, result):
     total["exact"] += notes["exact"]
     total["truth"] += notes["truth"]
     total["extra"] += notes["extra"]
+    total["clef errors"] += notes.get("clef errors", 0)
     total["correct structure"] += result["structure"]["correct"]
     total["failed"] += "failed" in result
 
 
 def _group_line(name, total):
-    return (f"- {name}: {total['files']} files, note accuracy {percent(total['exact'], total['truth'] + total['extra'])}, "
+    return (f"- {name}: {total['files']} files, note accuracy {percent(*note_accuracy(total))}, "
             f"{percent(total['correct structure'], total['files'])} structurally correct"
             + (f", {total['failed']} failed" if total["failed"] else "") + ".")
 
@@ -135,7 +141,7 @@ def overall(results, set_name, label, export_failures=0):
         if "failed" not in r:
             _add(completed, r)
     files = total["files"]
-    lines.append(f"Summary: {files} files, note accuracy {percent(total['exact'], total['truth'] + total['extra'])}, "
+    lines.append(f"Summary: {files} files, note accuracy {percent(*note_accuracy(total))}, "
                  f"{percent(total['correct structure'], files)} structurally correct, {total['failed']} failed.")
     accuracies = sorted(note_accuracy(r["notes"])[0] / note_accuracy(r["notes"])[1]
                         for r in results if note_accuracy(r["notes"])[1])
@@ -145,8 +151,8 @@ def overall(results, set_name, label, export_failures=0):
     lines.append("")
     lines += ["Targets"]
     lines.append(f"- ACC-1 note accuracy on vector PDFs (target {TARGETS['note accuracy']:g} percent): "
-                 f"{percent(total['exact'], total['truth'] + total['extra'])}, "
-                 f"or {percent(completed['exact'], completed['truth'] + completed['extra'])} over the {completed['files']} completed files.")
+                 f"{percent(*note_accuracy(total))}, "
+                 f"or {percent(*note_accuracy(completed))} over the {completed['files']} completed files.")
     lines.append(f"- ACC-1 files structurally correct (target {TARGETS['structure']:g} percent): "
                  f"{percent(total['correct structure'], files)}.")
     exact_pairs = [r for r in results if r.get("meta", {}).get("ground truth") == "exact"]
@@ -176,18 +182,26 @@ def overall(results, set_name, label, export_failures=0):
         kinds["wrong"] += n["wrong"]
         kinds["missing"] += n["missing"]
         kinds["extra"] += n["extra"]
+        kinds["clef errors"] += n.get("clef errors", 0)
         for k, v in n["wrong by kind"].items():
             kinds[f"wrong: {k}"] += v
     lines.append(f"- {total['truth']:,} ground-truth notes, {total['exact']:,} exactly right, {kinds['wrong']:,} wrong, "
-                 f"{kinds['missing']:,} missing, {kinds['extra']:,} extra.")
+                 f"{kinds['missing']:,} missing, {kinds['extra']:,} extra, {kinds['clef errors']:,} clef errors "
+                 "(each counted as one error).")
     for k in sorted(k for k in kinds if k.startswith("wrong: ")):
         lines.append(f"- {k[7:]}: {kinds[k]:,}.")
     lines.append("")
 
     lines.append("Diagnostic figures")
-    for name in ("pitch and duration", "sounding pitch", "staff", "voice", "ties", "rests"):
-        a = sum(next(iter(r["diagnostics"][name].values())) for r in results)
-        b = sum(r["diagnostics"][name]["of"] for r in results)
+    for name in ("strict note accuracy", "pitch and duration", "sounding pitch", "staff", "voice", "ties", "rests"):
+        if name == "strict note accuracy":
+            # Results from before the clef rule have no strict figure: their note accuracy is the strict one.
+            pairs = [r["diagnostics"].get(name) or {"matched": r["notes"]["exact"],
+                     "of": r["notes"]["truth"] + r["notes"]["extra"]} for r in results]
+        else:
+            pairs = [r["diagnostics"][name] for r in results]
+        a = sum(next(iter(d.values())) for d in pairs)
+        b = sum(d["of"] for d in pairs)
         lines.append(f"- {name}: {percent(a, b)}.")
     lines.append("")
 

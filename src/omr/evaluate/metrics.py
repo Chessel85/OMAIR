@@ -30,6 +30,7 @@ def compare(truth_path, output_path, flags_path=None, flags=None):
 
 def compare_scores(truth, output, flags=None):
     result = matching.match(truth, output)
+    output = result.output   # with notes moved by any clef corrections
     say = Describer(truth)
     errors = list(_error_list(result, say))
     figures = {
@@ -71,6 +72,7 @@ def _note_counts(truth, output, result):
         "extra": len(result.extra),
         "wrong": len(result.errors),
         "wrong by kind": dict(kinds),
+        "clef errors": len(result.clef_corrections),
     }
 
 
@@ -92,6 +94,7 @@ def _diagnostics(truth, output, result):
     ties_right = sum(1 for t, o in result.exact if (t.tie_start, t.tie_stop) == (o.tie_start, o.tie_stop))
     most = max(len(truth.notes), len(output.notes))
     return {
+        "strict note accuracy": {"matched": result.strict_exact, "of": len(truth.notes) + result.strict_extra},
         "pitch and duration": {"matched": pitch_duration, "of": most},
         "sounding pitch": {"matched": sounding, "of": most},
         "staff": {"right": staff_right, "of": len(result.exact)},
@@ -415,6 +418,8 @@ def _flags(output, result, flags):
         error_places.append(places(note))
     for note in result.extra:
         error_places.append([(note.part, note.bar, note.staff)])
+    for c in result.clef_corrections:
+        error_places.append([(c.output_staff[0], c.output_bar, c.output_staff[1])])
     covered = sum(any(covered_output(*place) for place in where) for where in error_places)
     # A flagged bar "has an error" if one of its flags covers an error there.
     with_error = {(part, bar) for where in error_places for part, bar, staff in where
@@ -444,7 +449,7 @@ def _error_list(result, say):
             "kind": kind, "bar": t.bar,
             "where": say.place(t.part, t.staff, t.bar, t.onset),
             "expected": say.note(t, onset="onset" in pair.differs),
-            "found": say.note(o, onset="onset" in pair.differs, bar=t.bar)}))
+            "found": say.note(result.as_written(o), onset="onset" in pair.differs, bar=t.bar)}))
     for t in result.missing:
         items.append((t.bar, t.onset, {
             "kind": "missing note", "bar": t.bar,
@@ -459,6 +464,33 @@ def _error_list(result, say):
             where = f"output bar {o.bar + 1}, which has no ground-truth partner"
             bar = -1
         items.append((bar, o.onset, {"kind": "extra note", "bar": bar, "where": where,
-                                     "expected": "nothing", "found": say.note(o)}))
+                                     "expected": "nothing", "found": say.note(result.as_written(o))}))
+    for c in result.clef_corrections:
+        items.append((c.first_bar, -1, {
+            "kind": "clef error", "bar": c.first_bar,
+            "where": _bars_words(say, c.first_bar, c.last_bar) + _staff_words(say, *c.truth_staff),
+            "expected": f"a {c.truth_clef} clef", "found": f"a {c.output_clef} clef",
+            "notes moved": len(c.indices), "notes put right": c.gained,
+            "words": (f"{len(c.indices)} notes read {_shift_words(c.shift)}; with the clef corrected, "
+                      f"{c.gained} more notes are right. Counted as one error.")}))
     items.sort(key=lambda x: (x[0], x[1]))
     return [item for _, _, item in items]
+
+
+def _bars_words(say, first, last):
+    return say.bar(first) if first == last else f"{say.bar(first)} to {say.bar(last).replace('Bar ', 'bar ', 1)}"
+
+
+def _staff_words(say, part, staff):
+    words = say.staff(part, staff)
+    return f", {say.part(part)}" + (f", {words}" if words else "")
+
+
+def _shift_words(shift):
+    """The output's notes compared with the ground truth's, in words."""
+    direction = "high" if shift < 0 else "low"
+    steps = abs(shift)
+    if steps % 7 == 0:
+        octaves = steps // 7
+        return f"{'an octave' if octaves == 1 else f'{octaves} octaves'} too {direction}"
+    return f"{steps} steps too {direction}"

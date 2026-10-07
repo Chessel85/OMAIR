@@ -294,6 +294,85 @@ def test_voices_numbered_differently_and_chords_split_into_voices(tmp_path):
     assert fig["diagnostics"]["voice"]["right"] == 2   # both output voices map to the one ground-truth voice
 
 
+# ------------------------------------------------------------------ clef errors
+
+
+def clef_attributes(sign="G", line=2, octave_change=0):
+    change = f"<clef-octave-change>{octave_change}</clef-octave-change>" if octave_change else ""
+    return (f"<attributes><divisions>{DIV}</divisions><key><fifths>0</fifths></key>"
+            f"<time><beats>4</beats><beat-type>4</beat-type></time>"
+            f"<clef><sign>{sign}</sign><line>{line}</line>{change}</clef></attributes>")
+
+
+def quarters(pitches):
+    return "".join(note(p) for p in pitches.split())
+
+
+def test_missed_octave_clef_counts_as_one_error(tmp_path):
+    # The LEGATO case: an octave-down treble clef read as a plain treble clef, every note an octave high.
+    truth = score(("Tenor", [clef_attributes(octave_change=-1) + "".join(note(p) for p in "C3 D3 E3 F3".split()),
+                             "".join(note(p) for p in "G3 A3 B3 C4".split())]))
+    output = score(("Tenor", [clef_attributes() + "".join(note(p) for p in "C4 D4 E4 F4".split()),
+                              "".join(note(p) for p in "G4 A4 B4 C5".split())]))
+    fig = compare(tmp_path, truth, output)
+    assert fig["notes"]["clef errors"] == 1
+    assert (fig["notes"]["exact"], fig["notes"]["wrong"]) == (8, 0)
+    assert accuracy(fig) == Fraction(8, 9)                    # 8 right, 1 error
+    assert fig["diagnostics"]["strict note accuracy"] == {"matched": 0, "of": 8}
+    assert not fig["structure"]["correct"]                   # the clef is still a structural error
+    clef = [e for e in fig["errors"] if e["kind"] == "clef error"]
+    assert len(clef) == 1 and "8 notes read an octave too high" in clef[0]["words"]
+    assert report.note_errors(fig["notes"]) == 1
+
+
+def test_bass_part_read_with_a_treble_clef(tmp_path):
+    # Bass clef read as treble: each note is 12 steps (an octave and a sixth) too high.
+    truth = score(("Cello", [clef_attributes("F", 4) + "".join(note(p) for p in "G2 B2 D3 F3".split())]))
+    output = score(("Cello", [clef_attributes("G", 2) + "".join(note(p) for p in "E4 G4 B4 D5".split())]))
+    fig = compare(tmp_path, truth, output)
+    assert fig["notes"]["clef errors"] == 1 and fig["notes"]["exact"] == 4
+    assert "12 steps too high" in [e for e in fig["errors"] if e["kind"] == "clef error"][0]["words"]
+
+
+def test_wrong_clef_with_right_pitches_is_only_a_structural_error(tmp_path):
+    # The output names the wrong clef but writes the right pitches: moving them would lose notes,
+    # so no correction is made and the notes all count as right.
+    truth = score(("Tenor", [clef_attributes(octave_change=-1) + quarters("C3 D3 E3 F3")]))
+    output = score(("Tenor", [clef_attributes() + quarters("C3 D3 E3 F3")]))
+    fig = compare(tmp_path, truth, output)
+    assert fig["notes"]["clef errors"] == 0 and accuracy(fig) == 1
+    assert not fig["structure"]["correct"]
+
+
+def test_clef_correction_must_put_two_notes_right(tmp_path):
+    # Only one note lies under the wrong clef, so the correction would gain one note
+    # for one error and is not made: the note stays one pitch error.
+    truth = score(("Tenor", [clef_attributes(octave_change=-1) + note("C3", 48)]))
+    output = score(("Tenor", [clef_attributes() + note("C4", 48)]))
+    fig = compare(tmp_path, truth, output)
+    assert fig["notes"]["clef errors"] == 0 and fig["notes"]["wrong"] == 1
+
+
+def test_missed_clef_change_is_corrected_from_the_change_on(tmp_path):
+    # The ground truth changes to bass clef in bar 2; the output keeps the treble clef.
+    truth = score(("Piano", [attributes() + quarters("C5 D5 E5 F5"),
+                             '<attributes><clef><sign>F</sign><line>4</line></clef></attributes>'
+                             + quarters("C3 D3 E3 F3")]))
+    output = score(("Piano", [attributes() + quarters("C5 D5 E5 F5"),
+                              quarters("A4 B4 C5 D5")]))
+    fig = compare(tmp_path, truth, output)
+    assert fig["notes"]["clef errors"] == 1 and fig["notes"]["exact"] == 8
+    clef = [e for e in fig["errors"] if e["kind"] == "clef error"][0]
+    assert clef["where"].startswith("Bar 2") and clef["found"] == "a G 2 clef"
+
+
+def test_clef_error_in_flagged_bar_is_covered(tmp_path):
+    truth = score(("Tenor", [clef_attributes(octave_change=-1) + quarters("C3 D3 E3 F3")]))
+    output = score(("Tenor", [clef_attributes() + quarters("C4 D4 E4 F4")]))
+    fig = compare(tmp_path, truth, output, flags=[{"part": 1, "bar": 1}])
+    assert fig["flags"]["errors"] == 1 and fig["flags"]["covered"] == 1
+
+
 # ------------------------------------------------------------------ markings, structure, flags
 
 
