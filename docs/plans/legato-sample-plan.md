@@ -19,6 +19,11 @@ Record a LEGATO baseline for Stage 9 on a spread of real scores. LEGATO is a dev
 - The order is a seeded round robin over genre and texture groups (19 groups), so that every night covers a spread, and any prefix of the queue is a fair sample.
 - The queue is in `generated/legato-sample/queue.txt` on the corpus drive. It already exists. Rebuild it only before the first night, with `python scripts/run_legato_sample.py queue`.
 
+## Progress
+
+- Night 1 (7 to 8 October 2026, 10.5 hour limit): 12 pairs done, 74.3 percent note accuracy, about 19.5 minutes a page (faster than the 21 assumed). Pair 12 is suspect (a cut-short output), and pairs 13 to 35 were falsely marked failed at 06:41 (instant "no output", at the time of a memory shortage). See `docs/notes/baselines.md`.
+- Before night 2: delete the `failure.txt` files and the pair 12 result under `evaluations/legato-sample-preds`, or the runner skips them. The night script now uses `--hours 10.5`.
+
 ## Starting a night
 
 Last thing at night, in a terminal in the repository folder:

@@ -44,18 +44,51 @@ def _fail(message):
     return 1
 
 
+AUDIVERIS_DPI = 300
+AUDIVERIS_MAX_PIXELS = 20_000_000  # Audiveris drops a larger page image ("Too large image")
+
+
+def _audiveris_dpi(pdf):
+    """300 dpi, or less for a page too large for Audiveris at 300 dpi."""
+    import pymupdf
+    with pymupdf.open(pdf) as doc:
+        largest = max(p.rect.width * p.rect.height for p in doc) / 72 / 72  # square inches
+        pages = len(doc)
+    return min(AUDIVERIS_DPI, int((AUDIVERIS_MAX_PIXELS / largest) ** 0.5)), pages
+
+
+def _audiveris_problems(text):
+    """The useful lines of an Audiveris log: its warnings and exceptions, not Java's."""
+    return [l.strip() for l in text.splitlines()
+            if ("WARN" in l or "Exception" in l) and "OCR" not in l and "TesseractOCR" not in l
+            and not l.startswith("WARNING")]
+
+
 def run_audiveris(pdf, out):
+    """In batch mode one page Audiveris cannot read (for example "No system found")
+    stops the whole book. The wrapper then runs again without the pages that failed."""
     root = audiveris_dir()
     java = root / "runtime" / "bin" / "java.exe"
     if not java.exists():
         return _fail(f"Audiveris not found at {root}")
+    dpi, pages = _audiveris_dpi(pdf)
+    base = [str(java), "-cp", str(root / "app" / "*"), "Audiveris", "-batch", "-transcribe", "-export",
+            "-constant", f"org.audiveris.omr.image.ImageLoading.pdfResolution={dpi}"]
     with tempfile.TemporaryDirectory(dir=out) as work:
-        done = subprocess.run(
-            [str(java), "-cp", str(root / "app" / "*"), "Audiveris", "-batch", "-transcribe", "-export",
-             "-output", work, str(pdf)], capture_output=True, text=True, errors="replace")
+        done = subprocess.run(base + ["-output", work, str(pdf)], capture_output=True, text=True, errors="replace")
         mxl = list(Path(work).glob("*.mxl"))
+        problems = _audiveris_problems(done.stdout + done.stderr)
         if not mxl:
-            return _fail("Audiveris wrote no MusicXML. " + (done.stdout + done.stderr)[-400:])
+            failed = {int(n) for n in re.findall(r"\[\w+#(\d+)\].*Error processing stub", done.stdout + done.stderr)}
+            keep = [str(n) for n in range(1, pages + 1) if n not in failed]
+            if failed and keep:
+                print(f"pages skipped: {', '.join(map(str, sorted(failed)))}", file=sys.stderr)
+                done = subprocess.run(base + ["-output", work, "-sheets"] + keep + ["--", str(pdf)],
+                                      capture_output=True, text=True, errors="replace")
+                mxl = list(Path(work).glob("*.mxl"))
+                problems = _audiveris_problems(done.stdout + done.stderr)
+        if not mxl:
+            return _fail("Audiveris wrote no MusicXML. " + " | ".join(problems[-6:]))
         # a multi-movement book gives book.mvt1.mxl and so on; the first is used
         mxl.sort()
         with zipfile.ZipFile(mxl[0]) as z:
