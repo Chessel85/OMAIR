@@ -30,17 +30,12 @@ YOLO_SETTINGS = [
     ("yolo11n.pt", 640, 16, 4),
     ("yolo11n.pt", 640, 32, 4),
     ("yolo11n.pt", 800, 8, 4),
-    ("yolo11n.pt", 1024, 4, 4),
-    ("yolo11n.pt", 1024, 8, 4),
-    ("yolo11n.pt", 1024, 16, 4),
     ("yolo11s.pt", 640, 8, 4),
-    ("yolo11s.pt", 1024, 4, 4),
-    ("yolo11s.pt", 1024, 8, 4),
     ("yolo11n.pt", 640, 8, 0),
     ("yolo11n.pt", 640, 8, 2),
     ("yolo11n.pt", 640, 8, 8),
 ]
-YOLO_QUICK = [YOLO_SETTINGS[0], YOLO_SETTINGS[4], YOLO_SETTINGS[10]]
+YOLO_QUICK = [YOLO_SETTINGS[0], YOLO_SETTINGS[3], YOLO_SETTINGS[5]]
 
 # (label, decoder layers, model width, sequence length)
 SEQ_MODELS = [("small", 4, 512, 256), ("medium", 6, 512, 256), ("large", 8, 512, 256),

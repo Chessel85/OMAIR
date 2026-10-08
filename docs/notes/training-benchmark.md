@@ -2,12 +2,12 @@
 
 Measured on 8 October 2026 on the development laptop: NVIDIA T500 with 2 GB, 4 cores, 32 GB RAM, PyTorch 2.14.1 with CUDA 13.0, Ultralytics 8.4.173. Plain headings and lists only.
 
-Status: **measurements done by Sonnet, partly complete. The decisions are for Opus to make** (see the last section). The YOLO part stopped after 6 of its 13 planned settings, because Claude Code stopped the background job when the laptop ran critically low on memory. It was not restarted, as instructed.
+Status: **measurements done by Sonnet and complete (a thermal check on a longer run is the one optional item left). The decisions are for Opus to make** (see the last section). The YOLO part ran in two sessions: the first stopped after 6 settings when the laptop ran low on memory, and the second (the same day, machine idle) ran the remaining settings plus repeats of the 640 and 800 pixel ones. The CPU inference test was run last.
 
 ## How it was measured
 
 - Dataset: `scripts/make_detection_dataset.py`. 40 development scores, drawn by Verovio with a bounding box for every symbol, cut into 1024 pixel tiles with overlap. 513 training tiles and 112 validation tiles, split by score. 11 classes: notehead, stem, beam, flag, rest, clef, accidental, dots, meter, barline, dynamic. Written to `benchmark/detection` on the corpus drive. Staff spaces are about 14 to 20 pixels.
-- Benchmark: `scripts/benchmark_training.py yolo` and `seq`. Raw logs are in `benchmark/results` on the corpus drive (`benchmark-yolo.log`, `benchmark-seq.log`, `benchmark-seq-part1.log`).
+- Benchmark: `scripts/benchmark_training.py yolo` and `seq`. Raw logs are in `benchmark/results` on the corpus drive (`benchmark-yolo.log`, `benchmark-seq.log`, `benchmark-seq-part1.log`, `benchmark-onnx.log`). The second YOLO session overwrote `benchmark-yolo.log`; the 1024 pixel figures below come from the first session.
 - YOLO: pretrained YOLO11 weights, FP16 (amp), 2 epochs per setting, the second epoch reported, no validation, no caching. Ultralytics always accumulates gradients up to a nominal batch of 64, so small batches are already covered.
 - "Card memory" is what `nvidia-smi` reports for the whole card, including the CUDA context. It stops at about 1900 MB because the card is full. "PyTorch allocated peak" is what PyTorch asked for. When that is above 2048 MB, Windows is moving GPU memory into system RAM, which is far slower.
 - Sequence reader stand-in: a convolutional encoder (4 stages, 128 by 1024 staff crop in, 256 tokens out), 2 transformer encoder layers, and a decoder of 4, 6 or 8 layers (width 512, 8 heads), FP16, AdamW, with and without gradient checkpointing. Random data, 10 timed steps each, so speed and memory only.
@@ -25,14 +25,22 @@ Status: **measurements done by Sonnet, partly complete. The decisions are for Op
 - Nano, tile 800, batch 8: 484 seconds per epoch (1.1 per second). PyTorch peak 3236 MB. Spilling.
 - Nano, tile 1024, batch 4: 479 seconds per epoch (1.1 per second). PyTorch peak 2671 MB. Spilling.
 - Nano, tile 1024, batch 8: 984 seconds per epoch (0.5 per second). PyTorch peak 5228 MB. Spilling.
-- Not run: nano 1024 batch 16, small model at 640 and 1024, and the data loading sweep (0, 2 and 8 workers).
+- Second session (machine idle, 1024 pixel settings dropped):
+  - Nano, tile 640, batch 8, 4 workers: 181 seconds per epoch (2.8 per second). Card 1901 MB, PyTorch peak 2088 MB.
+  - Nano, tile 640, batch 16: 359 seconds (1.4 per second). PyTorch peak 4073 MB. Spilling.
+  - Nano, tile 640, batch 32: 458 seconds (1.1 per second). PyTorch peak 7922 MB. Spilling.
+  - Nano, tile 800, batch 8: 462 seconds (1.1 per second). PyTorch peak 3236 MB. Spilling.
+  - **Small model**, tile 640, batch 8: 730 seconds (0.7 per second). PyTorch peak 3771 MB. Spilling, and about 4 times slower than nano.
+  - **Workers sweep**, nano 640 batch 8: 0 workers 192 seconds (2.7 per second), 2 workers 150 seconds (3.4), 4 workers 181 seconds (2.8, above), 8 workers 151 seconds (3.4). All peaks about 2080 MB.
+- Not run: nano 1024 batch 16, small model at 1024.
+- The two sessions differ by up to 17 percent for the same setting (nano 640 batch 8: 154 then 181 seconds), so treat all figures as plus or minus 20 percent.
 
 What this says:
 
 - Nothing at all failed with an out-of-memory error. Windows lets the card borrow system RAM, so a setting "runs" when it does not fit, at a 2 to 3 times penalty. The speed figures, not the lack of errors, show what fits.
 - Batch 8 at 640 pixels works at full speed. Larger tiles or batches cost far more than their size: 1024 pixels at batch 4 is 3 times slower per tile than 640 at batch 8, though it has only 2.5 times the pixels.
-- Rough run lengths at 3.3 tiles per second: 10,000 tiles per epoch takes about 50 minutes, so 50 epochs is about 42 hours. This is for nano only, and the small model was not measured.
-- Not known: how much CPU data loading limits the speed. The workers sweep did not run. The GPU looked busy throughout, which suggests the GPU is the limit, but that is not measured.
+- Rough run lengths at 2.8 to 3.4 tiles per second: 10,000 tiles per epoch takes about 50 to 60 minutes, so 50 epochs is about 42 to 50 hours. This is for nano. The small model at 0.7 tiles per second would take four times as long, about a week, and does not fit in 2 GB.
+- Data loading is not the limit: 2 and 8 workers gave the same speed (150 seconds), 0 workers was only 5 to 25 percent slower, and 4 workers (181 seconds) was slower than 2, which is run-to-run noise. Use 2 workers.
 
 ## Sequence reader stand-in results (256 tokens unless stated)
 
@@ -54,10 +62,25 @@ What this says:
 - Throughput is about 3 staves per second for the 29 million model and about 2.5 for 37 million. One pass over 100,000 staves takes about 9 hours at 3 per second and about 11 hours at 2.5. Doubling the sequence length costs about a third of the speed.
 - Caveats: the data was random, so there is no data loading cost here and nothing about convergence. It is not the homr or SMT architecture, and the real encoder and token counts may differ. Staff crops of 128 by 1024 may be smaller or larger than the real ones. The speed figures on a hot laptop may drop (the laptop lowers its clock under load, see `tool-commands.md`).
 
+## CPU inference through ONNX Runtime
+
+`scripts/benchmark_onnx_cpu.py`, ONNX Runtime 1.30.0, CPU provider, default threads, one staff at a time, 256 tokens, random weights, FP32. The encoder (convolutions and 2 transformer layers) and the decoder were exported separately. The decoder has no key-value cache, so generating a staff repeats a pass for every new token. The whole-staff figure sums passes of lengths 1 to 256, interpolated from the lengths timed (1, 32, 64, 128, 256).
+
+- 29.0 million parameters: encoder 153 ms; one decoder pass over 256 tokens 104 ms. **About 17 seconds per staff** without a cache.
+- 37.4 million: encoder 144 ms; pass over 256 tokens 148 ms. About 24 seconds per staff.
+- 45.8 million: encoder 146 ms; pass over 256 tokens 201 ms. About 32 seconds per staff.
+
+What this says:
+
+- Without a cache, a page of 10 staves takes about 3 minutes with the 29 million model and 4 minutes with the 37 million one. That is slow but usable for an offline tool, and this is the worst case. A decoder with a key-value cache costs roughly one single-token pass per token, which is about 25 to 50 ms, so about 6 to 13 seconds per staff for all three sizes plus the encoder. The cache is worth building before the model size is chosen on speed grounds.
+- The 29 to 37 million difference is about 40 percent in decode time. Neither is ruled out. This is not a deciding factor on its own.
+- Not measured: thread settings (ONNX Runtime used its default), INT8 quantisation (usually 1.5 to 3 times faster on CPU), and the real homr or SMT architecture. torch reported 4 threads on this 4 core, 8 thread laptop.
+- To rerun, `pip install onnx` first (it is needed only for export, not added to the requirements files).
+
 ## For Opus to decide
 
 - Fix the detector size, tile size and batch. The evidence points to nano at 640 pixels, batch 8. Is a 640 pixel tile big enough at the staff sizes used (staff space about 14 to 20 pixels, symbols mostly 15 to 60 pixels)? Would a smaller image scale with a 1024 tile be better than 1024 at full scale?
-- Fix the sequence reader size. All three fit. Which suits the CPU inference target (OP-3), given inference speed was not measured here? A 29 million model with batch 8 is the cheapest in training time.
-- Set the expected time per run. Use about 3.3 tiles per second for the detector and 2.5 to 3 staves per second for the reader, and choose dataset sizes so that a run is no more than a few days (C-7). Say whether Kaggle is needed for anything.
-- Decide what still needs measuring before the sizes are fixed: the small YOLO model at 640, the data loading sweep, a longer run for thermal throttling, and an inference speed test on the CPU through ONNX Runtime. The command to finish the YOLO part is `python scripts/benchmark_training.py yolo` (about 2 hours more; edit `YOLO_SETTINGS` first to drop the 1024 settings and keep the small model at 640, and the workers sweep). Close other heavy programs first, because the earlier run was stopped for low memory.
+- Fix the sequence reader size. All three fit. Which suits the CPU inference target (OP-3)? Inference speed is now measured (see above): 17, 24 and 32 seconds per staff without a cache. A 29 million model with batch 8 is the cheapest in training and in inference.
+- Set the expected time per run. Use about 3 tiles per second for the detector and 2.5 to 3 staves per second for the reader, and choose dataset sizes so that a run is no more than a few days (C-7). Say whether Kaggle is needed for anything.
+- Decide what still needs measuring before the sizes are fixed: only a longer run for thermal throttling is left (the two YOLO sessions differed by up to 17 percent), and optionally INT8 and cached-decoder inference speed.
 - Check the dataset labelling: classes follow Verovio's element boxes, so a notehead box is the head only and stems and beams have thin or diagonal boxes. This is fine for a speed test but the real training labels need review.
