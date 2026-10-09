@@ -87,7 +87,17 @@ Full reasoning in `docs/notes/training-benchmark.md`.
 ## For the owner to decide at sign-off
 
 1. Accept the report and the gate as met, with the Sibelius and Finale gap.
+> Accepted.
 2. Agree the decisions made on the owner's behalf: the model sizes, the render-scale test, and the OP-3 wording.
+> Accepted.
 3. Decide the restated-signature rule (proposal in `docs/notes/baselines.md`). Recommended: yes, ignore restatements.
+> Accept recommendation.
 4. Agree the changed wording of the Phase 1 gate (in `docs/plans/phase1.md`).
+> What is the rewording?
+> Old: "ACC-1 is met on the vector corpus, including the CPDL Sibelius and Finale pairs." Proposed: "ACC-1 is met on the generated vector corpus (MuseScore 3 and 4, LilyPond, Verovio) and on the real MuseScore.com uploads, and the Sibelius and Finale output obtained in Stage 1.0 has been inspected and its result reported, with any shortfall listed as a known limit." In short, the gate no longer requires CPDL pairs; it requires that whatever Sibelius and Finale files Stage 1.0 can get are inspected and reported. Awaiting your yes or no.
 5. Decide whether to regenerate the two HTML documents.
+> use pandoc *.md -o *.html
+> Done on 9 October 2026: both files regenerated with `pandoc FILE.md -o FILE.html`.
+
+> Recorded: accuracy comes before speed, so the raster speed target is low priority and is not a Phase 2 blocker.
+> I am not worried about the 60 second target. i am initially after accuracy over speed.
