@@ -1,12 +1,12 @@
 # Phase 1 Plan (draft): Vector PDF to MusicXML
 
-Version 0.1 draft, 9 October 2026, drafted from what Phase 0 showed. Needs the owner's review. Plain headings and lists only. Model suggestions follow the Phase 0 plan: Opus for design and judgement, Sonnet for implementation, escalate to Opus after two or three failed attempts.
+Version 0.1 draft, 9 October 2026, drafted from what Phase 0 showed. Gate wording agreed by the owner; the rest still needs review. Plain headings and lists only. Model suggestions follow the Phase 0 plan: Opus for design and judgement, Sonnet for implementation, escalate to Opus after two or three failed attempts.
 
 ## Goal and gate
 
 Goal: ACC-1 on vector PDFs (at least 99 percent note accuracy, at least 95 percent of files structurally correct), with text (lyrics, words, chord symbols), the first confidence report, and a MusicXML writer. The solution design estimates 6 to 10 weeks.
 
-Gate as the solution design words it: "ACC-1 is met on the vector corpus, including the CPDL Sibelius and Finale pairs." CPDL is blocked by Cloudflare and no Sibelius or Finale files are in hand. **Proposed wording:** "ACC-1 is met on the generated vector corpus (MuseScore 3 and 4, LilyPond, Verovio) and on the real MuseScore.com uploads, and the Sibelius and Finale output obtained in Stage 1.0 has been inspected and its result reported, with any shortfall listed as a known limit." The owner needs to agree this.
+Gate as the solution design words it: "ACC-1 is met on the vector corpus, including the CPDL Sibelius and Finale pairs." CPDL is blocked by Cloudflare and no Sibelius or Finale files are in hand. **Proposed wording:** "ACC-1 is met on the generated vector corpus (MuseScore 3 and 4, LilyPond, Verovio) and on the real MuseScore.com uploads, and the Sibelius and Finale output obtained in Stage 1.0 has been inspected and its result reported, with any shortfall listed as a known limit." The owner agreed this wording on 9 October 2026.
 
 What Phase 0 showed that shapes this plan:
 

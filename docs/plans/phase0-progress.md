@@ -1,6 +1,6 @@
 # Phase 0 progress log
 
-Last updated 9 October 2026 (Phase 0 complete, awaiting sign-off). This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
+Last updated 9 October 2026 (Phase 0 complete and signed off). This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
 
 ## Repository facts
 
@@ -74,7 +74,7 @@ Fresh-clone check: repeated in a later session by cloning https://github.com/Che
 
 ## Next steps
 
-Updated 9 October 2026. Phase 0 work is complete and waiting for the owner's sign-off.
+Updated 9 October 2026. Phase 0 is complete and signed off by the owner (9 October 2026).
 
 1. **Owner sign-off** of `docs/notes/phase-0-report.md`, including the decisions listed at its end (gate met with the Sibelius and Finale gap, model sizes and OP-3 wording, the restated-signature rule, the Phase 1 gate wording, the HTML documents).
 2. **Phase 1** starts from the draft `docs/plans/phase1.md`, with Stage 1.0 first.

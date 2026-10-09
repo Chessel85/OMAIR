@@ -1,6 +1,6 @@
 # Phase 0 report
 
-Version 0.1, 9 October 2026. Written by Claude (Sonnet 5.5) to close Stage 11 of `docs/plans/phase0.md`. The owner has not yet signed it off; the decisions that need the owner are listed at the end. Plain headings and lists only.
+Version 0.1, 9 October 2026. Signed off by the owner on 9 October 2026. Written by Claude (Sonnet 5.5) to close Stage 11 of `docs/plans/phase0.md`. The owner has not yet signed it off; the decisions that need the owner are listed at the end. Plain headings and lists only.
 
 ## Summary
 
@@ -94,7 +94,7 @@ Full reasoning in `docs/notes/training-benchmark.md`.
 > Accept recommendation.
 4. Agree the changed wording of the Phase 1 gate (in `docs/plans/phase1.md`).
 > What is the rewording?
-> Old: "ACC-1 is met on the vector corpus, including the CPDL Sibelius and Finale pairs." Proposed: "ACC-1 is met on the generated vector corpus (MuseScore 3 and 4, LilyPond, Verovio) and on the real MuseScore.com uploads, and the Sibelius and Finale output obtained in Stage 1.0 has been inspected and its result reported, with any shortfall listed as a known limit." In short, the gate no longer requires CPDL pairs; it requires that whatever Sibelius and Finale files Stage 1.0 can get are inspected and reported. Awaiting your yes or no.
+> Old: "ACC-1 is met on the vector corpus, including the CPDL Sibelius and Finale pairs." Proposed: "ACC-1 is met on the generated vector corpus (MuseScore 3 and 4, LilyPond, Verovio) and on the real MuseScore.com uploads, and the Sibelius and Finale output obtained in Stage 1.0 has been inspected and its result reported, with any shortfall listed as a known limit." In short, the gate no longer requires CPDL pairs; it requires that whatever Sibelius and Finale files Stage 1.0 can get are inspected and reported. Accepted by the owner on 9 October 2026.
 5. Decide whether to regenerate the two HTML documents.
 > use pandoc *.md -o *.html
 > Done on 9 October 2026: both files regenerated with `pandoc FILE.md -o FILE.html`.
