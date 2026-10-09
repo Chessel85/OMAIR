@@ -48,3 +48,7 @@ jobs:
       # note accuracy falls below the floor. Raise the floor as the reader improves.
       - name: Notes read from the PDFs
         run: python scripts/check_notes.py --workers 2 --min-accuracy 98.0
+      # Reads the text and markings of every regression PDF (Stage 1.4) and fails
+      # if ACC-6 (dynamics and hairpins, exact pairs) falls below the floor.
+      - name: Text and markings read from the PDFs
+        run: python scripts/check_markings.py --workers 2 --min-acc6 97.0

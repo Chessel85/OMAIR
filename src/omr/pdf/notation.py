@@ -209,15 +209,33 @@ def _quad_beam(points, space):
 
 @dataclass
 class Curve:
-    """A tie or slur: its left and right ends."""
+    """A tie or slur: its left and right ends. `level` if the ends are
+    level (only those can be ties)."""
 
     left: tuple
     right: tuple
     box: tuple
+    level: bool = True
+
+
+@dataclass
+class Shapes:
+    """The drawn shapes of a page that Stages 1.3 and 1.4 read."""
+
+    beams: list
+    curves: list         # every curve (ties and slurs)
+    dashed: list
+    thin: list
+    frames: list = field(default_factory=list)     # (x0, y0, x1, y1) of small stroked boxes
+    hyphens: list = field(default_factory=list)    # (y, x0, x1) of short level lines
+
+    @property
+    def level_curves(self):
+        return [c for c in self.curves if c.level]
 
 
 def page_shapes(page, space):
-    """(beams, curves, dashed lines, thin lines) of the page, as the page is shown. Beams are filled
+    """The Shapes of the page, as the page is shown. Beams are filled
     four-sided shapes with upright ends, about half a staff space thick
     (rectangles for level beams), and thick stroked lines. Curves are
     shapes drawn with curves, at least one and a half staff spaces wide and
@@ -225,17 +243,26 @@ def page_shapes(page, space):
     height). Dashed lines are level stroked lines drawn with a dash
     pattern, as (y, x0, x1): the lines of octave marks. Thin lines are
     stroked lines, level or sloping, as (x0, y0, x1, y1) left to right:
-    among them the halves of tuplet brackets."""
+    among them the halves of tuplet brackets and of hairpins. Frames are
+    small stroked boxes (round rehearsal marks); hyphens are short level
+    lines (lyric hyphens and extenders, which can also be filled)."""
     turn = evidence._display_turn(page)
     found = {}
     curves = {}
     dashed = []
     thin = []
+    frames = []
+    hyphens = []
     for d in page.get_drawings():
         items = d["items"]
         if turn is not None:
             items = [(item[0], *(part * turn if hasattr(part, "transform") else part for part in item[1:]))
                      for item in items]
+        rect = d["rect"] * turn if turn is not None else d["rect"]
+        if "s" in d["type"] and "f" not in d["type"] and 1.2 * space <= rect.width <= 10 * space                 and 1.2 * space <= rect.height <= 5 * space and len(items) <= 12:
+            frames.append((rect.x0, rect.y0, rect.x1, rect.y1))
+        if rect.height <= 0.3 * space and 0.3 * space <= rect.width <= 40 * space and len(items) <= 4                 and not any(item[0] == "c" for item in items):
+            hyphens.append(((rect.y0 + rect.y1) / 2, rect.x0, rect.x1))
         if any(item[0] == "c" for item in items):
             curve = _curve(items, space)
             if curve:
@@ -257,7 +284,9 @@ def page_shapes(page, space):
                 if item[0] != "l":
                     continue
                 (x0, y0), (x1, y1) = sorted(((item[1].x, item[1].y), (item[2].x, item[2].y)))
-                if 0.5 * space <= x1 - x0 <= 30 * space and abs(y1 - y0) <= x1 - x0:
+                # long sloping lines are kept too: the arms of a long hairpin
+                if (0.5 * space <= x1 - x0 <= 30 * space or (x1 - x0 <= 100 * space and abs(y1 - y0) >= 0.1 * space)) \
+                        and abs(y1 - y0) <= x1 - x0:
                     thin.append((x0, y0, x1, y1))
         if "s" in d["type"] and 0.25 * space <= width <= 0.9 * space:
             for item in items:
@@ -267,20 +296,22 @@ def page_shapes(page, space):
                 if p2[0] - p1[0] >= 0.6 * space and abs(p2[1] - p1[1]) <= p2[0] - p1[0]:
                     beam = Beam(p1[0], p2[0], p1[1], p2[1], width)
                     found[(round(beam.x0, 1), round(beam.y0, 1), round(beam.x1, 1))] = beam
-    return list(found.values()), list(curves.values()), dashed, thin
+    return Shapes(list(found.values()), list(curves.values()), dashed, thin, frames, hyphens)
 
 
 def _curve(items, space):
+    """A curve at least 0.8 staff spaces wide and flat (a slur from a grace
+    note can be that short). It is level, and can be a tie, if it is at
+    least one and a half staff spaces wide and its ends are within three
+    quarters of a staff space in height."""
     points = [p for item in items for p in evidence._item_points(item)]
     x0, y0, x1, y1 = evidence._bbox(points)
     width, height = x1 - x0, y1 - y0
-    if width < 1.5 * space or height > 0.5 * width + space or height < 0.1 * space:
+    if width < 0.8 * space or height > 0.5 * width + space or height < 0.1 * space:
         return None
     left = min(points, key=lambda p: (p[0], p[1]))
     right = max(points, key=lambda p: (p[0], -p[1]))
-    if abs(left[1] - right[1]) > 0.75 * space:
-        return None
-    return Curve(left, right, (x0, y0, x1, y1))
+    return Curve(left, right, (x0, y0, x1, y1), width >= 1.5 * space and abs(left[1] - right[1]) <= 0.75 * space)
 
 
 # ----------------------------------------------------------------- chords
@@ -532,6 +563,7 @@ def attach_dots(evs, dots, space, repeat_zones):
     """Augmentation dots: right of a notehead or rest, level with it (a note
     on a line has its dot in the space above or below)."""
     by_event = collections.defaultdict(list)
+    used = set()
     for d in dots:
         cx, cy = (d.box[0] + d.box[2]) / 2, (d.box[1] + d.box[3]) / 2
         if any(a <= cx <= b for a, b in repeat_zones):
@@ -549,6 +581,7 @@ def attach_dots(evs, dots, space, repeat_zones):
                 best, best_dx = e, dx
         if best is not None:
             by_event[id(best)].append(cx)
+            used.add(id(d))
     for e in evs:
         xs = sorted(by_event.get(id(e), []))
         columns = 0
@@ -558,6 +591,22 @@ def attach_dots(evs, dots, space, repeat_zones):
                 columns += 1
                 last = x
         e.dots = min(columns, 3)
+    return used
+
+
+def staccato_dots(dots, evs, space):
+    """Dots that are not augmentation dots and stand over or under a
+    notehead, clear of it: staccato marks drawn as plain dots (outlined
+    music, where a staccato dot cannot be told from an augmentation dot by
+    its shape)."""
+    out = []
+    for d in dots:
+        cx, cy = (d.box[0] + d.box[2]) / 2, (d.box[1] + d.box[3]) / 2
+        if any(e.rest is None and any(h.box[0] - 0.1 * space <= cx <= h.box[2] + 0.1 * space
+                                      and 0.6 * space <= abs(cy - h.y) <= 2.6 * space for h in e.heads)
+               for e in evs):
+            out.append(d)
+    return out
 
 
 # ---------------------------------------------------------------- tuplets
@@ -1019,23 +1068,43 @@ def _key_in_force(score, part, bar):
     return int(found.value) if found else 0
 
 
-def read_notes(score, ordered, pages):
+def read_notes(score, ordered, pages, layouts=()):
     """Fill score.notes and score.rests from the systems in score order
-    (structure.assign_parts), with the page objects to read beams from."""
+    (structure.assign_parts), with the page objects to read beams from,
+    and with them the markings and text (Stage 1.4, omr.pdf.markings).
+    `layouts` are all the page layouts, for the text of pages with no
+    system (it goes to score.text)."""
+    from omr.pdf import text
+
     bar_base = 0
     clefs_in_force = {}     # (part, staff) -> clef value
     clef_onsets = {}        # (part, staff, bar, rank) -> onset of a clef within a bar
     open_ties = {}          # (part, staff, letter, octave) -> alter, ties running into the next system
-    beams_by_page = {}
+    shapes_by_page = {}
+    text_by_page = {}
     lengths = collections.defaultdict(Fraction)
+    first_page = min((pl.page for pl, _, _ in ordered), default=1)
+
+    def page_text(pl, shapes):
+        rect = pages[pl.page - 1].rect
+        lines = shapes.hyphens + [(h.y, h.x0, h.x1) for h in pl.horizontals if h.thickness <= 0.3 * h_space(pl)]
+        items = text.classify_page(pl, (rect.x0, rect.y0, rect.x1, rect.y1), pl.page == first_page,
+                                   shapes.frames, lines)
+        score.text.extend(i for i in items if i.system is None)
+        return items
+
     for pl, system, mapping in ordered:
-        if pl.page not in beams_by_page:
-            space = statistics.median(s.space for s in pl.staves) if pl.staves else 5.0
-            beams_by_page[pl.page] = page_shapes(pages[pl.page - 1], space)
-        beams, curves, dashed, thin = beams_by_page[pl.page]
-        _read_system(score, pl, system, mapping, bar_base, beams, curves, dashed, thin, clefs_in_force,
+        if pl.page not in shapes_by_page:
+            shapes_by_page[pl.page] = page_shapes(pages[pl.page - 1], h_space(pl))
+            text_by_page[pl.page] = page_text(pl, shapes_by_page[pl.page])
+        items = [i for i in text_by_page[pl.page] if i.system is system]
+        _read_system(score, pl, system, mapping, bar_base, shapes_by_page[pl.page], items, clefs_in_force,
                      clef_onsets, lengths, open_ties)
         bar_base += len(system.bars)
+    for pl in layouts:
+        if pl.page not in text_by_page:
+            for r in pl.text:
+                score.text.append(text.TextItem("page text", r.text, r.box, pl.page, r.font, r.size))
     for k, bar in enumerate(score.bars):
         bar.length = lengths.get(k, Fraction(0))
     # clefs within a bar take the onset of the event they stand before
@@ -1051,8 +1120,15 @@ def read_notes(score, ordered, pages):
     return score
 
 
-def _read_system(score, pl, system, mapping, bar_base, beams, curves, dashed, thin, clefs_in_force, clef_onsets, lengths,
+def h_space(pl):
+    return statistics.median(s.space for s in pl.staves) if pl.staves else 5.0
+
+
+def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_force, clef_onsets, lengths,
                  open_ties):
+    from omr.pdf import markings
+
+    beams, curves, dashed, thin = shapes.beams, shapes.level_curves, shapes.dashed, shapes.thin
     space = statistics.median(s.space for s in system.staves)
     members = {id(st): k for k, st in enumerate(system.staves)}
     heads = []
@@ -1083,7 +1159,7 @@ def _read_system(score, pl, system, mapping, bar_base, beams, curves, dashed, th
     repeat_zones = [(g.x0 - 1.6 * space, g.x1 + 1.6 * space) for g in system.barlines
                     if g.repeat_before or g.repeat_after]
     dots = [s for s in pl.symbols if s.name == "augmentationDot" and id(pl.staff_of(s)) in members]
-    attach_dots(evs, dots, space, repeat_zones)
+    used_dots = attach_dots(evs, dots, space, repeat_zones)
     time_length, compound = _time_in_force(score, bar_base)
     apply_tuplets([m for m in tuplet_marks(pl) if system.staves[0].top - 8 * space <= m.y
                    <= system.staves[-1].bottom + 8 * space and system.x0 <= m.x <= system.x1],
@@ -1096,7 +1172,7 @@ def _read_system(score, pl, system, mapping, bar_base, beams, curves, dashed, th
     accs = [_Acc(s, pl.staff_of(s), pl.step_of(s)) for s in pl.symbols
             if accidental_alter(s.name) is not None and id(pl.staff_of(s)) in members and id(s) not in signature]
     attach_accidentals(accs, heads, space)
-    tied_to, tied_from, start_next, stop_previous = find_ties(curves, heads, evs, system, space)
+    tied_to, tied_from, start_next, stop_previous, tie_curves = find_ties(curves, heads, evs, system, space)
     octave_spans = octave_marks(pl, system, dashed, space)
     arpeggiated = arpeggios(pl, [e for e in evs if e.rest is None], space)
     # events by staff and bar
@@ -1134,6 +1210,10 @@ def _read_system(score, pl, system, mapping, bar_base, beams, curves, dashed, th
             assign_onsets([e for e in group if not e.grace], space, lengths_by[(staff_id, k)], reference)
     for (staff_id, k), group in by_staff_bar.items():
         assign_graces(group, space)
+    # markings (Stage 1.4): directions go to score.markings, the rest onto the notes
+    staccato = staccato_dots([d for d in dots if id(d) not in used_dots], evs, space)
+    extras, head_marks = markings.read_system(score, pl, system, mapping, bar_base, evs, items, shapes,
+                                              tie_curves, staccato)
     # pitch, in x order per staff
     alters = {}
     next_ties = {}
@@ -1173,7 +1253,8 @@ def _read_system(score, pl, system, mapping, bar_base, beams, curves, dashed, th
                 same = sorted((g for g in staff_events if g.grace and g.bar == e.bar and g.onset == e.onset
                                and g.voice == e.voice), key=lambda g: g.x)
                 grace_order = 1 + same.index(e)
-            for h in sorted(e.heads, key=lambda h: h.step):
+            extra = extras.get(id(e))
+            for n, h in enumerate(sorted(e.heads, key=lambda h: h.step)):
                 letter, octave = pitch_of(clef, h.step)
                 key = (letter, octave)
                 if h.accidental is not None:
@@ -1191,13 +1272,24 @@ def _read_system(score, pl, system, mapping, bar_base, beams, curves, dashed, th
                 shift = sum(n for st, x0, x1, n in octave_spans if st is h.staff and x0 <= h.x <= x1)
                 pitch = events.Pitch(letter, alter, octave + shift)
                 duration = Fraction(0) if e.grace else e.duration
+                marks = set(head_marks.get(id(h), ()))
+                if id(e) in arpeggiated:
+                    marks.add("arpeggiate")
+                slurs, lyrics, syllables = (), (), ()
+                if n == 0 and extra is not None:
+                    # marks, slurs and lyrics of a chord go on its lowest note, as MuseScore writes them
+                    marks |= extra.marks
+                    slurs = tuple(extra.slurs)
+                    ordered_lyrics = sorted(extra.lyrics)
+                    lyrics = tuple((str(v), t) for v, t, _, _ in ordered_lyrics)
+                    syllables = tuple((str(v), syl, ext) for v, _, syl, ext in ordered_lyrics)
                 score.notes.append(events.Note(part, number, voice, global_bar, e.onset, pitch, duration,
                                                value_name, grace_order,
                                                tie_start=id(h) in tied_to or id(h) in start_next,
                                                tie_stop=id(h) in tied_from or id(h) in stop_previous,
                                                cue=e.small and not e.grace,
-                                               marks=frozenset({"arpeggiate"}) if id(e) in arpeggiated
-                                               else frozenset()))
+                                               marks=frozenset(marks), slurs=slurs, lyrics=lyrics,
+                                               syllables=syllables))
         if clef_values:
             clefs_in_force[(part, number)] = clef_values[-1][1]
         # onsets of clefs within bars, by the rank structure.staff_clefs gives them
@@ -1252,10 +1344,11 @@ def find_ties(curves, heads, evs, system, space):
     notehead and ending at the next on the same staff step. A tie that runs
     to the end of the system continues on the next; one that starts before
     the first note of a system continues one from the system before.
-    Returns (tied_to, tied_from, start_next, stop_previous): {id(head):
-    head} for the first two, sets of head ids for the others."""
+    Returns (tied_to, tied_from, start_next, stop_previous, curves used):
+    {id(head): head} for the first two, sets of ids for the others."""
     tied_to, tied_from = {}, {}
     start_next, stop_previous = set(), set()
+    used = set()
     top = system.staves[0].top - 6 * space
     bottom = system.staves[-1].bottom + 6 * space
     first_x = {}
@@ -1276,16 +1369,19 @@ def find_ties(curves, heads, evs, system, space):
             a, b = min(pairs, key=lambda p: abs(c.left[1] - p[0].y) + abs(c.right[1] - p[1].y))
             tied_to[id(a)] = b
             tied_from[id(b)] = a
+            used.add(id(c))
             continue
         if lefts and not rights:
             a = min(lefts, key=lambda h: abs(c.left[1] - h.y))
             if c.right[0] >= last_x.get(id(a.staff), system.x1) and c.right[0] >= system.x1 - 4 * space:
                 start_next.add(id(a))
+                used.add(id(c))
         elif rights and not lefts:
             b = min(rights, key=lambda h: abs(c.right[1] - h.y))
             if c.left[0] <= first_x.get(id(b.staff), system.x0) and b.x <= first_x.get(id(b.staff), b.x) + space:
                 stop_previous.add(id(b))
-    return tied_to, tied_from, start_next, stop_previous
+                used.add(id(c))
+    return tied_to, tied_from, start_next, stop_previous, used
 
 
 # ---------------------------------------------------------- octave marks
@@ -1342,19 +1438,32 @@ def octave_marks(page_layout, system, dashed, space):
 
 def arpeggios(page_layout, chords, space):
     """Ids of the chords with an arpeggio: a wavy line (drawn as a run of
-    wiggle glyphs) just left of the chord, beside its noteheads."""
-    wiggles = [s for s in page_layout.symbols if "rpeggiato" in s.name]
+    wiggle glyphs) left of the noteheads (and their accidentals). One line can span the
+    chords of two voices or two staves (each chord can have one notehead);
+    it needs two noteheads beside it in all."""
+    wiggles = sorted((s for s in page_layout.symbols if "rpeggiato" in s.name), key=lambda s: s.box[1])
+    lines = []     # [x0, top, x1, bottom] of runs of wiggle glyphs stacked one on another
+    for w in wiggles:
+        for line in lines:
+            if abs(line[0] - w.box[0]) <= 0.5 * space and w.box[1] <= line[3] + 0.5 * space:
+                line[3] = max(line[3], w.box[3])
+                line[2] = max(line[2], w.box[2])
+                break
+        else:
+            lines.append([w.box[0], w.box[1], w.box[2], w.box[3]])
     out = set()
-    for e in chords:
-        if len(e.heads) < 2:
-            continue
-        top = min(h.y for h in e.heads) - space
-        bottom = max(h.y for h in e.heads) + space
-        left = min(h.box[0] for h in e.heads)
-        if any(left - 3 * space <= w.box[2] <= left + 0.2 * space and w.box[3] >= top and w.box[1] <= bottom
-               for w in wiggles):
-            out.add(id(e))
+    for x0, top, x1, bottom in lines:
+        beside = [e for e in chords
+                  if left_edge(e) - 5 * space <= x0 <= left_edge(e) - 0.2 * space
+                  and any(top - space <= h.y <= bottom + space for h in e.heads)]
+        heads = sum(1 for e in beside for h in e.heads if top - space <= h.y <= bottom + space)
+        if heads >= 2:
+            out.update(id(e) for e in beside)
     return out
+
+
+def left_edge(e):
+    return min(h.box[0] for h in e.heads)
 
 
 # ------------------------------------------------------------ bar arithmetic

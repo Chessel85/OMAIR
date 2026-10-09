@@ -35,7 +35,11 @@ SUPPLEMENT = {
     "wiggleTrillFastest": 0xEAA0, "wiggleTrill": 0xEAA4, "wiggleArpeggiatoUp": 0xEAA9,
     "arrowheadBlackUp": 0xEB78, "fingering0": 0xED10, "fingering1": 0xED11,
     "fingering2": 0xED12, "fingering3": 0xED13, "fingering4": 0xED14,
-    "csymAccidentalFlat": 0xED60,
+    "csymAccidentalFlat": 0xED60, "csymAccidentalNatural": 0xED61, "csymAccidentalSharp": 0xED62,
+    "fingering5": 0xED15,
+    # chord symbol glyphs (MuseScore 4 sets them in Leland Text), Stage 1.4
+    "csymDiminished": 0xE870, "csymHalfDiminished": 0xE871, "csymAugmented": 0xE872,
+    "csymMajorSeventh": 0xE873, "csymMinor": 0xE874,
     # found in the corpus survey of 9 October 2026
     "reversedBracketTop": 0xE005, "reversedBracketBottom": 0xE006, "noteheadXWhole": 0xE0A7,
     "noteheadXHalf": 0xE0A8, "noteheadXOrnate": 0xE0AA, "noteheadTriangleDownBlack": 0xE0C7,

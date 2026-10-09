@@ -65,6 +65,7 @@ class Note:
     marks: frozenset = frozenset()   # articulations, fermata, ornaments, arpeggiate
     slurs: tuple = ()                # ("start" or "stop", number) pairs
     lyrics: tuple = ()               # (number, text) pairs
+    syllables: tuple = ()            # (number, syllabic, extend) for each lyric; not compared
 
     @property
     def key(self):
@@ -122,6 +123,7 @@ class Score:
     markings: list = field(default_factory=list)   # performance markings and text
     structure: list = field(default_factory=list)  # clefs, keys, times, repeats, endings, navigation
     bar_counts: list = field(default_factory=list) # bars in each part, normally all equal
+    text: list = field(default_factory=list)       # page text (title, composer, ...) read from a PDF; not compared
 
     def staves(self):
         """Every staff in score order, as (part, staff) pairs."""
@@ -343,11 +345,13 @@ def _read_note(score, part_index, bar_index, onset, divisions, duration, element
                     score.markings.append(Marking("dynamic", _dynamic_text(dynamic), part_index, staff, bar_index, onset))
     lyrics = tuple((ly.get("number", "1"), " ".join("".join(t.text or "" for t in ly.findall("text")).split()))
                    for ly in element.findall("lyric"))
+    syllables = tuple((ly.get("number", "1"), (ly.findtext("syllabic") or "single").strip(),
+                       ly.find("extend") is not None) for ly in element.findall("lyric"))
     score.notes.append(Note(
         part_index, staff, voice, bar_index, onset, pitch, length, value, grace,
         "start" in ties, "stop" in ties, element.find("cue") is not None or
         (element.find("type") is not None and element.find("type").get("size") == "cue"),
-        frozenset(marks), tuple(slurs), lyrics))
+        frozenset(marks), tuple(slurs), lyrics, syllables))
 
 
 def _dynamic_text(element):

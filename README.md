@@ -2,7 +2,7 @@
 
 A free, offline optical music recognition tool. It converts sheet music PDFs and images into accurate MusicXML and braille music, and reports in plain text where it is unsure. Licensed under AGPL-3.0.
 
-The project is in Phase 1 (vector PDFs). It names the symbols of a vector PDF and reads its structure and its notes (pitch, rhythm, voices, ties, grace notes), but does not yet write MusicXML. `scripts/check_notes.py` measures the notes it reads against the ground truth. The `omr` command has these subcommands:
+The project is in Phase 1 (vector PDFs). It names the symbols of a vector PDF and reads its structure, its notes (pitch, rhythm, voices, ties, grace notes) and its text and markings (title and composer, lyrics, chord symbols, tempo and expression text, dynamics, hairpins, articulations, slurs, fingering), but does not yet write MusicXML. `scripts/check_notes.py` and `scripts/check_markings.py` measure what it reads against the ground truth. The `omr` command has these subcommands:
 
 - `omr inspect FILE`: says what kind of PDF each page is (vector music with font glyphs or outlines, a clean image, or a photo or scan) and which music font it uses.
 - `omr symbols FILE`: names every music symbol in a vector PDF (from its music font, or by shape where the symbols are outlines) and counts any that cannot be named.

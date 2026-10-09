@@ -585,7 +585,8 @@ def read_structure(layouts, assigned=None):
 
 def read_pdf(path, notes=False):
     """(Score, [PageLayout]) for a vector PDF: the structure, and with
-    `notes` also the notes and rests (Stage 1.3, omr.pdf.notation)."""
+    `notes` also the notes and rests (Stage 1.3, omr.pdf.notation) and the
+    markings and text (Stage 1.4, omr.pdf.markings and omr.pdf.text)."""
     import pymupdf
 
     from omr.pdf import notation, symbols
@@ -597,7 +598,7 @@ def read_pdf(path, notes=False):
         assigned = assign_parts(layouts)
         score = read_structure(layouts, assigned)
         if notes:
-            notation.read_notes(score, assigned[0], doc)
+            notation.read_notes(score, assigned[0], doc, layouts)
         return score, layouts
     finally:
         doc.close()

@@ -16,8 +16,8 @@ How the notes and rests of a score are read from a vector PDF: pitch, duration, 
 - **Flags** are the `flag...` glyphs at a stem's free end.
 - **Augmentation dots** are dots right of a notehead or rest (up to three staff spaces), level with a notehead (within 0.65 staff spaces: a note on a line has its dot in the space above or below). Dots by a repeat barline are repeat dots. Each column of dots is one dot.
 - **Rests** are the `rest...` glyphs. A rest whose ink is centred 1.5 staff spaces or more above or below the middle line belongs to the upper or lower voice.
-- **Curves** (ties and slurs) are shapes drawn with curves, at least 1.5 staff spaces wide and flat, whose two ends are level.
-- **Thin lines** (tuplet brackets) and **dashed lines** (octave marks) are stroked lines, level or sloping, with or without a dash pattern.
+- **Curves** (ties and slurs) are shapes drawn with curves, at least 0.8 staff spaces wide and flat. Only a curve at least 1.5 staff spaces wide whose two ends are level can be a tie; the others are slurs (Stage 1.4, `markings-spec.md`).
+- **Thin lines** (tuplet brackets, the arms of hairpins) and **dashed lines** (octave marks) are stroked lines, level or sloping, with or without a dash pattern. Sloping lines are kept up to 100 staff spaces long (a long hairpin), level ones up to 30.
 
 ## Duration
 
@@ -56,7 +56,7 @@ The notes and rests of one staff in one bar are read together.
 
 ## Other marks
 
-- **Arpeggios**: a chord of two or more noteheads with a wavy line (`wiggleArpeggiato...` or `arpeggiato...` glyphs) just left of its noteheads gets the "arpeggiate" mark.
+- **Arpeggios**: a wavy line (a stack of `wiggleArpeggiato...` or `arpeggiato...` glyphs) whose left edge is up to 5 staff spaces left of a chord's noteheads (room for accidentals), beside them, gives every chord beside it the "arpeggiate" mark, if it stands beside two noteheads or more in all. One line can span chords of two voices or two staves. (The glyph is drawn turned, so its ink box from the font is not where the ink is; its left edge is.)
 - **Clefs within a bar** get the onset of the first event after them (Stage 1.2 gave them a placeholder).
 - Cross-staff notes: a notehead keeps the staff it is drawn on (as the harness reads MusicXML), and a chord across two staves belongs to the staff of most of its noteheads.
 
@@ -88,4 +88,4 @@ A Stage 1.2 fix came out of this work: a vertical line at the start of a system 
 - **Tremolos** are not read: two-note tremolo strokes are left out (the notes keep their written value, as in MusicXML), single-note tremolo strokes are left out too.
 - **Bars split by a mid-bar barline, or joined by an invisible one** (Stage 1.2 limits) are flagged by bar arithmetic but not merged or split; the harness's bar alignment absorbs one such join or split.
 - **Multi-bar rests, slashes and percussion staves** are not read (Stage 1.2 limits).
-- Slurs, articulations, dynamics and text are Stage 1.4.
+- Slurs, articulations, dynamics and text are Stage 1.4 (`markings-spec.md`).

@@ -42,6 +42,7 @@ class TextRun:
     box: tuple
     font: str
     size: float
+    breaks: list = field(default_factory=list)   # (index in text, x, gap before it) where a new span of the PDF starts
 
 
 @dataclass
@@ -284,12 +285,14 @@ def read_page(page, number, programs=None, identifier=None, ev=None):
         size = span["size"]
         is_music = mapping is not None and mapping.table is not None
         names = programs.glyph_names(xref) if (is_music and xref) else None
+        new_span = True
         for code, gid, origin, bbox in span["chars"]:
             if turn is not None:
                 origin = tuple(pymupdf.Point(origin) * turn)
                 bbox = tuple(pymupdf.Rect(bbox) * turn)
             if not is_music:
-                run = _add_text(result.text, run, name, size, code, origin, bbox)
+                run = _add_text(result.text, run, name, size, code, origin, bbox, new_span)
+                new_span = False
                 continue
             run = None
             if code == 32:
@@ -297,7 +300,8 @@ def read_page(page, number, programs=None, identifier=None, ev=None):
             glyph_name = names[gid] if names and gid < len(names) else None
             if _is_text_glyph(mapping, code, glyph_name):
                 text_code = ord(fonttables.EMMENTALER_TEXT.get(glyph_name, chr(code))) if code == 0xFFFD else code
-                run = _add_text(result.text, run, name, size, text_code, origin, bbox)
+                run = _add_text(result.text, run, name, size, text_code, origin, bbox, new_span)
+                new_span = False
                 continue
             symbol = name_glyph(mapping, code, glyph_name)
             if symbol is None:
@@ -355,12 +359,16 @@ def outlined_page(ev):
     return ev.repeated_shapes > glyphs or (ev.staves.five_line >= 1 and glyphs < 3 and ev.outlined["count"] > 0)
 
 
-def _add_text(runs, run, font, size, code, origin, bbox):
+def _add_text(runs, run, font, size, code, origin, bbox, new_span=False):
     """Add a character to the current run, or start a new one when the font,
-    size or line changes or there is a gap of more than half an em."""
+    size or line changes or there is a gap of more than half an em. Where a
+    new span of the PDF joins the run, the place is kept in `breaks` (lyric
+    syllables are separate spans set close together)."""
     char = chr(code) if code not in (0xFFFD,) and code >= 32 else ""
     if run is not None and run.font == font and abs(run.size - size) < 0.01 and abs(run.y - origin[1]) < 0.3 * size \
             and origin[0] - run.box[2] < 0.5 * size and origin[0] >= run.box[0]:
+        if new_span and char and not char.isspace():
+            run.breaks.append((len(run.text), origin[0], origin[0] - run.box[2]))
         run.text += char
         run.box = (min(run.box[0], bbox[0]), min(run.box[1], bbox[1]), max(run.box[2], bbox[2]), max(run.box[3], bbox[3]))
         return run
