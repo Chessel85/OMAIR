@@ -1,6 +1,7 @@
 # Direct dependencies, unpinned. requirements.txt holds the pinned versions.
 # PyTorch is installed separately from the CUDA 13.0 index (see README.md).
 PyMuPDF
+fonttools
 pikepdf
 opencv-python
 scikit-image

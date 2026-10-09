@@ -22,7 +22,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest PyMuPDF opencv-python-headless numpy scipy verovio music21 musicdiff
+          python -m pip install pytest PyMuPDF fonttools opencv-python-headless numpy scipy verovio music21 musicdiff
           python -m pip install -e .
       - name: Run tests
         run: python -m pytest
@@ -38,7 +38,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install PyMuPDF opencv-python-headless numpy scipy verovio music21 musicdiff
+          python -m pip install PyMuPDF fonttools opencv-python-headless numpy scipy verovio music21 musicdiff
           python -m pip install -e .
       # Runs the stand-in recognisers over regression/ and fails if any figure
       # is worse than regression/baseline.txt by more than the margin.

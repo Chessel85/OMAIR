@@ -5,6 +5,8 @@ import sys
 
 COMMANDS = {
     "inspect": "Report the page types, fonts and shapes in a PDF.",
+    "symbols": "Name the music symbols in vector PDFs and count those that cannot be named.",
+    "layout": "Report the parts, bars, clefs, keys and times read from vector PDFs.",
     "evaluate": "Score recogniser output against ground truth.",
     "convert": "Convert a PDF or image to MusicXML.",
 }
@@ -20,6 +22,13 @@ def build_parser():
             p.add_argument("--json", metavar="PATH", help="Also write full results as JSON.")
             p.add_argument("--pages", metavar="LIST", help="Pages to inspect, for example 1-3,7.")
             p.add_argument("--brief", action="store_true", help="Only a summary of each file.")
+        if name == "symbols":
+            p.add_argument("files", nargs="+", metavar="FILE", help="PDF files.")
+            p.add_argument("--json", metavar="PATH", help="Also write the counts as JSON.")
+            p.add_argument("--pages", metavar="LIST", help="Pages to read, for example 1-3,7.")
+        if name == "layout":
+            p.add_argument("files", nargs="+", metavar="FILE", help="PDF files.")
+            p.add_argument("--json", metavar="PATH", help="Also write the structure as JSON.")
         if name == "evaluate":
             add_evaluate_arguments(p)
     return parser
@@ -87,6 +96,14 @@ def main(argv=None):
         from omr import inspect as inspector
 
         return inspector.run(args.files, json_path=args.json, pages=args.pages, brief=args.brief)
+    if args.command == "symbols":
+        from omr import symbol_report
+
+        return symbol_report.run(args.files, json_path=args.json, pages=args.pages)
+    if args.command == "layout":
+        from omr import layout_report
+
+        return layout_report.run(args.files, json_path=args.json)
     if args.command == "evaluate":
         return run_evaluate(args)
     print(f"The '{args.command}' command is not implemented yet.")

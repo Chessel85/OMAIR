@@ -24,7 +24,11 @@ class ProgressLog:
     def _write(self, level, message):
         stamp = time.strftime("%Y-%m-%d %H:%M:%S")
         line = f"{stamp} {level} {self.name}: {' '.join(str(message).split())}"
-        print(line, file=self.stream, flush=True)
+        try:
+            print(line, file=self.stream, flush=True)
+        except UnicodeEncodeError:   # a console that cannot show a character (a flat sign in a file name)
+            encoding = getattr(self.stream, "encoding", None) or "ascii"
+            print(line.encode(encoding, "replace").decode(encoding), file=self.stream, flush=True)
         if self.file:
             print(line, file=self.file, flush=True)
 

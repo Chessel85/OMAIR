@@ -298,6 +298,39 @@ These are used only to render test PDFs in Stage 5. The fonts are not shipped, s
 - Source: Not confirmed by search.
 - Status: ok
 
+## Symbol data used at run time (Phase 1)
+
+Stage 1.1 names music symbols with data that ships with an installed dependency or was written for the project. Nothing here is copied into the repository except facts (glyph names and code points).
+
+### SMuFL reference outlines and glyph names (Verovio data)
+
+- Kind: dataset
+- Version: as installed with verovio 6.3.0
+- Licence: The glyph outlines are from Bravura, Leland and Petaluma (SIL OFL 1.1) and Gootville and Leipzig (SIL OFL 1.1, as distributed with Verovio). Verovio itself is LGPL-3.0-only.
+- Use: shipped (installed as part of the verovio package, read at run time from its data folder; not copied into the repository)
+- Source: The font names and Verovio's own licence notes in its package. The font licences are as stated by their projects; not re-checked by search.
+- Status: ok
+- Note: `src/omr/pdf/smufl.py` reads the glyph names, bounding boxes and SVG outlines to name SMuFL code points and to draw reference shapes for matching renamed fonts and outlined symbols.
+
+### SMuFL glyph names in the supplement
+
+- Kind: dataset
+- Version: SMuFL 1.4 names
+- Licence: Facts (a glyph's standard name and code point). The SMuFL specification is published by the W3C Music Notation Community Group under the W3C Community Final Specification Agreement. No file from the specification is copied.
+- Use: shipped (about 60 names written into `src/omr/pdf/smufl.py`)
+- Source: SMuFL `glyphnames.json`, read during development on 9 October 2026 to check names; not stored in the repository.
+- Status: ok
+
+### Legacy music font tables (Sonata layout and Emmentaler)
+
+- Kind: dataset
+- Version: written 9 October 2026
+- Licence: the project's own work (AGPL-3.0-or-later, as the code). A table of which character draws which symbol is a set of facts; no font data is copied.
+- Use: shipped (in `src/omr/pdf/fonttables.py`)
+- Source: Built by drawing each glyph of the installed Maestro font and of the Opus, Helsinki and Maestro subsets embedded in the IMSLP commercial sample, and the LilyPond Emmentaler font, and looking at each in context.
+- Status: ok
+- Note: The Maestro font installed on the development machine (`MAESTRO_.TTF`, Coda Music Technology) and the embedded commercial fonts are not shipped and not stored in the repository.
+
 ## Python dependencies
 
 These are pinned in `requirements.txt` or `requirements-torch.txt` and installed by pip. None is bundled in the repository. Licences come from the package metadata in the installed environment, read on 5 October 2026. Re-check an entry when its version changes.
