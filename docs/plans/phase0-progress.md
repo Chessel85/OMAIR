@@ -1,6 +1,6 @@
 # Phase 0 progress log
 
-Last updated 8 October 2026 (Stage 10 measured in part; LEGATO nights outstanding). This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
+Last updated 9 October 2026 (Phase 0 complete, awaiting sign-off). This file records what has been done against `phase0.md`, so that work can resume in a new session. Update it at the end of each working session.
 
 ## Repository facts
 
@@ -74,15 +74,11 @@ Fresh-clone check: repeated in a later session by cloning https://github.com/Che
 
 ## Next steps
 
-Outstanding for Phase 0, in a sensible order (updated 8 October 2026). Nothing from the Stage 9 and Stage 10 work is committed yet.
+Updated 9 October 2026. Phase 0 work is complete and waiting for the owner's sign-off.
 
-1. **Commit the uncommitted work.** Stage 9 edits (`src/omr/baselines/run.py`, `tests/test_baselines.py`, `scripts/run_legato_night.sh`, `docs/plans/legato-sample-plan.md`, `docs/notes/baselines.md`, `scripts/analyse_baselines.py`, `scripts/make_baseline_subsets.py`, `scripts/make_realworld_sample.py`, `scripts/run_baselines_followup.sh`) and Stage 10 (`scripts/make_detection_dataset.py`, `scripts/benchmark_training.py`, `docs/notes/training-benchmark.md`, the `requirements-torch.txt` torchvision pin, this file). Run the tests first (200 or more should pass). Write the commit message to a file and use `git commit -F`.
-2. **Stage 9, LEGATO (Sonnet, runs overnight).** 12 of 35 sample pairs are done. Before the next night: restart the computer, delete the 21 false `failure.txt` files under `evaluations/legato-sample-preds` and that folder's result for pair 12 (`pdmx-LjV4KwY4wU2C`, only 39 of 64 bars), close heavy programs, then `sh scripts/run_legato_night.sh`. About 2 more nights. Then rescore and update the LEGATO section of `docs/notes/baselines.md`. Claude Code stopped a background job on 8 October for low system memory, so watch for that.
-3. **Stage 9, owner decision.** Whether restated clefs, keys and times (same value as before) should stop counting as structural mismatches (proposal in `baselines.md`; it lifts Audiveris structural correctness from 9.0 to 22.5 percent). If yes, it is a spec change made with Opus.
-4. **Stage 10, measurements: done.** Results are in `docs/notes/training-benchmark.md`. Optional: a thermal check on a longer run, and INT8 or cached-decoder inference speed. `scripts/benchmark_onnx_cpu.py` needs `pip install onnx` (not in the requirements files).
-5. **Stage 10, Opus decisions.** Read `docs/notes/training-benchmark.md`, fix the detector size, tile size and batch (evidence points to nano at 640, batch 8), fix the sequence reader size, set the expected time per run (C-7), say whether Kaggle is needed, and write the model sizes for Phase 2 into the note. Review the dataset labels, which come from Verovio element boxes.
-6. **Stage 8 leftovers (no hurry).** An Opus read of `docs/notes/pdf-survey.md`. Real Sibelius and Finale PDFs are an accepted open risk and must be revisited before the Phase 1 gate (an IMSLP list chosen with the owner, or the owner's own files in `sources/other`, then `run_survey.py inspect` and `report`). The legacy font threshold is uncalibrated; measure the share of known legacy fonts passing at each threshold. Type 3 fonts untested. CPDL is dropped (Cloudflare).
-7. **Stage 11 (Opus).** Needs the Stage 9 timings (clean one-worker CPU timings are in `baselines.md`: Audiveris 21 seconds a page, homr 27, LEGATO about 19.5 minutes) and the Stage 10 decisions. Confirm or revise the OP-3 targets, update `requirements.md` and close OI-2. Check each gate item against the evidence. Write `docs/notes/phase-0-report.md` (what was done, baseline numbers, survey result, fixed model sizes, problems and plan changes). Draft the Phase 1 plan in `docs/plans/`. Owner sign-off.
-8. **Open items, not blockers.** TEDn is not computed (evaluation spec decision 7). Dorico stays parked unless the survey shows Dorico PDFs are common (what automating it needs is in `docs/notes/tool-commands.md`). The regression set has 43 of the planned 50 scores, with shortfalls listed under Stage 5; add real recognisers to `regression/baseline.txt` if wanted. The braille discussion with the MuseScore community (OI-1) runs alongside and is not needed until Phase 3.
+1. **Owner sign-off** of `docs/notes/phase-0-report.md`, including the decisions listed at its end (gate met with the Sibelius and Finale gap, model sizes and OP-3 wording, the restated-signature rule, the Phase 1 gate wording, the HTML documents).
+2. **Phase 1** starts from the draft `docs/plans/phase1.md`, with Stage 1.0 first.
+3. **Closed on 9 October 2026:** LEGATO (28 of 35 pairs scored, the last 7 not run by the owner's decision, results in `baselines.md`), Stage 10 decisions (in `training-benchmark.md`), the Stage 8 analysis (in `pdf-survey.md`), OP-3 confirmed and OI-2 closed in `requirements.md` and `solution-design.md`.
+4. **Open items, not blockers.** TEDn is not computed. Dorico stays parked. The regression set has 43 of 50 scores. `requirements.html` and `solution-design.html` are not regenerated. Braille discussion (OI-1) runs alongside, needed for Phase 3.
 
-Gate status: baseline accuracy numbers (Audiveris and homr done, LEGATO partial), PDF type mix (surveyed, with the Sibelius and Finale gap accepted), OP-3 targets (waiting for Stage 11), model sizes (waiting for Stage 10 decisions).
+Gate status: all four items met (see the report), with the Sibelius and Finale survey gap accepted and the raster speed target at risk.

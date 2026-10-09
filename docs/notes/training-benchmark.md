@@ -84,3 +84,31 @@ What this says:
 - Set the expected time per run. Use about 3 tiles per second for the detector and 2.5 to 3 staves per second for the reader, and choose dataset sizes so that a run is no more than a few days (C-7). Say whether Kaggle is needed for anything.
 - Decide what still needs measuring before the sizes are fixed: only a longer run for thermal throttling is left (the two YOLO sessions differed by up to 17 percent), and optionally INT8 and cached-decoder inference speed.
 - Check the dataset labelling: classes follow Verovio's element boxes, so a notehead box is the head only and stems and beams have thin or diagonal boxes. This is fine for a speed test but the real training labels need review.
+
+## Decisions for Phase 2 (made 9 October 2026, closing Stage 10)
+
+Made by Claude from the measurements above. They are decisions of the plan, not of the owner, and the owner signs them off in the Phase 0 report. Each has a trigger for revisiting it.
+
+### Symbol detector
+
+- **Model: YOLO11 nano, tile 640 pixels, batch 8, FP16, 2 data-loading workers.** It is the only setting that fits in 2 GB at full speed (about 3 tiles per second). The small model spills out of the card and runs about 4 times slower, so it is ruled out for training on the laptop.
+- **Scale:** the benchmark used 1024 pixel tiles with a staff space of 14 to 20 pixels. A 640 tile at that scale holds under half the area, so a whole staff is wider than one tile, and tiles must overlap. Symbols of 15 to 60 pixels are still large enough for a nano detector. To get more context per tile, render the training data at a staff space of about 10 to 12 pixels, which puts a typical staff in about 640 pixels at 1.5 times the area of the benchmark tile. This is not measured. **First task of Phase 2:** train two short runs (staff space 14 to 20 against 10 to 12) on the same scores and compare recall on small symbols (accidentals, dots, flags) before building the full set.
+- **Run length:** 10,000 tiles per epoch at 3 tiles per second is about 55 minutes. A run of 40 to 50 epochs is therefore about 1.5 to 2 days. That meets C-7 ("a few days per run"). Use 20 epochs for experiments (under a day).
+- **Labels:** the benchmark labels come from Verovio element boxes (a notehead box is the head only, stems and beams have thin or diagonal boxes). For real training, derive boxes per symbol class with a rule written down first (heads, accidentals, dots, rests, flags, clefs, meter digits, dynamics and so on from glyph boxes; stems, beams and barlines as thin boxes with a minimum width). This is a review item at the start of Phase 2, not a risk to the sizes.
+
+### Sequence reader
+
+- **Model: about 29 million parameters** (the convolutional encoder of about 17 million, two transformer encoder layers, a 4-layer decoder, width 512). Batch 4 to 8, FP16, **gradient checkpointing off** (it is only needed above batch 8 or at 512 tokens), 256 tokens per staff to begin with.
+- **Why the smallest:** it trains fastest (about 3 staves per second), decodes about 40 percent faster on the CPU than the 37 million model, and leaves memory in hand. The measured homr transformer files (encoder 53 MB and decoder 47 MB as FP32 ONNX) imply about 25 million parameters in all, so a 20 to 40 million model is the same class as the starting weights, and the design's "start from homr weights and fine-tune" is plausible. **Phase 2 must check this first:** the fine-tuned architecture has to be the pretrained one. If the homr or SMT architecture is not close to 29 million, the size follows the pretrained model, within the 20 to 46 million range measured here.
+- **Run length:** one pass over 100,000 staves is about 9 hours at 3 per second. A fine-tune of 3 to 5 passes is about 1 to 2 days. With 512 tokens per staff, about a third longer.
+- **Inference on the CPU:** about 17 seconds per staff for the 29 million model with no key-value cache (measured with random weights). With a cache, estimated 6 to 13 seconds per staff, and INT8 quantisation usually gives 1.5 to 3 times more; neither is measured. Building the cache is the first inference task in Phase 2, before any decision to drop the sequence reader on speed grounds.
+
+### Kaggle
+
+- **Not needed** for any planned run. The free Kaggle quota stays an optional accelerator for detector experiments (C-5 forbids depending on it).
+
+### Not measured, and why it is accepted
+
+- A longer thermal check: the two YOLO sessions differed by up to 17 percent, so all run lengths above are plus or minus 20 percent. The run lengths have enough room in them that this does not change a decision.
+- Convergence: all sequence reader figures are for random data, so they say nothing about how many passes are enough. Phase 2 measures this on the real data.
+- INT8 and cached-decoder CPU speed (see above).

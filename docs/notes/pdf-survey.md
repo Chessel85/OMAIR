@@ -1,6 +1,6 @@
 # PDF-type survey (Stage 8, partial)
 
-Survey of 7 October 2026. Written by Sonnet from the counts in `survey/survey-counts.txt` on the corpus drive. The Opus analysis the plan asks for is still to do, and so is the Sibelius and Finale half of the survey (see "What this survey cannot say").
+Survey of 7 October 2026. Written by Sonnet from the counts in `survey/survey-counts.txt` on the corpus drive. The analysis section at the end was added on 9 October 2026 to close Phase 0. The Sibelius and Finale half of the survey is still not done (see "What this survey cannot say").
 
 ## What was surveyed
 
@@ -41,3 +41,11 @@ The owner decided on 7 October 2026 not to collect Sibelius or Finale files for 
 1. Get real Sibelius and Finale PDFs by another route: files the owner has, the IMSLP list chosen by hand, or other sources whose terms allow it. Then rerun `run_survey.py inspect` and `report`.
 2. Done: `PFAEmmentaler` and `feta-alphabet` are on the legacy font list.
 3. Opus analyses these counts and decides whether the Phase 1 plan changes.
+
+## Analysis (9 October 2026, closing Stage 8 for Phase 0)
+
+- **What the data supports.** For MuseScore and LilyPond output, which is all of the 3,133 files, the vector path of the design is right: 99.6 to 99.9 percent of pages are Type A, and the single Type D page was classed correctly with low confidence. Phase 1 can be built on Type A first, with Type B treated as a fallback that costs little until a source of outlined glyphs is found.
+- **Font mapping tables, in order of files covered:** (1) SMuFL, no table needed (Leland, Bravura, Petaluma, MuseJazz, Gootville; and MScore, which the inspector already maps as SMuFL, 99.5 percent of PDMX files); (2) Emmentaler with its size variants (`PFAEmmentaler-NN`, `feta-alphabet`), one table, about 5 percent of Mutopia and nearly all LilyPond output of that era. Maestro, Opus, Petrucci and November are not yet covered by any evidence. They stay on the Phase 1 list on the design's word, last in order.
+- **Unusual files:** the false "probably music" text fonts (Edwin-Italic, FreeSerif, LiberationSerif) occur on dense pages with dynamics, tempo or lyric words. The page type stays right and the font gets a warning. Phase 1 should replace the position test with a glyph-shape test against letters, as already noted. The 10-page file with a photo first page shows that a mixed C/D and A document is possible, so page type must stay per page.
+- **Risks 1 and 2 of the design (outlined glyphs, legacy fonts):** not resolved. They need commercial engraver output. The owner accepted this on 7 October 2026. The consequence for the plan is that the Phase 1 gate in the solution design, which names the CPDL Sibelius and Finale pairs, cannot be met as written (CPDL is blocked by Cloudflare). The Phase 1 plan therefore starts with a task to get such files (an IMSLP list chosen with the owner, or the owner's own files) and changes the gate wording to match what was obtained.
+- **Change to the Phase 1 plan:** none to its order. Add the Emmentaler table, the glyph-shape font test, and the Sibelius and Finale file collection as Phase 1 tasks (see `docs/plans/phase1.md`).

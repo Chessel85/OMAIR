@@ -1,6 +1,6 @@
 # Baselines (Stage 9, DEV-4)
 
-Analysis of 7 October 2026. It covers Audiveris 5.11.0 and homr 0.7.0. LEGATO is a development baseline only, at 17 to 20 minutes a page on the CPU, and its results come from the overnight sample runs in `docs/plans/legato-sample-plan.md`. They will be added here when those runs are done. All figures use the evaluation spec as of decision 10 (a misread clef is one error).
+Analysis of 7 October 2026. It covers Audiveris 5.11.0 and homr 0.7.0. LEGATO is a development baseline only, at about 18 minutes a page on the CPU, and its results come from two overnight sample runs (`docs/plans/legato-sample-plan.md`), covered in its own section below. All figures use the evaluation spec as of decision 10 (a misread clef is one error).
 
 ## What was run
 
@@ -40,7 +40,7 @@ With the fixes, 16 of the 17 read. The last is a 28-page file that ran out of ti
 
 - **Audiveris:** median 21 seconds a page (13 to 50), 26 seconds a page overall. A one-page file takes about 21 seconds, of which several seconds are Java start-up. Verovio pages are the slowest (40 to 50 seconds), because they fit more systems on a page.
 - **homr:** median 27 seconds a page (20 to 29), 27 seconds a page overall, very even.
-- **LEGATO:** about 19.5 minutes a page on average over the first night (29 pages in 33,883 seconds in all; the log shows 15.3 to 19.2 minutes a page for pairs 10 to 12). One file at a time, 3 threads, nothing else heavy running, so this is usable for OP-2. See "LEGATO, first night" below.
+- **LEGATO:** 18.4 minutes a page on average over 28 pairs and 55 pages (median 16.8 minutes per pair, range 13.8 to 31.3). One file at a time, 3 threads, nothing else heavy running, so this is usable for OP-2. See "LEGATO" below.
 - Under the overnight load (3 at once) both took 2 to 3 times as long. homr's 13 timeouts are all 18- to 35-page files. At 27 seconds a page, those take 8 to 16 minutes even alone, so they are a real speed limit, not an accident of the load.
 
 ## Where the baselines fail
@@ -90,30 +90,29 @@ In order of the size of the gain:
 ## What this means for the gate and Stage 11
 
 - **ACC-1 (99 percent note accuracy on vector PDFs) is far beyond the baselines.** The best is 86.3 percent, and 89.1 percent taking the better tool for each file. Only 17 percent of Audiveris files reach 99 percent. The target stands, because the project reads vector PDFs directly, but no existing tool shows it is reachable.
-- **OP-3 (10 seconds a vector page, 60 seconds a raster page).** The baselines take 20 to 30 seconds a page, and they treat every page as an image. A vector reader does not need image recognition, so 10 seconds a vector page looks safe. 60 seconds a raster page is above what both image tools take (26 to 27 seconds a page on this laptop), so it also looks achievable, with room for a heavier model. LEGATO, at 17 to 20 minutes a page, shows that a large model of that kind is ruled out on the CPU. These figures are for Stage 11, which confirms OP-3 and closes OI-2.
+- **OP-3 (10 seconds a vector page, 60 seconds a raster page).** The baselines take 20 to 30 seconds a page, and they treat every page as an image. A vector reader does not need image recognition, so 10 seconds a vector page looks safe. 60 seconds a raster page is above what both image tools take (26 to 27 seconds a page on this laptop), so it also looks achievable, with room for a heavier model. LEGATO, at about 18 minutes a page, shows that a large model of that kind is ruled out on the CPU. These figures are for Stage 11, which confirms OP-3 and closes OI-2.
 - **Real-world pairs are few and simple.** They are 40 MuseScore 3 uploads in one font. Sibelius and Finale output is still not measured (the Stage 8 decision).
 
-## LEGATO, first night (7 to 8 October 2026)
+## LEGATO (two nights, 7 to 9 October 2026)
 
-A partial result: 12 of the 35 queued pairs, MuseScore 4 base export (Leland) only, scored with `--no-musicdiff` into `evaluations/legato-sample`. The clef rule applies.
+A development baseline only, run on a small sample. 28 of the 35 queued pairs were read (55 pages): MuseScore 4 base export (Leland) only, one file at a time, 3 threads, scored with `--no-musicdiff` and the clef rule into `evaluations/legato-sample-final`. The 7 pairs left in the queue (12 pages, the longest ones) were not run, by the owner's decision to close Phase 0. The sample is not the Audiveris and homr sample (that one had 355 pairs over all engravers and fonts), so the comparison is rough.
 
-- **Overall:** note accuracy 74.3 percent, 16.7 percent structurally correct (2 of 12), median file 90.6 percent, lowest 49.2, highest 100 (two files). Strict note accuracy 73.2 percent. For comparison, Audiveris scored 86.3 percent and homr 55.9 percent on their 355-pair sample, so the samples are not the same and the comparison is rough.
-- **One file is suspect.** `pdmx-LjV4KwY4wU2C` (4 pages, piano, 49.2 percent) has 39 of 64 bars in the output and 349 of 821 notes missing, which looks like the later pages were lost when the run was disturbed (see below), not a reading failure. Without it, 3,173 of 3,592 ground-truth notes (88.3 percent) are exactly right in the other 11 files. This is a share of notes, not the note accuracy figure. Treat the file as unproven until it is run again.
-- **Errors (all 12):** 4,413 notes; 3,582 exactly right, 362 wrong, 469 missing, 406 extra, 2 clef errors. Of the wrong notes, 253 are pitch only. The staff (99.7 percent), voice (98.9) and tie (98.7) figures are high, and rests are weak (77.1).
-- **Markings:** dynamics 69 percent and hairpins 74 percent of exact pairs; fermatas 95 percent, accents and staccato 100 percent (few); slur ends 94 percent. Lyrics 0 of 778, words 0 of 39 and chord symbols 0 of 80, because LEGATO writes no text.
-- **Weakest files:** a tuba scales exercise (49.2 percent, 150 errors), a Winterseufzer song (56.6) and "Baby one more time" (66.5). Highest: a folk tune and a second file at 100 percent. By texture, piano is lowest (67.4 percent, 4 files) and chamber highest (91.7, 2 files). With 12 files these groups say little.
-- **Structure:** 2 of 12 structurally correct. Most mismatches are restated clefs and signatures at later systems, as for the other two tools (see the restated-signatures question above).
-- **Speed:** about 19.5 minutes a page. The estimate in the plan was 21.
+- **Overall:** note accuracy 83.4 percent, 25.0 percent structurally correct (7 of 28), median file 93.4 percent, lowest 49.2, highest 100. Strict note accuracy 82.8 percent. For comparison, Audiveris 86.3 percent and homr 55.9 percent on their own sample. The first night's partial figure (74.3 percent over 12 pairs) is superseded; pair 12, run again, scored 83.5 percent where the disturbed first run gave 49.2.
+- **Errors (all 28):** 7,581 notes; 6,916 exactly right, 404 wrong, 261 missing, 708 extra, 2 clef errors. Of the wrong notes, 295 are pitch only. Staff (99.8 percent), voice (99.3) and tie (98.7) are high. Rests are weak (83.8). Extra notes outnumber missing ones, which is unlike Audiveris and homr.
+- **Markings:** dynamics 77.5 percent and hairpins 81.2 percent of exact pairs, fermatas 93.5, accents and staccato 100 (few), slur ends 91.0, trill marks 100 (8). Lyrics 0 of 1,370, words 1 of 106, chord symbols 0 of 138, because LEGATO writes no text.
+- **By genre (few files each):** sacred 96.0 percent (4), jazz 93.4 (2), popular 86.6 (5), unlabelled 87.0 (4), folk 82.6 (5), classical 75.1 (5), educational 66.2 (3). By texture: piano 90.1 (9), single line 87.5 (9), voice with piano 75.6 (6), chamber 91.7 (2), small ensemble 68.8 (1), choir 55.9 (1). With these counts the groups say little.
+- **Structure:** 7 of 28 structurally correct. Most mismatches are restated clefs and signatures, as for the other two tools (see the restated-signatures question above).
+- **Speed:** over the 28 pairs, 18.4 minutes a page on average (55 pages), median 16.8 per pair, range 13.8 to 31.3. One file at a time with nothing else heavy running, so this is usable for OP-2. A 10-staff page is therefore about 18 minutes, which rules a model of this kind out for the shipped product on the CPU alone.
+- **Reading:** LEGATO is a better reader than homr on the notes it reads (83.4 against 55.9 percent), close to Audiveris (on different samples). Only one font was tested, so nothing is known about font effects. It is 40 to 50 times slower than the others and writes no text. It confirms that a large image-to-sequence model can reach about Audiveris level, not 99 percent.
 
 ### What went wrong on the first night
 
-- The run started at 21:16 with a 10.5 hour limit. Pairs 1 to 11 finished normally between 21:16 and 05:24. Pair 12 was logged as done at 06:41:03 after 77 minutes, but its output has only 39 of 64 bars. At the same second, pairs 13 to 35 were each marked "failed after 0 minutes" at the same second, with the reason "no output". These look like a side effect of the same disturbance (Claude Code reported a critical memory shortage and stopped its background shell), not real failures. The cause is not confirmed. The runner wrote a `failure.txt` for each, so a later night will skip them unless the files are removed.
-- The first start at 21:12 was killed and restarted at 21:16 to lengthen the limit from 8.5 to 10.5 hours. That cost four minutes.
-- Before the next night: remove the `failure.txt` files under `evaluations/legato-sample-preds` and the result for `pdmx-LjV4KwY4wU2C`, restart the computer, and close other heavy programs. The runner could also treat an instant "no output" as a stop, not a per-file failure (a change to make with the owner).
+- Pair 12 was logged as done at 06:41:03 on 8 October with only 39 of 64 bars, and pairs 13 to 35 were marked "failed after 0 minutes" at the same second, with the reason "no output". This came with a critical memory shortage that stopped Claude Code's background shell. The cause is not confirmed. The false failures were cleared and the pairs were run again on the second night, with no problem.
+- Lesson: an instant "no output" for many pairs in a row is a disturbance of the machine, not a set of failed files. The runner could treat it as a stop (a change to make if LEGATO is run again).
 
 ## Not done, or left open
 
-- LEGATO over the rest of its sample: 23 of 35 pairs still to run, plus pair 12 to redo (`docs/plans/legato-sample-plan.md`).
+- LEGATO over the last 7 pairs of its sample (12 pages). Not run: Phase 0 is closed without them.
 - The restated-signatures decision (above).
 - Audiveris and homr are not added to the regression baseline in CI. CI does not have the tools, and a run takes about half a minute a page. The regression baseline stays with the stand-in recognisers.
 - TEDn is still not computed (spec decision 7).

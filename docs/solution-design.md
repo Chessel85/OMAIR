@@ -395,5 +395,5 @@ This phase starts only after the gates for Phases 1 to 4 are met (IN-4).
 ## 8. Open decisions
 
 - **OI-1: braille music code, formatting and file format.** The project owner is consulting the MuseScore community. This blocks Phase 3, but not Phases 0 to 2.
-- **OI-2: speed targets.** To be confirmed in Phase 0.
+- **OI-2: speed targets.** Closed at the end of Phase 0: confirmed (see `docs/notes/phase-0-report.md`).
 - **OI-3: error-flagging target.** To be refined in Phase 1.

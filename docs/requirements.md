@@ -82,7 +82,7 @@ Note accuracy means the proportion of notes whose pitch, onset and duration all 
 | --- | --- | --- | --- | --- | --- |
 | OP-1 | Fully offline | The system runs fully offline. It makes no network calls at run time and depends on no paid or cloud service. | Must | All | PO |
 | OP-2 | Laptop hardware | The system runs on an ordinary laptop with a 4-core (8-thread) CPU, 32 GB of RAM, and either no GPU or a small one (2 GB, for example an NVIDIA T500). A GPU is optional and only speeds things up. | Must | All | VS |
-| OP-3 | Speed | A vector PDF page converts in under 10 seconds. A raster page or a photo converts in under 60 seconds, on the CPU alone. | Should | Not assigned | D (targets to be confirmed) |
+| OP-3 | Speed | A vector PDF page converts in under 10 seconds. A raster page or a photo converts in under 60 seconds, on the CPU alone. Confirmed at the end of Phase 0 as targets, not yet demonstrated; the raster target is at risk for pages with many staves (see `docs/notes/phase-0-report.md`). | Should | Not assigned | D (targets confirmed in Phase 0) |
 | OP-4 | Operating systems | Windows 11 is the primary platform. Linux and macOS are desirable. | Should | Not assigned | D |
 
 ## Accessibility
@@ -119,5 +119,5 @@ Note accuracy means the proportion of notes whose pitch, onset and duration all 
 | ID | Topic | Question | Owner | Impact |
 | --- | --- | --- | --- | --- |
 | OI-1 | Braille music code | Which braille music code, formatting conventions and output file format (for example BRF, Unicode braille text, or both) should be the default? | The project owner, through the MuseScore community | Blocks the Phase 3 decisions on braille, but not Phase 1. |
-| OI-2 | Speed targets | The OP-3 targets need confirming once baseline timings exist (Phase 0). | Not assigned | Affects OP-3. |
+| OI-2 | Speed targets | Closed at the end of Phase 0: the OP-3 targets are confirmed, with the raster caveat noted in OP-3. | Not assigned | Closed. |
 | OI-3 | Error-flagging target | The ACC-4 target needs refining once the first measurements exist (Phase 1). | Not assigned | Affects ACC-4. |
