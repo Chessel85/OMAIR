@@ -21,7 +21,7 @@ How the structure of a score is read from a vector PDF: staves, systems, bars, p
 
 Two staves, one above the other and overlapping along the page, are in one system when:
 
-- a vertical line crosses the gap between them (the line at the start of a system, a spanning barline, a bracket);
+- a vertical line crosses the gap between them (the line at the start of a system, a spanning barline, a bracket) and starts at a staff: within four staff spaces above the top of the upper staff, or of a staff higher up, since Verovio and LilyPond draw one line down a whole large system (Stage 1.3 fix);
 - a brace is drawn beside both; or
 - they have the same ends and their barlines (other than the one at the end of the system) fall at the same places, and the gap between them is at most 0.8 of the gap between systems. LilyPond draws nothing joining choir staves. The gap test is needed because two systems of repeated music can have their barlines in the same places.
 
@@ -90,7 +90,7 @@ On the regression set (256 pairs, 43 scores):
 On the development set (1,778 pairs, 300 scores; a few rules came from its MuseScore 4 failures):
 
 - Exact pairs: 512 of 600 right (85.3 percent), and 560 of 600 in parts, bars, clefs, keys and times (93.3 percent).
-- Engraver-input pairs: 807 of 1,178 right (68.5 percent), and 895 of 1,178 in the core items (76.0 percent). Verovio (bars, clefs, keys) and LilyPond (bars) are weakest; neither has been studied on this set yet.
+- Engraver-input pairs: 884 of 1,178 right (75.0 percent), and 982 of 1,178 in the core items (83.4 percent), after the Stage 1.3 fix to joining large systems (before it: 807 and 895). Verovio (clefs, keys) and LilyPond (bars) are weakest; neither has been studied on this set yet.
 
 On the regression set, every exact pair that is not right is one of the known limits below. For the engraver-input pairs, the PDF can legitimately differ from the reference it was made from, and most of the remaining mismatches are such differences:
 
@@ -104,6 +104,6 @@ On the regression set, every exact pair that is not right is one of the known li
 - **Barlines that are not drawn, and barlines that are not bar ends.** A barline printed invisible (bar style "none") joins two bars on the page. A barline in the middle of a bar (MuseScore allows one) splits a bar on the page. Neither can be seen from the page alone. Stage 1.3's bar arithmetic can catch them, because the two halves of a split bar are each too short.
 - **Repeat counts that are not printed.** A backward repeat "3 times" that the page does not say reads as a plain backward repeat.
 - **Navigation words the ground truth stores as plain words.** "Fine", "D.C. al Fine" or a segno typed as text has no playback marker in the file, so the harness does not count it, but it is read as navigation. These are the remaining structure mismatches on exact pairs.
-- **Clef onsets.** A clef within a bar has no exact onset until Stage 1.3.
+- **Clef onsets.** A clef within a bar gets its exact onset from Stage 1.3 (`read_pdf(path, notes=True)`); the structure alone gives a placeholder.
 - **Multi-bar rests** are not yet expanded into their bars; none occurs in the regression set.
 - **Percussion and tablature staves** (one-line and six-line staves) are not yet staves.

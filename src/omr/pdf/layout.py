@@ -331,9 +331,13 @@ def join_systems(staves, verticals, symbols, barlines, page_number, system_gap=N
         if min(upper.x1, lower.x1) - max(upper.x0, lower.x0) < 0.5 * min(upper.x1 - upper.x0, lower.x1 - lower.x0):
             continue
         space = upper.space
+        # a line that crosses the gap and starts at a staff (this one, or one
+        # higher up when the line joins a whole system)
+        starts = [st.top for st in staves if st.top <= upper.top]
         bridged = any(
             top <= upper.bottom + 0.5 * space and bottom >= lower.top - 0.5 * space
-            and top >= upper.top - 4 * space and min(upper.x0, lower.x0) - 3 * space <= x <= max(upper.x1, lower.x1) + space
+            and any(st_top - 4 * space <= top <= st_top + space for st_top in starts)
+            and min(upper.x0, lower.x0) - 3 * space <= x <= max(upper.x1, lower.x1) + space
             for x, top, bottom, _ in verticals)
         if not bridged:
             bridged = any(

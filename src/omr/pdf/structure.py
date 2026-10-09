@@ -521,10 +521,11 @@ def system_navigation(page_layout, system):
 
 # ------------------------------------------------------------------ score
 
-def read_structure(layouts):
-    """The score structure (an events.Score with no notes) from page layouts."""
+def read_structure(layouts, assigned=None):
+    """The score structure (an events.Score with no notes) from page layouts.
+    `assigned` is assign_parts(layouts), if already worked out."""
     score = events.Score()
-    ordered, parts = assign_parts(layouts)
+    ordered, parts = assigned or assign_parts(layouts)
     score.parts = [events.Part(name, staves) for name, staves in parts]
     bar_base = 0
     open_ending = None
@@ -582,16 +583,21 @@ def read_structure(layouts):
     return score
 
 
-def read_pdf(path):
-    """(Score, [PageLayout]) for a vector PDF."""
+def read_pdf(path, notes=False):
+    """(Score, [PageLayout]) for a vector PDF: the structure, and with
+    `notes` also the notes and rests (Stage 1.3, omr.pdf.notation)."""
     import pymupdf
 
-    from omr.pdf import symbols
+    from omr.pdf import notation, symbols
 
     doc = pymupdf.open(str(path))
     try:
         pages = symbols.read_document(doc)
         layouts = lay.read_document(doc, pages)
-        return read_structure(layouts), layouts
+        assigned = assign_parts(layouts)
+        score = read_structure(layouts, assigned)
+        if notes:
+            notation.read_notes(score, assigned[0], doc)
+        return score, layouts
     finally:
         doc.close()

@@ -44,3 +44,7 @@ jobs:
       # is worse than regression/baseline.txt by more than the margin.
       - name: Check against the baseline
         run: python scripts/check_regression.py
+      # Reads the notes of every regression PDF (Stage 1.3) and fails if the
+      # note accuracy falls below the floor. Raise the floor as the reader improves.
+      - name: Notes read from the PDFs
+        run: python scripts/check_notes.py --workers 2 --min-accuracy 98.0
