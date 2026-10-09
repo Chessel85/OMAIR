@@ -1,6 +1,6 @@
 # Evaluation harness specification (`omr evaluate`)
 
-Version 1.1, 7 October 2026, for Stage 6 of `docs/plans/phase0.md`. It covers DEV-1 and the metrics for ACC-1 to ACC-6 in `requirements.md`. The owner accepted the decisions listed at the end on 6 October 2026, and decision 10 (clef errors) on 7 October 2026. This is the specification the harness implements and the code review checks against.
+Version 1.2, 9 October 2026, for Stage 6 of `docs/plans/phase0.md`. It covers DEV-1 and the metrics for ACC-1 to ACC-6 in `requirements.md`. The owner accepted the decisions listed at the end on 6 October 2026, decision 10 (clef errors) on 7 October 2026, and decision 11 (restated signatures) on 9 October 2026. This is the specification the harness implements and the code review checks against.
 
 ## Purpose and principles
 
@@ -126,6 +126,8 @@ A file is **structurally correct** when all of these match exactly:
 - the time signatures, with their bar (beats and beat type; a common-time or cut-time symbol equals 4/4 or 2/2 for this test, and a different symbol is reported only as a note);
 - repeat barlines (forward or backward, and the times count), endings (their numbers and where they start and stop), and navigation marks (segno, coda, D.C., D.S., Fine, To Coda).
 
+A clef, key signature or time signature equal to the one already in force is a **restatement** and is ignored in both files before they are compared (decision 11). "In force" means in the same part, and for a clef the same staff; a key signature with no staff number applies to every staff of its part. A restatement does not change the music: an engraver writes one at a new system or page, and a recogniser that reads page by page writes one at each join. So only real changes are compared. Whether a printed restatement belongs in the output file is a matter of output quality, not of structure.
+
 Every mismatch is listed in words, for example "Bar 17: the ground truth has a backward repeat barline, the output does not". A mismatch that every part has in the same bar (a repeat missing from all 10 parts) is one line ("Bar 17, all 10 parts: ..."). When two output parts are paired with one ground-truth part (piano written as two parts), their repeats, endings, marks and signatures are not counted twice: the larger count of the two is used. The overall figure is the share of files that are structurally correct. ACC-1 asks for at least 95 percent.
 
 ### Performance markings (ACC-6 and REC-4)
@@ -176,7 +178,7 @@ The recogniser may write a **flag file** beside its MusicXML, `flags.json`:
   - move a chord's other notes into a new voice (no note errors, voice accuracy unchanged, since splitting a chord into voices is not a voice error);
   - remove a barline by joining two bars (no note errors, one structural error in the bar count);
   - delete a dynamic (one dynamic missed), and delete a hairpin where no other hairpin of the same kind starts in that bar and part (one hairpin missed);
-  - remove a clef, key or time change after the first bar (one structural error; the notes keep their pitches, so a removed clef gains nothing from a clef correction and none is made).
+  - remove a clef, key or time change after the first bar (one structural error; the notes keep their pitches, so a removed clef gains nothing from a clef correction and none is made). A restatement is never removed, since that is not damage. If removing a change makes a later change a restatement (a clef change and the change back), that is a second structural error, and `damage.json` counts it.
 - Each kind is applied once, in its own bar with a free bar either side, where the file has a suitable place. The join comes after all the others. A short or plain file may get fewer kinds of damage; `damage.json` says which were applied.
 - The damaged recogniser also writes a flag file that flags a known share of the damaged bars, so the flagging recall has a known value.
 
@@ -227,3 +229,4 @@ Accepted by the owner on 6 October 2026.
 8. **A wrong note is one error, whatever differs** (accepted after the Opus review). In each bar pair and group the errors are the larger of the leftover ground-truth and predicted note counts, so the count does not depend on how step 4 pairs notes.
 9. **Merging two voices into chords is a voice error** (accepted after the Opus review). Splitting a chord into voices is not.
 10. **A misread clef is one error** (owner, 7 October 2026). The notes under it are scored as if the clef had been read right, and the clef counts as one error in note accuracy as well as a structural mismatch (see "Clef errors"). Other errors that move many notes, such as a missed triplet, are not corrected, because that would complicate the evaluation too much.
+11. **Restated clefs, keys and time signatures are ignored** (owner, 9 October 2026). A clef, key or time signature equal to the one in force is dropped from both files before the structure is compared (see "Structural correctness"). Note accuracy does not change.

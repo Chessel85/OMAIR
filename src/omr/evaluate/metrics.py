@@ -191,12 +191,14 @@ def _structure(truth, output, result, say):
             return (event.kind, event.value, part, staff, bar, onset)
         return (event.kind, event.value, part, None, bar, None)
 
+    # A clef, key or time equal to the one already in force is ignored in both files (decision 11).
     truth_events = collections.Counter(
-        key(e, e.part, e.staff, e.bar, e.onset) for e in truth.structure if e.kind in STRUCTURE_KINDS)
+        key(e, e.part, e.staff, e.bar, e.onset) for e in events.signature_changes(truth)
+        if e.kind in STRUCTURE_KINDS)
     # Each output part is counted on its own and the largest count kept, so a part
     # written as two (piano as two parts) does not count its repeats twice.
     by_output_part = collections.defaultdict(collections.Counter)
-    for e in output.structure:
+    for e in events.signature_changes(output):
         if e.kind not in STRUCTURE_KINDS:
             continue
         target = _mapped_part(result, e.part, e.staff)

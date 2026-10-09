@@ -1,6 +1,6 @@
-# PDF-type survey (Stage 8, partial)
+# PDF-type survey (Stage 8, and Phase 1 Stage 1.0)
 
-Survey of 7 October 2026. Written by Sonnet from the counts in `survey/survey-counts.txt` on the corpus drive. The analysis section at the end was added on 9 October 2026 to close Phase 0. The Sibelius and Finale half of the survey is still not done (see "What this survey cannot say").
+Survey of 7 October 2026, written by Sonnet from the counts in `survey/survey-counts.txt` on the corpus drive, with an analysis added on 9 October 2026 to close Phase 0. The commercial engraver sample (Sibelius, Finale and Dorico, from IMSLP) was added on 9 October 2026 for Phase 1 Stage 1.0, in its own section below.
 
 ## What was surveyed
 
@@ -9,7 +9,8 @@ Survey of 7 October 2026. Written by Sonnet from the counts in `survey/survey-co
   - OpenScore string quartet and lieder PDFs: 983 files, 13,560 pages (MuseScore 4 and 3 output).
   - Mutopia: 150 files, 528 pages, a seeded sample of the 1,100 or so listed pieces. 94 are Public Domain and 56 CC BY-SA (internal use only). `scripts/collect_mutopia.py`, 3 seconds between requests, the site's robots.txt allows crawling.
   - PDMX: 2,000 files, 4,509 pages, a seeded sample (seed 20261007) of the 222,820 PDFs with no licence conflict. These are real MuseScore.com uploads.
-- CPDL was not surveyed. cpdl.org answers automated requests with a Cloudflare challenge (HTTP 403), and the owner decided not to ask the site for access. IMSLP was not surveyed either: its list is chosen by hand with the owner and nothing was chosen. Any PDFs put in `sources/other` are picked up by the next `inspect` run.
+- CPDL was not surveyed. cpdl.org answers automated requests with a Cloudflare challenge (HTTP 403), and the owner decided not to ask the site for access.
+- IMSLP: 21 files, 680 pages, in `sources/other/imslp` (see "Commercial engraver sample"). Any PDFs put in `sources/other` are picked up by the next `inspect` run.
 
 ## Findings
 
@@ -26,21 +27,39 @@ Survey of 7 October 2026. Written by Sonnet from the counts in `survey/survey-co
 - **False "probably music" classes** (text fonts judged music by position on a staff): `Edwin-Italic` (a Zemlinsky quartet, pages 25 and 42, 20 staves on a page), `FreeSerifItalic`, `FreeSerif`, `LiberationSerif` and its italic. All are dynamics, tempo or lyric words on dense pages, with 11 to 33 percent of their glyphs on staves. The 10-glyph minimum and the quarter threshold let them through. A text font is listed wrongly and gets a warning, but the page type stays right. Raising the threshold would lose real music fonts (see the Opus review of the first Stage 8 task), so the better fix is to compare each font's glyph shapes with letters, not to move the number.
 - **Speed:** 2,000 PDMX files took about 70 seconds on 3 workers, so vector PDFs inspect in well under a second a page.
 
+## Commercial engraver sample (IMSLP, 9 October 2026)
+
+### How it was collected
+
+- IMSLP's edition notes were searched for editions typeset with Sibelius, Finale or Dorico (750 candidate PDFs), and 7 of each were chosen across piano, choir, chamber, orchestra and voice with piano. The owner approved the list. IMSLP answers scripted downloads with a bot check, so the owner downloaded the files by hand. 21 of 22 arrived. The missing one is a Dorico file in Leland, which would have added little.
+- The program was read from each PDF's own metadata and fonts, not from IMSLP's notes, which were wrong once: a "Finale" edition was made with Sibelius 8.
+- Licences are recorded per file in `sources/other/imslp/sample.json`. The files stay on the corpus drive.
+
+### Results by program
+
+- **Sibelius, 9 files.** Exported directly by Sibelius 5, 8 and 2021 (3 files): Type A, in Opus or Helsinki. Printed through the Windows PostScript driver, then Ghostscript or Acrobat Distiller (3 files): Type A, and in one of them the driver renamed the music font (for example "TTE26B52B8t00"). Printed through PDFCreator, or by an unknown route (2 files): Type B, the music drawn as outlines, with a few Opus glyphs left on 3 of 60 pages. One file is a scan of a print (Type C).
+- **Finale, 6 files.** Type A in 5, in Maestro (Finale 2003 through Acrobat Distiller, and a recent Finale through macOS) or in a Maestro renamed by the Windows printer driver (3 files, through Ghostscript, or joined afterwards with pdfsam or pdftk). One printed through Ghostscript is Type B.
+- **Dorico, 6 files.** Exported directly (5 files): Type A, in Bravura or Sebastian (SMuFL). One printed through Ghostscript is Type B, with only its Bravura Text glyphs left as a font.
+- **In all:** 16 of 21 files are Type A, 4 are Type B (one page in a fifth file is also B: a decorative title page in The Planets), and 1 is Type C. By page, 85 percent A and 13 percent B. No Type 3 font occurred.
+
+### What this shows
+
+- **Type B is real.** 4 of the 20 notation files, from all three programs, are mostly outlined glyphs. Three were printed to PDF through a printer driver and Ghostscript or PDFCreator, not exported by the program; the fourth carries no record of how it was made. Ghostscript does not always outline (three Ghostscript files kept their fonts), so the producer alone cannot predict it. Phase 1 needs the outlined-glyph path for these, not only a "not supported" message.
+- **Legacy fonts are the rule for Sibelius and Finale:** Opus and Helsinki (Sibelius), Maestro (Finale), with their companion fonts (OpusSpecial, HelsinkiSpecial, OpusText). Petrucci and November did not occur. Dorico uses SMuFL.
+- **Printer drivers rename fonts** (TTE...t00, TT...t00), so the legacy name list cannot find them. The position test found all of them, and the letter-shape test confirmed they are not letters. Phase 1 must tell which legacy font a renamed font is from its glyph shapes, before it can use a mapping table.
+- **Three inspector faults were found and fixed:** a Windows symbol font (Opus) was taken for SMuFL; a beam drawn exactly on a staff line hid the staff (Finale); and a landscape page stored sideways had no staves found. Before the fixes, 2 Sibelius files were called SMuFL and 2 Finale files had pages called "no music" or "Type B, low confidence". All three are in `inspector-spec.md`, with tests.
+- **The legacy-font threshold holds.** On every one of 348 pages, the main music fonts have at least 30 percent of their glyphs on staves, against the threshold of a quarter, so none is missed. Companion fonts often have none on staves; a renamed companion font would be classed text (a known limit).
+
 ## What this survey cannot say
 
-- **No Sibelius, Finale, Dorico, Notion or Capella files.** All three sources are MuseScore or LilyPond output. So the main Phase 0 risk questions are still open: the share of Type B pages from commercial engravers, and which legacy fonts (Opus, Maestro, Petrucci, November) are common. The legacy-font threshold also remains uncalibrated for them.
-- The PDMX sample is MuseScore.com uploads, which may differ from the PDFs people share through IMSLP, so it cannot stand for the whole internet.
-- No scan was tested beyond the one D page, and no Type 3 font.
-
-## Decision
-
-The owner decided on 7 October 2026 not to collect Sibelius or Finale files for now. This is an accepted open risk. Revisit before the Phase 1 gate.
+- 21 commercial files are a small sample, and all come from IMSLP, whose uploads are mostly older printed-to-PDF editions. The share of Type B among the PDFs a user will bring is not known, only that it is not rare.
+- The PDMX sample is MuseScore.com uploads, which may differ from the PDFs people share elsewhere.
+- No scan was tested beyond the one D page and one C file, and no Type 3 font occurred.
 
 ## Suggested next steps
 
-1. Get real Sibelius and Finale PDFs by another route: files the owner has, the IMSLP list chosen by hand, or other sources whose terms allow it. Then rerun `run_survey.py inspect` and `report`.
+1. Stage 1.1: mapping tables for Opus, Helsinki and Maestro (with their companion fonts), identification of renamed legacy fonts by glyph shape, and the outlined-glyph path for Type B.
 2. Done: `PFAEmmentaler` and `feta-alphabet` are on the legacy font list.
-3. Opus analyses these counts and decides whether the Phase 1 plan changes.
 
 ## Analysis (9 October 2026, closing Stage 8 for Phase 0)
 

@@ -5,6 +5,7 @@ events". Every position is an exact fraction of a quarter note, measured from
 the start of the bar. Bars are counted in written order, repeats not expanded.
 """
 
+import collections
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ TYPE_LENGTH = {
     "256th": Fraction(1, 64), "512th": Fraction(1, 128), "1024th": Fraction(1, 256),
 }
 WHOLE_BAR = "whole bar"  # the duration of a whole-bar rest
+SIGNATURE_KINDS = ("clef", "key", "time")
 NAVIGATION_SOUNDS = ("dacapo", "dalsegno", "fine", "tocoda")
 STEP_SEMITONES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 
@@ -146,7 +148,11 @@ def read_root(path):
 
 def read(path):
     """Read a MusicXML file into a Score."""
-    root = read_root(path)
+    return from_root(read_root(path))
+
+
+def from_root(root):
+    """Read a parsed MusicXML root element into a Score."""
     if root.tag == "score-timewise":
         raise MusicXMLError("timewise MusicXML is not supported; convert it to partwise first")
     if root.tag != "score-partwise":
@@ -159,6 +165,40 @@ def read(path):
     for index, part in enumerate(parts):
         _read_part(score, index, names.get(part.get("id"), ""), part)
     return score
+
+
+def restated(score):
+    """The clef, key and time signature events of `score` that restate the value
+    already in force, in the same part and staff (spec decision 11). A key
+    signature with no staff number applies to every staff of its part."""
+    found = []
+    in_force = {}    # (kind, part) -> {staff or None: value}
+    signatures = [e for e in score.structure if e.kind in SIGNATURE_KINDS]
+    for e in sorted(signatures, key=lambda e: (e.part, e.bar, e.onset)):
+        state = in_force.setdefault((e.kind, e.part), {})
+        if e.staff is None:
+            staves = range(1, score.parts[e.part].staves + 1) if e.part < len(score.parts) else [1]
+            if all(state.get(s, state.get(None)) == e.value for s in staves):
+                found.append(e)
+            state.clear()
+            state[None] = e.value
+        else:
+            if state.get(e.staff, state.get(None)) == e.value:
+                found.append(e)
+            state[e.staff] = e.value
+    return found
+
+
+def signature_changes(score):
+    """The structure events with restated clefs, keys and times left out."""
+    restatements = collections.Counter(restated(score))
+    kept = []
+    for e in score.structure:
+        if restatements[e]:
+            restatements[e] -= 1
+        else:
+            kept.append(e)
+    return kept
 
 
 def _number(text, default=0):

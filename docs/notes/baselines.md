@@ -1,6 +1,6 @@
 # Baselines (Stage 9, DEV-4)
 
-Analysis of 7 October 2026. It covers Audiveris 5.11.0 and homr 0.7.0. LEGATO is a development baseline only, at about 18 minutes a page on the CPU, and its results come from two overnight sample runs (`docs/plans/legato-sample-plan.md`), covered in its own section below. All figures use the evaluation spec as of decision 10 (a misread clef is one error).
+Analysis of 7 October 2026. It covers Audiveris 5.11.0 and homr 0.7.0. LEGATO is a development baseline only, at about 18 minutes a page on the CPU, and its results come from two overnight sample runs (`docs/plans/legato-sample-plan.md`), covered in its own section below. All figures use the evaluation spec as of decision 11: a misread clef is one error (decision 10), and a restated clef, key or time signature is ignored (decision 11).
 
 ## What was run
 
@@ -9,7 +9,7 @@ Analysis of 7 October 2026. It covers Audiveris 5.11.0 and homr 0.7.0. LEGATO is
 - **Real-world pairs:** 40 real MuseScore.com uploads (`scripts/make_realworld_sample.py`, set `generated/realworld`). Each PDF from the Stage 8 PDMX survey sample is paired with the MusicXML that PDMX gives for the same upload. Only works outside the training pool were used, with the corpus filters, and only PDFs whose pages are all Type A. That left 90 eligible files, and 40 were drawn by seed. They are all MuseScore 3 PDFs (Qt 5.9.8) in the MScore font, mostly one page (26 of 40), and mostly single line or piano (26 of 40). CPDL and the Sibelius and Finale pairs are not available (Stage 8 decision), so these are the only real-world pairs.
 - **Clean timings:** 16 pairs of the baseline sample (4 from each engraver, short and long, 45 pages), run one at a time with nothing else running, on the CPU alone (`generated/baseline-timing`).
 - **Analysis:** `scripts/analyse_baselines.py NAME=results.json ...` gives the breakdowns below that the harness report does not: failures by kind, spread of per-file accuracy, error mix, tuplets, clef errors, base against variant exports, staff size, pages, score features, structural mismatch kinds, head to head, and seconds per page.
-- **Where the results are**, under `evaluations/` on the corpus drive: `baseline-sample-audiveris-clefrule` and `-homr-clefrule` (the first run, rescored), `baseline-sample-audiveris-retry`, `baseline-sample-audiveris-final` and `baseline-sample-homr-final` (the whole sample with the retries merged, scored again with musicdiff), `realworld-audiveris` and `realworld-homr`, and `baseline-timing-audiveris` and `-homr`.
+- **Where the results are**, under `evaluations/` on the corpus drive: `baseline-sample-audiveris-clefrule` and `-homr-clefrule` (the first run, rescored), `baseline-sample-audiveris-retry`, `baseline-sample-audiveris-final` and `baseline-sample-homr-final` (the whole sample with the retries merged, scored again with musicdiff), `realworld-audiveris` and `realworld-homr`, and `baseline-timing-audiveris` and `-homr`. The current figures, under decision 11, are in `baseline-sample-audiveris-rule11`, `baseline-sample-homr-rule11`, `realworld-audiveris-rule11`, `realworld-homr-rule11` and `legato-sample-rule11`, scored from the saved outputs without musicdiff (the musicdiff figures are in the `-final` folders and do not depend on the rule).
 
 ## Wrapper fixes
 
@@ -25,14 +25,14 @@ With the fixes, 16 of the 17 read. The last is a 28-page file that ran out of ti
 
 ### Development baseline sample (355 pairs)
 
-- **Audiveris:** note accuracy 86.3 percent. 1 file failed (a timeout). Per-file median 92.0 percent. 59 of 354 files reach 99 percent and 132 reach 95 percent. 32 files (9.0 percent) are structurally correct. Dynamics and hairpins recall, exact pairs: 74.0 percent (dynamics 77.7, hairpins 65.6).
-- **homr:** note accuracy 55.9 percent, or 61.5 percent over the 340 completed files. 15 failed: 13 timeouts and 1 crash (OpenCV, on a one-page file). Per-file median 91.8 percent. 100 of 340 files reach 99 percent and 155 reach 95 percent. 40 files (11.3 percent) are structurally correct. It writes no dynamics or hairpins.
+- **Audiveris:** note accuracy 86.3 percent. 1 file failed (a timeout). Per-file median 92.0 percent. 59 of 354 files reach 99 percent and 132 reach 95 percent. 80 files (22.5 percent) are structurally correct. Dynamics and hairpins recall, exact pairs: 74.0 percent (dynamics 77.7, hairpins 65.6).
+- **homr:** note accuracy 55.9 percent, or 61.5 percent over the 340 completed files. 15 failed: 13 timeouts and 1 crash (OpenCV, on a one-page file). Per-file median 91.8 percent. 100 of 340 files reach 99 percent and 155 reach 95 percent. 63 files (17.7 percent) are structurally correct. It writes no dynamics or hairpins.
 - **Better of the two for each file:** 89.1 percent. Audiveris is better by more than 5 points on 155 files, homr on 94, and they are within 5 points on 106.
 
 ### Real-world pairs (40 MuseScore.com uploads)
 
-- **Audiveris:** 80.5 percent, none failed, per-file median 93.0 percent, 11 of 40 at 99 percent, 30 percent structurally correct.
-- **homr:** 63.9 percent, 1 failed (a 30-page file, timeout), per-file median 99.7 percent, 23 of 39 at 99 percent, 22.5 percent structurally correct.
+- **Audiveris:** 80.5 percent, none failed, per-file median 93.0 percent, 11 of 40 at 99 percent, 35.0 percent structurally correct.
+- **homr:** 63.9 percent, 1 failed (a 30-page file, timeout), per-file median 99.7 percent, 23 of 39 at 99 percent, 30.0 percent structurally correct.
 - **One pair is faulty:** `real-cf113e2176a3`, an 8-part choir piece. Both tools miss the same 531 notes and get nearly every other note right, and both find 7 parts where the MusicXML has 8. The PDF almost certainly lacks a part the MusicXML has (MuseScore lets an uploader hide a staff). Without it, Audiveris scores 82.5 percent and homr 64.2 percent. Real uploads can differ from their own data in this way, so a real-world pair where every recogniser misses the same notes should be checked before it is counted.
 - On these simpler files the order is the same: Audiveris is steadier, homr is near perfect on short single-staff files and poor on long or multi-part ones. Most Audiveris errors here are missing notes (61.5 percent of its errors), most of them in two chamber files where it found only a bar or two.
 
@@ -50,7 +50,7 @@ With the fixes, 16 of the 17 read. The last is a 28-page file that ran out of ti
 - **No text at all.** Lyrics, words (tempo and expression text), chord symbols and fingering are 0 percent for both tools. In a vector PDF all of this is in the text layer.
 - **Rhythm more than pitch.** For Audiveris, onset errors (8,194) outnumber pitch errors (5,734). About 13 percent of its wrong notes are tuplet mistakes: 1,077 notes read as tuplets that are not, and 1,611 tuplet notes read as plain notes. For homr it is 17 percent. One missed triplet bracket shifts every later note in the bar.
 - **Octave clefs.** Most clef errors involve the small 8 on a treble clef. The commonest Audiveris clef errors are a plain treble clef read as an octave-down one (68), the reverse (49), and a plain treble read as octave-up (28). homr's commonest is an octave-down treble read as plain (73). Under the clef rule each is one error, but before the rule they cost Audiveris 18,304 notes and homr 10,262.
-- **Structure is rarely right.** Only 9 to 11 percent of files are structurally correct. Part of this is how the harness counts (see "Restated signatures"), but not all of it.
+- **Structure is rarely right.** Only 18 to 23 percent of files are structurally correct, even with restatements ignored (see "Restated signatures"). Clefs, key signatures and the bar count are the commonest real mismatches.
 
 ### Audiveris
 
@@ -68,13 +68,13 @@ With the fixes, 16 of the 17 read. The last is a 28-page file that ran out of ti
 - **Missing and extra notes, not wrong ones.** Of homr's errors, 49 percent are missing notes and 31 percent extra notes. Only 20 percent are wrong notes. When it reads a staff, it reads it well.
 - **No markings:** no dynamics, hairpins or text. Files with dynamics score 45.8 percent, against 72.3 without. That gap probably reflects that those files are longer and have more parts, not the dynamics themselves.
 
-## Restated signatures (a harness question for the owner)
+## Restated signatures
 
-The harness counts a clef, key signature or time signature that the output restates, with the same value as the one already in force, as a structural mismatch. Audiveris writes the key signature again at many systems, and homr writes the clef and key on every page it joins. This is the main reason so few files are structurally correct: 285 of 354 Audiveris files have a key-signature mismatch.
+Audiveris writes the key signature again at many systems, and homr writes the clef and key on every page it joins. A restatement is not a change in the music, so under spec decision 11 a clef, key or time signature equal to the one already in force is ignored in both files. A printed restatement in the output is a matter for output quality, not structure.
 
-An experiment (not a spec change) dropped restatements from both files before comparing. Audiveris then has 80 structurally correct files (22.5 percent, against 9.0), and homr 63 (17.7 percent, against 11.3). Files with a key-signature mismatch fall from 269 to 122 for Audiveris (counted on the first-run outputs). Note accuracy does not change.
+The rule lifts structural correctness without changing note accuracy: Audiveris from 9.0 to 22.5 percent, homr from 11.3 to 17.7, LEGATO from 25.0 to 32.1, and on the real-world pairs Audiveris from 30.0 to 35.0 and homr from 22.5 to 30.0. Files with a key-signature mismatch fall from 285 to 127 of 354 for Audiveris.
 
-A restatement is not a change in the music, so the proposal is to add a spec decision: **a clef, key or time signature equal to the one already in force is ignored in both files**. A restated signature is still a fault in the MusicXML for a braille reader if it is printed, but that is a matter for output quality, not structure. This needs the owner's agreement, and Opus should review it, as with the clef rule. If agreed, the rescoring needs no new runs.
+What is left for Audiveris, in files with at least one mismatch of each kind (354 completed files): clef 128, key signature 127, bar count 89, time signature 87, ending 87, parts 27, repeat 27. For homr (340): clef 186, time signature 166, key signature 122, bar count 120, parts 65, repeat 73, ending 52. These are real misreadings.
 
 ## Where the project can win
 
@@ -97,11 +97,11 @@ In order of the size of the gain:
 
 A development baseline only, run on a small sample. 28 of the 35 queued pairs were read (55 pages): MuseScore 4 base export (Leland) only, one file at a time, 3 threads, scored with `--no-musicdiff` and the clef rule into `evaluations/legato-sample-final`. The 7 pairs left in the queue (12 pages, the longest ones) were not run, by the owner's decision to close Phase 0. The sample is not the Audiveris and homr sample (that one had 355 pairs over all engravers and fonts), so the comparison is rough.
 
-- **Overall:** note accuracy 83.4 percent, 25.0 percent structurally correct (7 of 28), median file 93.4 percent, lowest 49.2, highest 100. Strict note accuracy 82.8 percent. For comparison, Audiveris 86.3 percent and homr 55.9 percent on their own sample. The first night's partial figure (74.3 percent over 12 pairs) is superseded; pair 12, run again, scored 83.5 percent where the disturbed first run gave 49.2.
+- **Overall:** note accuracy 83.4 percent, 32.1 percent structurally correct (9 of 28), median file 93.4 percent, lowest 49.2, highest 100. Strict note accuracy 82.8 percent. For comparison, Audiveris 86.3 percent and homr 55.9 percent on their own sample. The first night's partial figure (74.3 percent over 12 pairs) is superseded; pair 12, run again, scored 83.5 percent where the disturbed first run gave 49.2.
 - **Errors (all 28):** 7,581 notes; 6,916 exactly right, 404 wrong, 261 missing, 708 extra, 2 clef errors. Of the wrong notes, 295 are pitch only. Staff (99.8 percent), voice (99.3) and tie (98.7) are high. Rests are weak (83.8). Extra notes outnumber missing ones, which is unlike Audiveris and homr.
 - **Markings:** dynamics 77.5 percent and hairpins 81.2 percent of exact pairs, fermatas 93.5, accents and staccato 100 (few), slur ends 91.0, trill marks 100 (8). Lyrics 0 of 1,370, words 1 of 106, chord symbols 0 of 138, because LEGATO writes no text.
 - **By genre (few files each):** sacred 96.0 percent (4), jazz 93.4 (2), popular 86.6 (5), unlabelled 87.0 (4), folk 82.6 (5), classical 75.1 (5), educational 66.2 (3). By texture: piano 90.1 (9), single line 87.5 (9), voice with piano 75.6 (6), chamber 91.7 (2), small ensemble 68.8 (1), choir 55.9 (1). With these counts the groups say little.
-- **Structure:** 7 of 28 structurally correct. Most mismatches are restated clefs and signatures, as for the other two tools (see the restated-signatures question above).
+- **Structure:** 9 of 28 structurally correct. The commonest real mismatches are the bar count (15 files), clefs and repeats (7 each) and time signatures (6).
 - **Speed:** over the 28 pairs, 18.4 minutes a page on average (55 pages), median 16.8 per pair, range 13.8 to 31.3. One file at a time with nothing else heavy running, so this is usable for OP-2. A 10-staff page is therefore about 18 minutes, which rules a model of this kind out for the shipped product on the CPU alone.
 - **Reading:** LEGATO is a better reader than homr on the notes it reads (83.4 against 55.9 percent), close to Audiveris (on different samples). Only one font was tested, so nothing is known about font effects. It is 40 to 50 times slower than the others and writes no text. It confirms that a large image-to-sequence model can reach about Audiveris level, not 99 percent.
 
@@ -113,7 +113,6 @@ A development baseline only, run on a small sample. 28 of the 35 queued pairs we
 ## Not done, or left open
 
 - LEGATO over the last 7 pairs of its sample (12 pages). Not run: Phase 0 is closed without them.
-- The restated-signatures decision (above).
 - Audiveris and homr are not added to the regression baseline in CI. CI does not have the tools, and a run takes about half a minute a page. The regression baseline stays with the stand-in recognisers.
 - TEDn is still not computed (spec decision 7).
 

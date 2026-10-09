@@ -394,6 +394,49 @@ def test_changed_time_signature_is_one_mismatch_in_words(tmp_path):
         "Bar 1, Flute: the ground truth has a 4/4 time signature, the output has a 2/2 time signature."]
 
 
+def restate(key=None, time=None, clef=None):
+    """An attributes element restating a key, time or clef (G2 style)."""
+    xml = f"<key><fifths>{key}</fifths></key>" if key is not None else ""
+    if time:
+        beats, beat_type = time.split("/")
+        xml += f"<time><beats>{beats}</beats><beat-type>{beat_type}</beat-type></time>"
+    if clef:
+        xml += f"<clef><sign>{clef[0]}</sign><line>{clef[1]}</line></clef>"
+    return f"<attributes>{xml}</attributes>"
+
+
+def test_restated_signatures_are_ignored_in_both_files(tmp_path):
+    # Decision 11: a clef, key or time equal to the one in force is not a structural mismatch.
+    truth = score(("Flute", [four_quarters(first=attributes(key=2)), four_quarters(first=restate(clef="G2")),
+                             four_quarters(first=" ")]))
+    output = score(("Flute", [four_quarters(first=attributes(key=2)), four_quarters(first=restate(key=2, time="4/4")),
+                              four_quarters(first=restate(key=2, clef="G2"))]))
+    fig = compare(tmp_path, truth, output)
+    assert fig["structure"]["correct"], fig["structure"]["mismatches"]
+
+
+def test_a_real_change_after_a_restatement_still_counts(tmp_path):
+    # The output restates 2 sharps in bar 2 but misses the change to 3 sharps in bar 3.
+    truth = score(("Flute", [four_quarters(first=attributes(key=2)), four_quarters(first=" "),
+                             four_quarters(first=restate(key=3))]))
+    output = score(("Flute", [four_quarters(first=attributes(key=2)), four_quarters(first=restate(key=2)),
+                              four_quarters(first=" ")]))
+    fig = compare(tmp_path, truth, output)
+    assert fig["structure"]["mismatches"] == [
+        "Bar 3, Flute: the ground truth has a key signature of 3 sharps, the output does not."]
+
+
+def test_a_key_for_one_staff_is_not_restated_by_a_key_for_the_whole_part(tmp_path):
+    two = attributes(key=0, clefs=("G2", "F4"), staves=2)
+    staff_key = '<attributes><key number="2"><fifths>1</fifths></key></attributes>'
+    truth = events.read(write(tmp_path, "t.musicxml", score(("Piano", [
+        two + note("C5") + backup(12) + note("C3", staff=2),
+        staff_key + note("C5") + backup(12) + note("C3", staff=2),
+        restate(key=0) + note("C5") + backup(12) + note("C3", staff=2),    # puts staff 2 back to 0: a change
+        restate(key=0) + note("C5") + backup(12) + note("C3", staff=2)])))) # now a restatement
+    assert [(e.kind, e.bar) for e in events.restated(truth)] == [("key", 3)]
+
+
 def test_flags_cover_errors_in_flagged_bars(tmp_path):
     # Errors in bars 1 and 3; bar 1 is flagged: 1 of 2 covered.
     truth = score(("Flute", [four_quarters(), four_quarters("G4 A4 B4 C5", first=" "), four_quarters("D5 E5 F5 G5", first=" ")]))
@@ -455,12 +498,26 @@ def test_damaged_recogniser_scores_what_its_damage_implies(tmp_path, seed):
     n = fig["notes"]
     assert (n["missing"], n["extra"], n["wrong"]) == (expected["missing"], expected["extra"], expected["wrong"])
     assert n["wrong by kind"].get("spelling only", 0) == expected["spelling only"]
-    assert len(fig["structure"]["mismatches"]) == expected["structure mismatches"] == 2   # the join and a removed change
+    # The join and a removed change, which counts twice when it makes the change back a restatement.
+    assert len(fig["structure"]["mismatches"]) == expected["structure mismatches"] >= 2
     assert fig["flags"]["covered"] == expected["covered"]
     assert fig["markings"]["dynamic"]["found"] == fig["markings"]["dynamic"]["truth"] - expected["dynamics removed"]
     assert fig["markings"]["hairpin"]["found"] == fig["markings"]["hairpin"]["truth"] - expected["hairpins removed"]
     assert expected["hairpins removed"] == 1 and expected["chords split"] == 1
     assert fig["diagnostics"]["voice"]["right"] == fig["diagnostics"]["voice"]["of"]
+
+
+def test_damaged_recogniser_does_not_remove_a_restatement(tmp_path):
+    # Bar 2 restates the treble clef; removing it would change nothing (decision 11),
+    # so the damage must remove a real change instead.
+    text = long_score().replace('<measure number="2">', '<measure number="2"><attributes><clef><sign>G</sign>'
+                                '<line>2</line></clef></attributes>', 1)
+    truth = write(tmp_path, "truth.musicxml", text)
+    expected = recognisers.damage(truth, tmp_path / "out", seed=1)
+    fig = metrics.compare(truth, tmp_path / "out" / "score.musicxml", tmp_path / "out" / "flags.json")
+    assert len(fig["structure"]["mismatches"]) == expected["structure mismatches"] >= 2
+    assert all(c["bar"] != 2 for c in json.loads((tmp_path / "out" / "damage.json").read_text())["changes"]
+               if c["kind"] == "structure removed")
 
 
 def test_runner_with_perfect_and_a_failing_recogniser(tmp_path):

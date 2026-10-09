@@ -13,7 +13,7 @@ What Phase 0 showed that shapes this plan:
 - Almost every page is Type A. No Type B was found. The vector path is the main path.
 - The best baseline is 86.3 percent (Audiveris). All baselines lose most on rhythm and tuplets, text, unusual fonts and multi-staff systems.
 - Only Emmentaler needs a mapping table so far.
-- Only 9 to 25 percent of files are structurally correct for every tool, mostly because of restated signatures.
+- Only 18 to 32 percent of files are structurally correct for every tool, even with restated signatures ignored (spec decision 11).
 
 ## Stage 1.0: Decisions and open risks first
 
@@ -32,8 +32,9 @@ Done when: the spec decision is recorded, the survey has some commercial engrave
 
 - Map glyphs to symbols through SMuFL code points first (MScore, Leland, Bravura, Petaluma, MuseJazz, Gootville, Finale SMuFL fonts).
 - Add the Emmentaler table (one table for its size variants).
-- Add tables for Maestro, Opus, Petrucci and November only if Stage 1.0 finds files that use them, in order of files covered.
-- Handle outlined glyphs (Type B) by shape matching only if Stage 1.0 shows they occur. Otherwise give a clear "not supported" message.
+- Add tables for the legacy fonts Stage 1.0 found: Opus and Helsinki (Sibelius) and Maestro (Finale), each with its companion fonts (OpusSpecial, HelsinkiSpecial, OpusText and the like). Petrucci and November did not occur, so they wait.
+- Tell which legacy font a renamed font is (printer drivers rename them, for example "TTE26B52B8t00") from its glyph shapes, so the right table can be used.
+- Handle outlined glyphs (Type B) by shape matching. Stage 1.0 found them in 4 of 20 commercial files, from all three programs. Where the route is known, the score was printed to PDF, not exported.
 
 Done when: every symbol class in the corpus is mapped, and a count of unmapped glyphs is reported per file.
 

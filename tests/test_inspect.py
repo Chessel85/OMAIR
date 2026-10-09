@@ -143,15 +143,22 @@ def test_text_only_page_has_no_music(tmp_path):
     assert decision.type == "N"
 
 
-def _renamed_font(fontname):
+def _renamed_font(fontname, music=False):
     """A copy of a built-in font whose own name is `fontname`: the name the
-    inspector sees comes from the font file, not from the page's resource name."""
+    inspector sees comes from the font file, not from the page's resource name.
+    With `music`, "q" is drawn as a quarter note, as a legacy 8-bit music font
+    draws it, so the font fails the letter-shape test."""
     import io
 
     ttlib = pytest.importorskip("fontTools.ttLib")
     matplotlib = pytest.importorskip("matplotlib")
     source = Path(matplotlib.get_data_path()) / "fonts" / "ttf" / "DejaVuSans.ttf"
     font = ttlib.TTFont(str(source))
+    if music:
+        for table in font["cmap"].tables:
+            if table.isUnicode() and ord("q") in table.cmap:
+                table.cmap[ord("q")] = "uni2669"
+                table.cmap.pop(0x2669, None)
     for record in font["name"].names:
         if record.nameID in (1, 4, 6, 16):
             record.string = fontname
@@ -160,16 +167,16 @@ def _renamed_font(fontname):
     return out.getvalue()
 
 
-def _staff_page(tmp_path, name, fontname, on_staff, above_staff=0, near_above=0, extra_staves=0):
+def _staff_page(tmp_path, name, fontname, on_staff, above_staff=0, near_above=0, extra_staves=0, music=True):
     """One page with a drawn five-line staff and letters placed on it under a
     made-up font name, as a legacy 8-bit music font would put its symbols.
     `above_staff` letters are far above the staff, `near_above` are half a staff
     space above its top line (origin and centre both outside), and
     `extra_staves` adds real staves lower down so that the median staff space
-    is well established."""
+    is well established. With `music` false the "q" is a real letter."""
     doc = pymupdf.open()
     page = doc.new_page(width=595, height=842)
-    page.insert_font(fontname=fontname, fontbuffer=_renamed_font(fontname))
+    page.insert_font(fontname=fontname, fontbuffer=_renamed_font(fontname, music))
     top, space = 200.0, 7.0
     for k in range(1 + extra_staves):
         for i in range(5):
@@ -196,6 +203,20 @@ def test_unknown_font_with_letters_on_a_staff_is_probably_music(tmp_path):
     assert classes == {"MadeUpMusic": "unknown_music"}
     assert any("unknown font, probably music: MadeUpMusic" in w for w in decision.warnings)
     assert ev.fonts[0].to_dict()["glyphs_on_staves"] == 20
+
+
+def test_unknown_font_drawn_as_letters_on_a_staff_is_text_without_a_warning(tmp_path):
+    # Dynamics or tempo words on a dense page: on the staff, but drawn as letters.
+    classes, ev, decision = _classes(_staff_page(tmp_path, "letters.pdf", "MadeUpWords", on_staff=20, music=False))
+    assert classes == {"MadeUpWords": "text"}
+    assert ev.fonts[0].letter_share == 1.0
+    assert not any("font" in w for w in decision.warnings)
+
+
+def test_letter_shape_test_reads_the_glyph_not_the_code(tmp_path):
+    # The same code, "q", drawn as a quarter note: not a letter.
+    _, ev, _ = _classes(_staff_page(tmp_path, "note.pdf", "MadeUpNote", on_staff=20))
+    assert ev.fonts[0].letter_share == 0.0
 
 
 def test_unknown_font_with_letters_above_the_staff_is_text(tmp_path):
@@ -250,6 +271,72 @@ def test_five_widely_spaced_rules_are_not_a_staff_for_the_font_test(tmp_path):
     classes, ev, _ = _classes(tmp_path / "false.pdf")
     assert ev.staves.five_line >= 4
     assert set(classes.values()) == {"text"}
+
+
+def _font_use(name, codes, on_staves=0):
+    from omr.pdf import evidence
+
+    use = evidence.FontUse(name)
+    for code in codes:
+        use.glyphs += 1
+        use.pua_glyphs += evidence.PUA[0] <= code <= evidence.PUA[1]
+        use.smufl_glyphs += evidence.SMUFL[0] <= code <= evidence.SMUFL[1]
+        use.symbol_glyphs += evidence.SYMBOL_BLOCK[0] <= code <= evidence.SYMBOL_BLOCK[1]
+        # the first `on_staves` glyphs inside the staff box used by the tests, the rest above it
+        y = 210.0 if len(use.centres) < on_staves else 100.0
+        use.centres.append((100.0, y))
+        use.origins.append((100.0, y))
+    return use
+
+
+def test_windows_symbol_font_is_legacy_not_smufl():
+    # Sibelius's Opus as a Windows symbol font: byte codes moved up to U+F0xx,
+    # inside the SMuFL range (U+F0CF is its filled notehead, not a SMuFL symbol).
+    from omr.pdf import evidence
+
+    staves = evidence.Staves(five_line=1, staff_space_pt=7.0, boxes=[(50, 550, 200, 228)])
+    fonts = {
+        "Opus": _font_use("Opus", [0xF0CF] * 30 + [0xF026, 0xF062]),
+        "TTE26B52B8t00": _font_use("TTE26B52B8t00", [0xF0CF] * 30, on_staves=30),
+        "Bravura": _font_use("Bravura", [0xE0A4] * 30 + [0xE050]),
+    }
+    evidence.classify_fonts(fonts, staves)
+    assert {n: f.cls for n, f in fonts.items()} == {
+        "Opus": "legacy", "TTE26B52B8t00": "unknown_music", "Bravura": "smufl"}
+    assert evidence.plain_code(0xF062) == ord("b") and evidence.plain_code(0xE0A4) == 0xE0A4
+
+
+def test_a_beam_lying_on_a_staff_line_does_not_hide_the_staff():
+    # Finale draws some beams exactly on a staff line. Joined to the line, the
+    # beam's thickness made the line look too thick to be a staff line.
+    from omr.pdf import evidence
+
+    lines = [(200.0 + 7 * i, 50.0, 550.0, 0.5) for i in range(5)]
+    beam = (214.0, 300.0, 340.0, 3.2)
+    staves = evidence.find_staves(lines + [beam], [])
+    assert staves.five_line == 1 and staves.staff_space_pt == 7.0
+
+
+def test_a_stack_of_ledger_lines_is_not_a_staff():
+    # Five ledger lines between two staves, two staff spaces wide.
+    from omr.pdf import evidence
+
+    lines = [(200.0 + 7 * i, 50.0, 550.0, 0.5) for i in range(5)]
+    ledgers = [(240.0 + 7 * i, 220.0, 234.0, 0.5) for i in range(5)]
+    assert evidence.find_staves(lines + ledgers, []).five_line == 1
+
+
+def test_a_landscape_page_stored_sideways_is_read_as_shown(tmp_path):
+    # A portrait page with a 90 degree rotation: as stored, its staff lines are vertical.
+    doc = pymupdf.open()
+    page = doc.new_page(width=595, height=842)
+    for i in range(5):
+        x = 200 + i * 7
+        page.draw_line((x, 50), (x, 790), width=0.5)
+    page.set_rotation(90)
+    doc.save(tmp_path / "sideways.pdf")
+    ev, _ = page_result(tmp_path / "sideways.pdf")
+    assert ev.staves.five_line == 1 and ev.staves.staff_space_pt == 7.0
 
 
 def test_hidden_text_layer_is_noted_and_does_not_count_as_a_font(raster_png, tmp_path):

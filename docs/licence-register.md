@@ -56,6 +56,15 @@ These were settled by a default rule so that work is not blocked. Change any you
 - Source: Web search, 5 Oct 2026: cpdl.org ChoralWiki licence pages. The licence of each edition is read at collection time.
 - Status: owner to resolve. Default rule adopted so work is not blocked. Change it if you prefer.
 
+### IMSLP
+
+- Kind: dataset
+- Version: a hand-picked sample of 21 files, October 2026
+- Licence: Per file: public domain, CC0, or Creative Commons of various kinds (some non-commercial). The licence of each file is recorded in `sources/other/imslp/sample.json` on the corpus drive.
+- Use: Survey of commercial engraver output (Sibelius, Finale, Dorico) in Phase 1 Stage 1.0. The files stay in the git-ignored corpus folder and are never committed. IMSLP answers scripted downloads with a bot check, so the owner downloaded the files by hand in a browser.
+- Source: imslp.org file pages, 9 Oct 2026.
+- Status: ok for local survey use.
+
 ### Mutopia
 
 - Kind: dataset

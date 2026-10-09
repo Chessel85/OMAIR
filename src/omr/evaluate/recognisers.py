@@ -9,6 +9,7 @@ Run as: python -m omr.evaluate.recognisers perfect|damaged PDF OUT --truth FILE 
 """
 
 import argparse
+import collections
 import copy
 import json
 import random
@@ -292,18 +293,30 @@ def damage(truth, out, seed=1, flag_share=0.5):
         if removed:
             break
     # 10. Remove one clef, key or time change after the first bar (one structural error).
+    #     A restatement is not a change (decision 11), so removing one is not damage. Removing
+    #     a change can also make a later change a restatement (a clef change and the change
+    #     back), which is one more mismatch, so each candidate is checked by reading the score.
+    before = collections.Counter(events.signature_changes(events.from_root(root)))
     removed = False
     for p, part in enumerate(d.parts):
         for b, measure in enumerate(part.findall("measure")):
             if b == 0 or b in d.used_bars or (join_at is not None and b >= join_at):
                 continue
             for attributes in measure.findall("attributes"):
-                change = next((c for c in attributes if c.tag in ("clef", "key", "time")), None)
-                if change is not None:
+                for index, change in enumerate(list(attributes)):
+                    if change.tag not in ("clef", "key", "time"):
+                        continue
                     attributes.remove(change)
-                    d.expected["structure mismatches"] += 1
-                    d.take("structure removed", b, 0, f"part {p + 1}: a {change.tag} change removed")
-                    removed = True
+                    after = collections.Counter(events.signature_changes(events.from_root(root)))
+                    lost = sum((before - after).values())
+                    if lost and not after - before:
+                        d.expected["structure mismatches"] += lost
+                        d.take("structure removed", b, 0, f"part {p + 1}: a {change.tag} change removed"
+                               + (f", which makes {lost - 1} later change a restatement" if lost > 1 else ""))
+                        removed = True
+                        break
+                    attributes.insert(index, change)
+                if removed:
                     break
             if removed:
                 break
