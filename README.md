@@ -2,11 +2,12 @@
 
 A free, offline optical music recognition tool. It converts sheet music PDFs and images into accurate MusicXML and braille music, and reports in plain text where it is unsure. Licensed under AGPL-3.0.
 
-The project is in Phase 1 (vector PDFs). It names the symbols of a vector PDF and reads its structure, its notes (pitch, rhythm, voices, ties, grace notes) and its text and markings (title and composer, lyrics, chord symbols, tempo and expression text, dynamics, hairpins, articulations, slurs, fingering), but does not yet write MusicXML. `scripts/check_notes.py` and `scripts/check_markings.py` measure what it reads against the ground truth. The `omr` command has these subcommands:
+The project is in Phase 1 (vector PDFs). It names the symbols of a vector PDF and reads its structure, its notes (pitch, rhythm, voices, ties, grace notes) and its text and markings (title and composer, lyrics, chord symbols, tempo and expression text, dynamics, hairpins, articulations, slurs, fingering), and flags the bars that may be wrong, but does not yet write MusicXML. `scripts/check_notes.py`, `scripts/check_markings.py` and `scripts/check_flags.py` measure what it reads and flags against the ground truth. The `omr` command has these subcommands:
 
 - `omr inspect FILE`: says what kind of PDF each page is (vector music with font glyphs or outlines, a clean image, or a photo or scan) and which music font it uses.
 - `omr symbols FILE`: names every music symbol in a vector PDF (from its music font, or by shape where the symbols are outlines) and counts any that cannot be named.
 - `omr layout FILE`: reports the parts, systems and bars of a vector PDF, and its clef, key and time changes, repeats and endings, in words.
+- `omr confidence FILE`: reads the notes of a vector PDF and reports, in words, the bars that may be wrong and why (the confidence report). With `--out FOLDER` it also writes the flag file the evaluation harness reads.
 - `omr evaluate --set SET --recogniser NAME_OR_COMMAND`: runs a recogniser over a corpus set and reports its accuracy against the ground truth, in plain text. The metrics are defined in `docs/notes/evaluation-spec.md`.
 - `omr convert`: not implemented yet.
 

@@ -44,7 +44,7 @@ The notes and rests of one staff in one bar are read together.
 ## Bar arithmetic (ACC-5)
 
 - **Hidden tuplets.** When a staff's bar does not add up (cost above 0), beam groups of 3, 5, 6, 7, 9, 10 or 12 notes of one value, with no tuplet number, are read as tuplets (3 in the time of 2, 6 in the time of 4, and so on). The reading is kept if the bar then adds up better.
-- **Unfilled bars** (`unfilled_bars`): each voice whose notes and rests do not reach the end of the bar, or run past it, is listed. A short first bar (a pickup), two short bars side by side that make one (a bar split at a repeat), and a voice that fills only part of a bar whose other voices fill it (hidden rests) are not listed. These are the first flags for the confidence report (Stage 1.5). `check_notes.py` scores them as a flag file.
+- **Unfilled bars** (`unfilled_bars`): each voice whose notes and rests do not reach the end of the bar, or run past it, is listed. A short first bar (a pickup), two short bars side by side that make one (a bar split at a repeat), and a voice that fills only part of a bar whose other voices fill it (hidden rests) are not listed. This is the bar-fullness rule of the confidence report (`confidence-spec.md`). `check_notes.py` scores it alone as a flag file. The reader also notes its doubts about rhythm, staves that disagree in time, unprinted tuplets, stray symbols and octave signs as it reads; they are described in `confidence-spec.md`.
 
 ## Pitch
 

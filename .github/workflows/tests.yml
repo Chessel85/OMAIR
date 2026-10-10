@@ -52,3 +52,7 @@ jobs:
       # if ACC-6 (dynamics and hairpins, exact pairs) falls below the floor.
       - name: Text and markings read from the PDFs
         run: python scripts/check_markings.py --workers 2 --min-acc6 97.0
+      # Flags the bars that may be wrong (Stage 1.5) and fails if the share of
+      # note errors in flagged bars (ACC-4, exact pairs) falls below the floor.
+      - name: Confidence flags against the note errors
+        run: python scripts/check_flags.py --workers 2 --min-recall 92.0

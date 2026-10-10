@@ -72,7 +72,7 @@ Note accuracy means the proportion of notes whose pitch, onset and duration all 
 | ACC-1 | Vector PDFs | At least 99 percent note accuracy, and at least 95 percent of files structurally correct. | Must | 1 | VS and D |
 | ACC-2 | Clean raster input | At least 97 percent note accuracy. | Must | 2 | VS and D |
 | ACC-3 | Photos and scans | At least 93 to 95 percent note accuracy on photos and scans taken in reasonable conditions. | Must | 4 | VS and D |
-| ACC-4 | Error flagging | At least 90 percent of the actual note errors must fall in bars that the confidence report flags. | Should | 1 | D (target to be refined) |
+| ACC-4 | Error flagging | At least 90 percent of the actual note errors must fall in bars that the confidence report flags, with at most 10 percent of bars flagged. Measured on the exact pairs of the vector corpus. | Should | 1 | D |
 | ACC-5 | Musical context | Use musical context to improve accuracy. For example, the notes of each voice in a bar must add up to the time signature. | Must | 1 | VS |
 | ACC-6 | Performance markings | At least 90 percent recall of dynamics and hairpins on vector input. | Should | 1 | D |
 
@@ -120,4 +120,4 @@ Note accuracy means the proportion of notes whose pitch, onset and duration all 
 | --- | --- | --- | --- | --- |
 | OI-1 | Braille music code | Which braille music code, formatting conventions and output file format (for example BRF, Unicode braille text, or both) should be the default? | The project owner, through the MuseScore community | Blocks the Phase 3 decisions on braille, but not Phase 1. |
 | OI-2 | Speed targets | Closed at the end of Phase 0: the OP-3 targets are confirmed, with the raster caveat noted in OP-3. | Not assigned | Closed. |
-| OI-3 | Error-flagging target | The ACC-4 target needs refining once the first measurements exist (Phase 1). | Not assigned | Affects ACC-4. |
+| OI-3 | Error-flagging target | Closed in Phase 1, Stage 1.5: the ACC-4 target is at least 90 percent of note errors in flagged bars with at most 10 percent of bars flagged, on exact pairs (see `docs/notes/confidence-spec.md`). | Not assigned | Closed. |

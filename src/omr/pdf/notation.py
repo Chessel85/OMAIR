@@ -489,6 +489,9 @@ def attach_beams(stems, beams, space):
 
 
 def attach_flags(stems, flags, space):
+    """Each flag to the stem whose free end it is at. Returns the flags no
+    stem took."""
+    left = []
     for flag in flags:
         best, best_d = None, None
         for stem in stems:
@@ -499,6 +502,9 @@ def attach_flags(stems, flags, space):
                 best, best_d = stem, d
         if best is not None:
             best.flags = max(best.flags, FLAG_COUNT[flag.name])
+        else:
+            left.append(flag)
+    return left
 
 
 def make_chords(heads, stems, space):
@@ -651,7 +657,8 @@ def apply_tuplets(marks, evs, stems, lines, verticals, space, compound):
     """Give each tuplet number's events their ratio. The events are those
     under its bracket (thin lines either side of the number at its height,
     with hooks at their outer ends), or else those of the beam group the
-    number stands over."""
+    number stands over. Returns the numbers that found no events."""
+    unused = []
     for m in marks:
         if not 1 < m.actual < 20:
             continue
@@ -669,11 +676,13 @@ def apply_tuplets(marks, evs, stems, lines, verticals, space, compound):
         else:
             members = _beam_group(m, evs, space)
         if len(members) < 2:
+            unused.append(m)
             continue
         normal = m.normal or _normal(m.actual, compound)
         for e in members:
             if e.tuplet is None:
                 e.tuplet = (m.actual, normal)
+    return unused
 
 
 def _normal(actual, compound):
@@ -904,6 +913,63 @@ def assign_onsets(staff_events, space, bar_length=None, reference=()):
     return best_cost
 
 
+def _rhythm_doubts(staff_events, bar_length):
+    """The parts of the onset search's cost that point at a misread note
+    (docs/notes/confidence-spec.md): a column that starts where no event
+    before it ends, an event that ends where nothing starts and that later
+    events pass over, and an event that runs past the bar's end. A voice
+    that stops short of the end is not counted: engravers hide rests."""
+    timed = [e for e in staff_events if e.onset is not None]
+    if not timed:
+        return []
+    starts = {e.onset for e in timed}
+    ends = {e.onset + e.duration for e in timed}
+    last = max(starts)
+    out = []
+    late = sorted(t for t in starts if t and t not in ends)
+    if late:
+        out.append(("a note starts where no note before it ends", late[0]))
+    gaps = sorted(e.onset for e in timed if e.onset + e.duration < last and e.onset + e.duration not in starts)
+    if gaps:
+        out.append(("a note ends where no note follows it", gaps[0]))
+    over = sorted(e.onset for e in timed if not e.whole_bar and e.onset + e.duration > bar_length)
+    if over:
+        out.append(("a note runs past the end of the bar", over[0]))
+    return out
+
+
+def _column_conflicts(by_staff_bar, space):
+    """(staff, bar of the system, reason, onset) for each staff whose events
+    disagree in time with those of another staff of the system: one
+    further right that starts earlier, or one at the same place that starts
+    at a different time. Both staves are listed, since either may be wrong."""
+    by_bar = collections.defaultdict(list)
+    for (staff_id, k), group in by_staff_bar.items():
+        # a whole-bar rest stands in the middle of the bar but starts it
+        by_bar[k].append([e for e in group if not e.grace and not e.whole_bar and e.onset is not None])
+    out = []
+    for k, groups in by_bar.items():
+        for i, a_group in enumerate(groups):
+            for b_group in groups[i + 1:]:
+                conflict = onset = None
+                for a in a_group:
+                    for b in b_group:
+                        first, second = (a, b) if a.x <= b.x else (b, a)
+                        gap = second.x - first.x
+                        if gap <= 0.3 * space and a.onset != b.onset:
+                            conflict = "notes in line with those of another staff start at a different time"
+                        elif gap >= 1.5 * space and second.onset < first.onset:
+                            conflict = "a note starts before one to its left on another staff"
+                        if conflict:
+                            onset = second.onset
+                            break
+                    if conflict:
+                        break
+                if conflict and a_group and b_group:
+                    out += [(a_group[0].staff, k, conflict, onset), (b_group[0].staff, k, conflict, onset)]
+    return out
+
+
 def _assign_voices(staff_events):
     """Voices as chains: each event continues a voice that ends where it
     starts, preferring the same stem direction; stems up take the lower
@@ -995,7 +1061,9 @@ def key_alter(fifths, letter):
 
 def attach_accidentals(accidentals, heads, space):
     """Each accidental to the notehead on its step just to its right (a
-    chord's accidentals stand in columns before it)."""
+    chord's accidentals stand in columns before it). Returns the
+    accidentals no notehead took."""
+    left = []
     for a in sorted(accidentals, key=lambda a: -a.x):
         alter = accidental_alter(a.symbol.name)
         best, best_d = None, None
@@ -1007,6 +1075,9 @@ def attach_accidentals(accidentals, heads, space):
                 best, best_d = h, d
         if best is not None:
             best.accidental = alter
+        else:
+            left.append(a)
+    return left
 
 
 # ---------------------------------------------------------------- the score
@@ -1126,11 +1197,21 @@ def h_space(pl):
 
 def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_force, clef_onsets, lengths,
                  open_ties):
-    from omr.pdf import markings
+    from omr.pdf import markings, rules
 
     beams, curves, dashed, thin = shapes.beams, shapes.level_curves, shapes.dashed, shapes.thin
     space = statistics.median(s.space for s in system.staves)
     members = {id(st): k for k, st in enumerate(system.staves)}
+
+    def doubt(staff, k, rule, reason, onset=None):
+        """Note a doubt (Stage 1.5, omr.pdf.rules) on a staff in bar k of
+        the system, or at a place x when k is a float."""
+        if isinstance(k, float):
+            k = structure._bar_of(system, k)
+        if k is None or id(staff) not in members:
+            return
+        part, number = mapping.staves[members[id(staff)]]
+        score.doubts.append(rules.Flag(part, number, bar_base + k, rule, reason, onset))
     heads = []
     for s in pl.symbols:
         if is_head(s.name):
@@ -1151,7 +1232,8 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
     stems += hidden_stems(heads, stems, beam_list, space, pl.verticals)
     attach_beams(stems, beam_list, space)
     flags = [s for s in pl.symbols if s.name in FLAG_COUNT and id(pl.staff_of(s)) in members]
-    attach_flags(stems, flags, space)
+    for flag in attach_flags(stems, flags, space):
+        doubt(pl.staff_of(flag), flag.x, "stray symbol", "a flag is on no stem")
     chords = make_chords(heads, stems, space)
     rests = [r for r in make_rests(pl.symbols, pl, space) if id(r.staff) in members]
     evs = chords + rests
@@ -1161,7 +1243,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
     dots = [s for s in pl.symbols if s.name == "augmentationDot" and id(pl.staff_of(s)) in members]
     used_dots = attach_dots(evs, dots, space, repeat_zones)
     time_length, compound = _time_in_force(score, bar_base)
-    apply_tuplets([m for m in tuplet_marks(pl) if system.staves[0].top - 8 * space <= m.y
+    unused_marks = apply_tuplets([m for m in tuplet_marks(pl) if system.staves[0].top - 8 * space <= m.y
                    <= system.staves[-1].bottom + 8 * space and system.x0 <= m.x <= system.x1],
                   evs, stems, thin + [(h.x0, h.y, h.x1, h.y) for h in pl.horizontals if h.thickness <= 0.25 * space],
                   pl.verticals, space, compound)
@@ -1171,9 +1253,17 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
         signature |= _signature_accidentals(pl, system, staff)
     accs = [_Acc(s, pl.staff_of(s), pl.step_of(s)) for s in pl.symbols
             if accidental_alter(s.name) is not None and id(pl.staff_of(s)) in members and id(s) not in signature]
-    attach_accidentals(accs, heads, space)
+    for a in attach_accidentals(accs, heads, space):
+        doubt(a.staff, a.x, "stray symbol", "an accidental is before no note")
     tied_to, tied_from, start_next, stop_previous, tie_curves = find_ties(curves, heads, evs, system, space)
-    octave_spans = octave_marks(pl, system, dashed, space)
+    octave_doubts = []
+    octave_spans = octave_marks(pl, system, dashed, space, octave_doubts)
+    for x0, x1, y, reason in octave_doubts:
+        near = sorted(system.staves, key=lambda st: min(abs(y - st.top), abs(y - st.bottom)))[:2]
+        bars = {structure._bar_of(system, x) for x in (x0, x1)} - {None}
+        for k in range(min(bars, default=0), max(bars, default=-1) + 1):
+            for staff in near:
+                doubt(staff, k, "octave sign", reason)
     arpeggiated = arpeggios(pl, [e for e in evs if e.rest is None], space)
     # events by staff and bar
     by_staff_bar = collections.defaultdict(list)
@@ -1196,7 +1286,11 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
             whole[0].base = bar_length
         costs[(staff_id, k)] = assign_onsets(main, space, bar_length)
         if costs[(staff_id, k)]:
+            printed = {id(e) for e in main if e.tuplet}
             costs[(staff_id, k)] = hidden_tuplets(main, space, bar_length, costs[(staff_id, k)])
+            if any(e.tuplet and id(e) not in printed for e in main):
+                doubt(main[0].staff, k, "unprinted tuplet", "a tuplet is read from the bar's length, "
+                      "with no number printed")
         lengths_by[(staff_id, k)] = bar_length
     # a staff whose reading leaves doubt is read again with the columns of
     # the other staves of the bar that were read without doubt
@@ -1210,8 +1304,32 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
             assign_onsets([e for e in group if not e.grace], space, lengths_by[(staff_id, k)], reference)
     for (staff_id, k), group in by_staff_bar.items():
         assign_graces(group, space)
+        for reason, onset in _rhythm_doubts([e for e in group if not e.grace], lengths_by[(staff_id, k)]):
+            doubt(group[0].staff, k, "rhythm", reason, onset)
+    if not mapping.certain:
+        for staff in system.staves:
+            for k in range(len(system.bars)):
+                doubt(staff, k, "hidden staves", "some staves of this system are hidden, and which part this "
+                      "staff belongs to is not certain")
+    for staff, k, reason, onset in _column_conflicts(by_staff_bar, space):
+        doubt(staff, k, "staves disagree", reason, onset)
+    bar_numbers = [i.box for i in items if i.kind == "bar number"]
+    for m in unused_marks:
+        if any(b[0] <= m.x <= b[2] and b[1] <= m.y <= b[3] for b in bar_numbers):
+            continue   # an italic bar number
+        if any(c.box[0] - space <= m.x <= c.box[2] + space for c in pl.symbols if c.name in structure.CLEFS
+               and system.staves[0].top - 4 * space <= c.y <= system.staves[-1].bottom + 4 * space):
+            continue   # the 8 of an octave clef
+        staff = min(system.staves, key=lambda st: 0 if st.top <= m.y <= st.bottom
+                    else min(abs(m.y - st.top), abs(m.y - st.bottom)))
+        doubt(staff, m.x, "stray symbol", f"a tuplet number {m.actual} is over no notes")
     # markings (Stage 1.4): directions go to score.markings, the rest onto the notes
     staccato = staccato_dots([d for d in dots if id(d) not in used_dots], evs, space)
+    taken = {id(d) for d in staccato}
+    for d in dots:
+        cx = (d.box[0] + d.box[2]) / 2
+        if id(d) not in used_dots and id(d) not in taken and not any(a <= cx <= b for a, b in repeat_zones):
+            doubt(pl.staff_of(d), cx, "stray symbol", "a dot is beside no note")
     extras, head_marks = markings.read_system(score, pl, system, mapping, bar_base, evs, items, shapes,
                                               tie_curves, staccato)
     # pitch, in x order per staff
@@ -1389,36 +1507,42 @@ def find_ties(curves, heads, evs, system, space):
 OCTAVE_TEXT = re.compile(r"^\s*\(?\s*(8|15|22)\s*(va|vb|ma|mb|a|b)?\s*\)?\s*$")
 
 
-def octave_marks(page_layout, system, dashed, space):
+def octave_marks(page_layout, system, dashed, space, doubts=None):
     """[(staff, x0, x1, octaves)]: octave marks (8va, 8vb, 15ma) over or
     under a staff of the system, and the notes they reach: as far as the
     dashed line that starts just after the mark (a mark with no line covers
     the note under it). The notes are written an octave (or two) away from
-    the pitch they stand for, which the MusicXML pitch gives."""
+    the pitch they stand for, which the MusicXML pitch gives. Octave glyphs of
+    the music font that are left out (no line and no suffix) are added to
+    `doubts` as (x0, x1, y, reason), since a music font's glyph is not a
+    plain digit, and so are marks with no "va" or "vb" between two staves,
+    whose staff and direction are a guess."""
     marks = []
     for s in page_layout.symbols:
         name = s.name
         if name.startswith(("ottava", "quindicesima", "ventiduesima")) and "Suffix" not in name:
             amount = 2 if name.startswith("quind") else 3 if name.startswith("venti") else 1
             way = -1 if "Bassa" in name else 1 if "Alta" in name else 0
-            marks.append((s.box, amount, way))
+            marks.append((s.box, amount, way, True))
     for run in page_layout.text:
         match = OCTAVE_TEXT.match(run.text)
         if match:
             amount = {"8": 1, "15": 2, "22": 3}[match.group(1)]
             suffix = match.group(2) or ""
             way = -1 if suffix.endswith("b") else 1 if suffix else 0
-            marks.append((run.box, amount, way))
+            marks.append((run.box, amount, way, False))
     out = []
     top = system.staves[0].top - 8 * space
     bottom = system.staves[-1].bottom + 8 * space
-    for box, amount, way in marks:
+    for box, amount, way, glyph in marks:
         if not (system.x0 - space <= box[0] <= system.x1 and top <= box[1] <= bottom):
             continue
         lines = sorted((d for d in dashed if box[2] - 0.5 * space <= d[1] <= box[2] + 2.5 * space
                         and box[1] - space <= d[0] <= box[3] + space), key=lambda d: d[1])
         if not lines:
             if box[2] - box[0] > 3 * space or way == 0:
+                if glyph and doubts is not None:
+                    doubts.append((box[0], box[2], (box[1] + box[3]) / 2, "an octave sign reaches no notes"))
                 continue    # no line and no "va" or "vb": a digit, not an octave mark
             end = box[2] + 2 * space
         else:
@@ -1430,6 +1554,9 @@ def octave_marks(page_layout, system, dashed, space):
         staff = min(system.staves, key=lambda st: min(abs(middle - st.top), abs(middle - st.bottom)))
         if way == 0:
             way = 1 if middle < staff.middle else -1
+            if doubts is not None and system.staves[0].top < middle < system.staves[-1].bottom:
+                doubts.append((box[0], end, middle, "an octave sign between two staves may belong to "
+                               "either, so its direction is a guess"))
         out.append((staff, box[0] - 0.5 * space, end + 0.5 * space, way * amount))
     return out
 

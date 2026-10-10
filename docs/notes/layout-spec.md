@@ -46,7 +46,7 @@ The gap between systems on a page is its largest gap between staves, where the p
 - Within a system, staves joined by a brace are one part, unless each has its own instrument name beside it: a brace can also group two instruments, such as two voices.
 - Two staves with one name centred in the gap between them, and no name of their own, are also one part. This covers engravers that draw no brace.
 - Every other staff is a part of its own.
-- The system with the most staves (the first if several) sets the parts. A system with fewer staves (empty staves hidden) is matched to it in order, best agreeing on instrument names (short names allowed) and on the clef of each staff. Systems with the same number of staves map directly.
+- The system with the most staves (the first if several) sets the parts. A system with fewer staves (empty staves hidden) is matched to it in order, best agreeing on instrument names (short names allowed) and on the clef of each staff. When another matching agrees as well, the system's mapping is marked as not certain, and the confidence report flags its staves (`confidence-spec.md`). Systems with the same number of staves map directly.
 - A part's name is the text left of its staves in that system.
 
 ## Structure events

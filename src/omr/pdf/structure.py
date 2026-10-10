@@ -44,6 +44,7 @@ class SystemParts:
 
     system: object
     staves: list = field(default_factory=list)
+    certain: bool = True    # False when another matching of hidden staves fits as well
 
 
 # ------------------------------------------------------------------ parts
@@ -136,7 +137,7 @@ def assign_parts(layouts):
         if len(sy.staves) == len(master.staves):
             mapping.staves = list(master_slots)
         else:
-            chosen = _match_staves(pl, sy, master_names, master_clefs)
+            chosen, mapping.certain = _match_staves(pl, sy, master_names, master_clefs)
             mapping.staves = [master_slots[k] for k in chosen]
         out.append((pl, sy, mapping))
     return out, parts
@@ -145,12 +146,12 @@ def assign_parts(layouts):
 def _match_staves(page_layout, system, master_names, master_clefs):
     """Indices of the master staves that the system's staves are, in order:
     the in-order choice that best agrees on names (short names allowed) and
-    clefs."""
+    clefs; and whether it is the only choice that agrees as well."""
     names = _names_at_left(page_layout, system)
     clefs = [_initial_clef(page_layout, st) for st in system.staves]
     n, m = len(system.staves), len(master_names)
     if n > m:
-        return list(range(m)) + [m - 1] * (n - m)
+        return list(range(m)) + [m - 1] * (n - m), False
 
     def score(i, j):
         s = 0.0
@@ -163,8 +164,9 @@ def _match_staves(page_layout, system, master_names, master_clefs):
     # best[i][j]: the best total for the first i system staves within the first j master staves
     best = [[float("-inf")] * (m + 1) for _ in range(n + 1)]
     take = [[False] * (m + 1) for _ in range(n + 1)]
+    ways = [[0] * (m + 1) for _ in range(n + 1)]   # choices that reach the best total
     for j in range(m + 1):
-        best[0][j] = 0.0
+        best[0][j], ways[0][j] = 0.0, 1
     for i in range(1, n + 1):
         for j in range(i, m + 1):
             skip = best[i][j - 1]
@@ -173,13 +175,15 @@ def _match_staves(page_layout, system, master_names, master_clefs):
                 best[i][j], take[i][j] = use, True
             else:
                 best[i][j] = skip
+            ways[i][j] = (ways[i][j - 1] if skip == best[i][j] else 0) + (
+                ways[i - 1][j - 1] if use == best[i][j] else 0)
     chosen, i, j = [], n, m
     while i > 0:
         if take[i][j]:
             chosen.append(j - 1)
             i -= 1
         j -= 1
-    return chosen[::-1]
+    return chosen[::-1], ways[n][m] == 1
 
 
 def _same_name(short, full):

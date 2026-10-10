@@ -396,4 +396,4 @@ This phase starts only after the gates for Phases 1 to 4 are met (IN-4).
 
 - **OI-1: braille music code, formatting and file format.** The project owner is consulting the MuseScore community. This blocks Phase 3, but not Phases 0 to 2.
 - **OI-2: speed targets.** Closed at the end of Phase 0: confirmed (see `docs/notes/phase-0-report.md`).
-- **OI-3: error-flagging target.** To be refined in Phase 1.
+- **OI-3: error-flagging target.** Closed in Phase 1, Stage 1.5: at least 90 percent of note errors in flagged bars with at most 10 percent of bars flagged, on exact pairs (ACC-4).

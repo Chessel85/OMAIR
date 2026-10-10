@@ -7,6 +7,7 @@ COMMANDS = {
     "inspect": "Report the page types, fonts and shapes in a PDF.",
     "symbols": "Name the music symbols in vector PDFs and count those that cannot be named.",
     "layout": "Report the parts, bars, clefs, keys and times read from vector PDFs.",
+    "confidence": "Read vector PDFs and report the bars that may be wrong.",
     "evaluate": "Score recogniser output against ground truth.",
     "convert": "Convert a PDF or image to MusicXML.",
 }
@@ -29,6 +30,10 @@ def build_parser():
         if name == "layout":
             p.add_argument("files", nargs="+", metavar="FILE", help="PDF files.")
             p.add_argument("--json", metavar="PATH", help="Also write the structure as JSON.")
+        if name == "confidence":
+            p.add_argument("files", nargs="+", metavar="FILE", help="PDF files.")
+            p.add_argument("--out", metavar="FOLDER",
+                           help="Also write FOLDER/<file name>/flags.json and confidence.txt for each file.")
         if name == "evaluate":
             add_evaluate_arguments(p)
     return parser
@@ -104,6 +109,10 @@ def main(argv=None):
         from omr import layout_report
 
         return layout_report.run(args.files, json_path=args.json)
+    if args.command == "confidence":
+        from omr import confidence_report
+
+        return confidence_report.run(args.files, out_dir=args.out)
     if args.command == "evaluate":
         return run_evaluate(args)
     print(f"The '{args.command}' command is not implemented yet.")

@@ -11,7 +11,7 @@ MAX_ERRORS_LISTED = 50
 LOWEST_FILES = 10
 BREAKDOWNS = (("engraver", "engraver"), ("font", "font"), ("genre", "genre"), ("texture", "texture"),
               ("ground truth", "ground-truth kind"))
-TARGETS = {"note accuracy": 99.0, "structure": 95.0, "flagging": 90.0, "markings": 90.0}
+TARGETS = {"note accuracy": 99.0, "structure": 95.0, "flagging": 90.0, "bars flagged": 10.0, "markings": 90.0}
 
 
 def percent(part, whole):
@@ -32,6 +32,15 @@ def note_accuracy(notes):
 
 def note_errors(notes):
     return notes["truth"] - notes["exact"] + notes["extra"] + notes.get("clef errors", 0)
+
+
+def _flagging(flagged, results):
+    """Flagging recall and the share of bars flagged, in words (ACC-4)."""
+    covered = sum(r["flags"]["covered"] for r in flagged)
+    errors = sum(note_errors(r["notes"]) for r in results)
+    bars = sum(r["flags"]["bars"] for r in flagged)
+    flagged_bars = sum(r["flags"]["bars flagged"] for r in flagged)
+    return f"{percent(covered, errors)} ({covered:,} of {errors:,}); {percent(flagged_bars, bars)} of bars flagged"
 
 
 def error_words(result):
@@ -162,12 +171,11 @@ def overall(results, set_name, label, export_failures=0):
                  f"{percent(found, truth)} ({found:,} of {truth:,}).")
     flagged = [r for r in results if "flags" in r]
     if flagged:
-        covered = sum(r["flags"]["covered"] for r in flagged)
-        errors = sum(note_errors(r["notes"]) for r in results)
-        bars = sum(r["flags"]["bars"] for r in flagged)
-        flagged_bars = sum(r["flags"]["bars flagged"] for r in flagged)
-        lines.append(f"- ACC-4 note errors in flagged bars (target {TARGETS['flagging']:g} percent): "
-                     f"{percent(covered, errors)} ({covered:,} of {errors:,}); {percent(flagged_bars, bars)} of bars flagged.")
+        exact_flagged = [r for r in exact_pairs if "flags" in r]
+        lines.append(f"- ACC-4 note errors in flagged bars (target {TARGETS['flagging']:g} percent with at most "
+                     f"{TARGETS['bars flagged']:g} percent of bars flagged, exact pairs only): "
+                     f"{_flagging(exact_flagged, exact_pairs)}.")
+        lines.append(f"- ACC-4 over all pairs: {_flagging(flagged, results)}.")
     else:
         lines.append("- ACC-4 error flagging: the recogniser wrote no flag files.")
     bad_flags = sum(1 for r in results if "flag file problem" in r)

@@ -124,6 +124,7 @@ class Score:
     structure: list = field(default_factory=list)  # clefs, keys, times, repeats, endings, navigation
     bar_counts: list = field(default_factory=list) # bars in each part, normally all equal
     text: list = field(default_factory=list)       # page text (title, composer, ...) read from a PDF; not compared
+    doubts: list = field(default_factory=list)     # doubts noted while reading a PDF (omr.pdf.rules.Flag); not compared
 
     def staves(self):
         """Every staff in score order, as (part, staff) pairs."""

@@ -380,18 +380,14 @@ def read_flags(path):
     return flags
 
 
-def _flags(output, result, flags):
-    flagged = collections.defaultdict(set)   # (output part, output bar) -> staves, or {None} for all
-    for part, bar, staff in flags:
-        flagged[(part, bar)].add(staff)
+def error_places(result):
+    """For each note error (missing and wrong notes, then extra notes, then
+    clef errors), the output (part, bar, staff or None) places where a flag
+    covers it (spec, "Error flagging"), each counted from 0 for part and bar."""
     output_parts_of = collections.defaultdict(set)   # truth part -> output parts mapped to it
     for (o_part, o_staff), (t_part, _) in result.staff_map.items():
         output_parts_of[t_part].add(o_part)
     truth_staff_to_output = {v: k for k, v in result.staff_map.items()}
-
-    def covered_output(part, bar, staff):
-        staves = flagged.get((part, bar))
-        return bool(staves) and (None in staves or staff in staves)
 
     def neighbours(segment_index):
         bars = []
@@ -415,20 +411,33 @@ def _flags(output, result, flags):
         return [(o_part, bar, target[1] if target and target[0] == o_part else None)
                 for o_part in output_parts_of.get(note.part, ()) for bar in bars]
 
-    error_places = []
+    out = []
     for note in result.missing + [pair.truth for pair in result.errors]:
-        error_places.append(places(note))
+        out.append(places(note))
     for note in result.extra:
-        error_places.append([(note.part, note.bar, note.staff)])
+        out.append([(note.part, note.bar, note.staff)])
     for c in result.clef_corrections:
-        error_places.append([(c.output_staff[0], c.output_bar, c.output_staff[1])])
-    covered = sum(any(covered_output(*place) for place in where) for where in error_places)
+        out.append([(c.output_staff[0], c.output_bar, c.output_staff[1])])
+    return out
+
+
+def _flags(output, result, flags):
+    flagged = collections.defaultdict(set)   # (output part, output bar) -> staves, or {None} for all
+    for part, bar, staff in flags:
+        flagged[(part, bar)].add(staff)
+
+    def covered_output(part, bar, staff):
+        staves = flagged.get((part, bar))
+        return bool(staves) and (None in staves or staff in staves)
+
+    places = error_places(result)
+    covered = sum(any(covered_output(*place) for place in where) for where in places)
     # A flagged bar "has an error" if one of its flags covers an error there.
-    with_error = {(part, bar) for where in error_places for part, bar, staff in where
+    with_error = {(part, bar) for where in places for part, bar, staff in where
                   if covered_output(part, bar, staff)}
     bars_total = sum(output.bar_counts) if output.bar_counts else 0
     return {
-        "errors": len(error_places),
+        "errors": len(places),
         "covered": covered,
         "bars flagged": len(flagged),
         "bars": bars_total,
