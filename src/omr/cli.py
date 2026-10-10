@@ -9,7 +9,7 @@ COMMANDS = {
     "layout": "Report the parts, bars, clefs, keys and times read from vector PDFs.",
     "confidence": "Read vector PDFs and report the bars that may be wrong.",
     "evaluate": "Score recogniser output against ground truth.",
-    "convert": "Convert a PDF or image to MusicXML.",
+    "convert": "Convert vector PDFs to MusicXML and braille, with a confidence report.",
 }
 
 
@@ -34,9 +34,28 @@ def build_parser():
             p.add_argument("files", nargs="+", metavar="FILE", help="PDF files.")
             p.add_argument("--out", metavar="FOLDER",
                            help="Also write FOLDER/<file name>/flags.json and confidence.txt for each file.")
+        if name == "convert":
+            add_convert_arguments(p)
         if name == "evaluate":
             add_evaluate_arguments(p)
     return parser
+
+
+def add_convert_arguments(p):
+    p.add_argument("files", nargs="+", metavar="FILE", help="Vector PDF files.")
+    p.add_argument("--out", metavar="FOLDER",
+                   help="Where the outputs go (default: beside each PDF), named after the PDF: name.musicxml, "
+                        "name.brf, name-report.txt and name-flags.json.")
+    p.add_argument("--musicxml", metavar="PATH", help="Write the MusicXML here (one FILE only).")
+    p.add_argument("--braille", metavar="PATH",
+                   help="Write the braille here (one FILE only). A .brf name gives Braille ASCII, "
+                        "any other name Unicode braille.")
+    p.add_argument("--report", metavar="PATH", help="Write the confidence report here (one FILE only).")
+    p.add_argument("--flags", metavar="PATH", help="Write the flag file the evaluation harness reads here (one FILE only).")
+    p.add_argument("--braille-format", choices=("brf", "unicode"),
+                   help="brf (Braille ASCII) or unicode (Unicode braille text). The default follows the file "
+                        "name, and is brf. The default code and format are not decided yet (OI-1).")
+    p.add_argument("--no-braille", action="store_true", help="Do not write braille.")
 
 
 def add_evaluate_arguments(p):
@@ -45,7 +64,7 @@ def add_evaluate_arguments(p):
     p.add_argument("--set", required=True, choices=("development", "regression"), help="The corpus set to evaluate.")
     source = p.add_mutually_exclusive_group(required=True)
     source.add_argument("--recogniser", metavar="NAME_OR_COMMAND",
-                        help="perfect, damaged, or a command with {pdf} and {out}, for example "
+                        help="perfect, damaged, omr (this project), audiveris, homr, legato, or a command with {pdf} and {out}, for example "
                              "\"python my_omr.py {pdf} {out}\". It must write {out}/score.musicxml.")
     source.add_argument("--predictions", metavar="FOLDER",
                         help="Compare outputs already made, at FOLDER/<score id>/<job>/score.musicxml.")
@@ -113,6 +132,12 @@ def main(argv=None):
         from omr import confidence_report
 
         return confidence_report.run(args.files, out_dir=args.out)
+    if args.command == "convert":
+        from omr import convert
+
+        chosen = {k: getattr(args, k) for k in ("musicxml", "braille", "report", "flags")}
+        return convert.run(args.files, out_dir=args.out, chosen=chosen, braille=not args.no_braille,
+                           braille_format=args.braille_format)
     if args.command == "evaluate":
         return run_evaluate(args)
     print(f"The '{args.command}' command is not implemented yet.")

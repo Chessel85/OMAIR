@@ -66,6 +66,7 @@ class Note:
     slurs: tuple = ()                # ("start" or "stop", number) pairs
     lyrics: tuple = ()               # (number, text) pairs
     syllables: tuple = ()            # (number, syllabic, extend) for each lyric; not compared
+    fingering: tuple = ()            # ("fingering" or "pluck", text) pairs; not compared
 
     @property
     def key(self):
@@ -330,11 +331,13 @@ def _read_note(score, part_index, bar_index, onset, divisions, duration, element
     elif element.find("chord") is None:
         grace_count[voice] = 0
     ties = {t.get("type") for t in element.findall("tie")}
-    marks, slurs = set(), []
+    marks, slurs, fingering = set(), [], []
     for notations in element.findall("notations"):
         for child in notations:
             if child.tag in ("articulations", "ornaments", "technical"):
                 marks.update(f"{child.tag[:-1] if child.tag.endswith('s') else child.tag} {m.tag}" for m in child)
+                fingering.extend((m.tag, (m.text or "").strip()) for m in child
+                                 if m.tag in ("fingering", "pluck") and (m.text or "").strip())
             elif child.tag in ("fermata", "arpeggiate", "non-arpeggiate"):
                 marks.add(child.tag)
             elif child.tag == "slur" and child.get("type") in ("start", "stop"):
@@ -352,7 +355,7 @@ def _read_note(score, part_index, bar_index, onset, divisions, duration, element
         part_index, staff, voice, bar_index, onset, pitch, length, value, grace,
         "start" in ties, "stop" in ties, element.find("cue") is not None or
         (element.find("type") is not None and element.find("type").get("size") == "cue"),
-        frozenset(marks), tuple(slurs), lyrics, syllables))
+        frozenset(marks), tuple(slurs), lyrics, syllables, tuple(fingering)))
 
 
 def _dynamic_text(element):

@@ -29,6 +29,9 @@ BUILT_IN = {
     "audiveris": [sys.executable, "-m", "omr.baselines", "audiveris", "{pdf}", "{out}"],
     "homr": [sys.executable, "-m", "omr.baselines", "homr", "{pdf}", "{out}"],
     "legato": [sys.executable, "-m", "omr.baselines", "legato", "{pdf}", "{out}"],
+    # the project's own recogniser (Stage 1.6): vector PDFs only
+    "omr": [sys.executable, "-m", "omr.cli", "convert", "{pdf}", "--musicxml", "{out}/score.musicxml",
+            "--flags", "{out}/flags.json", "--report", "{out}/confidence.txt", "--no-braille"],
 }
 
 

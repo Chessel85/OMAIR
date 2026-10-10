@@ -9,7 +9,7 @@ The project is in Phase 1 (vector PDFs). It names the symbols of a vector PDF an
 - `omr layout FILE`: reports the parts, systems and bars of a vector PDF, and its clef, key and time changes, repeats and endings, in words.
 - `omr confidence FILE`: reads the notes of a vector PDF and reports, in words, the bars that may be wrong and why (the confidence report). With `--out FOLDER` it also writes the flag file the evaluation harness reads.
 - `omr evaluate --set SET --recogniser NAME_OR_COMMAND`: runs a recogniser over a corpus set and reports its accuracy against the ground truth, in plain text. The metrics are defined in `docs/notes/evaluation-spec.md`.
-- `omr convert`: not implemented yet.
+- `omr convert FILE`: reads a vector PDF and writes MusicXML, braille (a placeholder until the braille code is chosen), the confidence report and the flag file, named after the PDF. `--out FOLDER` chooses where they go; `--musicxml`, `--braille`, `--report` and `--flags` name each file for a single PDF. Scanned pages and images are not read yet.
 
 Development conventions, including the accessibility rules for output and logs, are in `docs/conventions.md`.
 

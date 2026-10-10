@@ -38,7 +38,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          python -m pip install PyMuPDF fonttools opencv-python-headless numpy scipy verovio music21 musicdiff
+          python -m pip install PyMuPDF fonttools opencv-python-headless numpy scipy verovio music21 musicdiff lxml
           python -m pip install -e .
       # Runs the stand-in recognisers over regression/ and fails if any figure
       # is worse than regression/baseline.txt by more than the margin.
@@ -56,3 +56,15 @@ jobs:
       # note errors in flagged bars (ACC-4, exact pairs) falls below the floor.
       - name: Confidence flags against the note errors
         run: python scripts/check_flags.py --workers 2 --min-recall 92.0
+      # Writes every regression PDF as MusicXML (Stage 1.6) and fails if the
+      # harness reads back anything different, scores the file differently from
+      # the score in memory, or the file is not valid MusicXML 4.0. Braille is
+      # made too; files music21 cannot translate are listed but do not fail.
+      - name: MusicXML written from the PDFs
+        run: |
+          mkdir -p schema
+          for f in musicxml.xsd xlink.xsd xml.xsd; do
+            curl -sSfL -o schema/$f https://raw.githubusercontent.com/w3c/musicxml/v4.0/schema/$f
+          done
+          sed -i 's#http://www.musicxml.org/xsd/##' schema/musicxml.xsd
+          python scripts/check_convert.py --workers 2 --schema schema/musicxml.xsd --braille

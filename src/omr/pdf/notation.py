@@ -1330,7 +1330,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
         cx = (d.box[0] + d.box[2]) / 2
         if id(d) not in used_dots and id(d) not in taken and not any(a <= cx <= b for a, b in repeat_zones):
             doubt(pl.staff_of(d), cx, "stray symbol", "a dot is beside no note")
-    extras, head_marks = markings.read_system(score, pl, system, mapping, bar_base, evs, items, shapes,
+    extras, head_marks, head_texts = markings.read_system(score, pl, system, mapping, bar_base, evs, items, shapes,
                                               tie_curves, staccato)
     # pitch, in x order per staff
     alters = {}
@@ -1407,7 +1407,8 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
                                                tie_stop=id(h) in tied_from or id(h) in stop_previous,
                                                cue=e.small and not e.grace,
                                                marks=frozenset(marks), slurs=slurs, lyrics=lyrics,
-                                               syllables=syllables))
+                                               syllables=syllables,
+                                               fingering=tuple(head_texts.get(id(h), ()))))
         if clef_values:
             clefs_in_force[(part, number)] = clef_values[-1][1]
         # onsets of clefs within bars, by the rank structure.staff_clefs gives them

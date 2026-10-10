@@ -199,13 +199,15 @@ def _distance(box, x, y):
 
 def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_curves, staccato_dots=()):
     """Add the system's directions to score.markings and return
-    ({id(event): Extras}, {id(head): set of marks}) for the notes."""
+    ({id(event): Extras}, {id(head): set of marks}, {id(head): [(kind, text)]})
+    for the notes, the last for fingering and plucking letters."""
     space = system.staves[0].space
     placer = Placer(system, mapping, bar_base, evs)
     chords = [e for e in evs if e.rest is None and e.heads and e.onset is not None]
     members = {id(st) for st in system.staves}
     extras = collections.defaultdict(Extras)
     head_marks = collections.defaultdict(set)
+    head_texts = collections.defaultdict(list)
 
     def add(kind, value, staff, at, with_staff=True):
         if at is None:
@@ -283,8 +285,9 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
               if re.fullmatch(r"fingering[0-5]", s.name) and id(pl.staff_of(s)) in members]
     for kind, mark in (("fingering", "technical fingering"), ("pluck", "technical pluck")):
         found = [i for i in items if i.kind == kind] + (glyphs if kind == "fingering" else [])
-        for head in _fingered_heads(found, chords, space):
+        for head, item in _fingered_heads(found, chords, space):
             head_marks[id(head)].add(mark)
+            head_texts[id(head)].append((kind, item.text.strip()))
     # ---- slurs
     for c in shapes.curves:
         if id(c) in tie_curves or not _in_system(c.box, system, space):
@@ -315,7 +318,7 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
             continue
         taken[key] = item
         extras[id(target)].lyrics.append((item.verse, item.text, item.syllabic, item.extend))
-    return extras, head_marks
+    return extras, head_marks, head_texts
 
 
 def _in_system(box, system, space):
@@ -450,7 +453,7 @@ def _breath_chord(symbol, chords, space, staff=None):
 
 
 def _fingered_heads(found, chords, space):
-    """The noteheads that fingering digits (or plucking letters) belong to.
+    """(notehead, item) for the noteheads that fingering digits (or plucking letters) belong to.
     Digits stacked over or under a chord go to its notes in the same order,
     from the note nearest the digits; a digit just left of a notehead goes
     to that notehead."""
@@ -461,7 +464,7 @@ def _fingered_heads(found, chords, space):
         beside = [h for e in chords if e.staff is item.staff for h in e.heads
                   if 0 <= h.box[0] - item.box[2] <= 2.5 * space and abs(h.y - cy) <= 0.8 * space]
         if beside:
-            out.append(min(beside, key=lambda h: h.box[0] - item.box[2]))
+            out.append((min(beside, key=lambda h: h.box[0] - item.box[2]), item))
             continue
         over = [e for e in chords if e.staff is item.staff and abs(_ref(e, "centre") - cx) <= 1.2 * space
                 and _distance(_chord_box(e), cx, cy)[1] <= 8 * space]
@@ -475,10 +478,10 @@ def _fingered_heads(found, chords, space):
         above = sorted((i for i, _ in pairs if tx.middle(i.box) < middle_y), key=lambda i: tx.middle(i.box))
         below = sorted((i for i, _ in pairs if tx.middle(i.box) >= middle_y), key=lambda i: -tx.middle(i.box))
         # digits over the chord: the lowest digit is the top note's, and so on down
-        for n, _ in enumerate(reversed(above)):
-            out.append(heads[min(n, len(heads) - 1)])
-        for n, _ in enumerate(reversed(below)):
-            out.append(heads[max(len(heads) - 1 - n, 0)])
+        for n, item in enumerate(reversed(above)):
+            out.append((heads[min(n, len(heads) - 1)], item))
+        for n, item in enumerate(reversed(below)):
+            out.append((heads[max(len(heads) - 1 - n, 0)], item))
     return out
 
 
