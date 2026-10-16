@@ -1,6 +1,6 @@
 # Phase 1 progress log
 
-Last updated 10 October 2026 (Stage 1.6). This file records what has been done against `phase1.md`, so that work can resume in a new session. Update it at the end of each working session. Repository facts, the corpus location and shell notes are in `phase0-progress.md`.
+Last updated 16 October 2026 (Stage 1.7). This file records what has been done against `phase1.md`, so that work can resume in a new session. Update it at the end of each working session. Repository facts, the corpus location and shell notes are in `phase0-progress.md`.
 
 ## Stage status
 
@@ -60,9 +60,18 @@ Last updated 10 October 2026 (Stage 1.6). This file records what has been done a
   - **MusicXML 4.0 schema:** fetched from the W3C repository into `tools/musicxml-4.0-schema` on the corpus drive.
   - **Tests:** `tests/test_musicxml.py` (16: a synthetic score with every kind the writer handles comes back unchanged, accidentals, rest values, tuplet brackets, the four-voice limit, chord symbols, the schema, a regression pair scored the same written as in memory, braille, and the command). All 339 tests pass; `check_regression.py`, `check_notes.py` (98.4 percent) and the harness figures are unchanged.
 
+- **Stage 1.7, speed and the gate review: runs done and report written (16 October 2026); waiting for the owner's decision.** The gate is not met. The report and the options are in `docs/notes/phase1-report.md`.
+  - **Runs:** `scripts/run_phase1_gate.sh` (timing set one at a time, regression, real-world, full development set, and the baseline sample scored from the development outputs), about an hour on 3 workers, no failures. Results in `evaluations/gate-*` on the corpus drive. The 21 commercial files were converted into `evaluations/gate-commercial-omr`.
+  - **Speed (OP-3):** about 0.6 seconds a page against 10; the slowest page took 7.8 seconds. No profiling needed.
+  - **ACC-1:** notes 96.7 percent on the development set (MuseScore 98.1 to 98.2, LilyPond 94.1, Verovio 93.1), 98.4 on the regression set, 93.0 on the real uploads (96.2 without the faulty pair). Structure 77.8, 80.5 and 65.0 percent. Target 99 and 95.
+  - **ACC-6 and ACC-4** are met on the development and regression sets. ACC-4 on the stratified baseline sample is 74.2 percent.
+  - **Baselines, same 355 pairs:** omr 97.4 percent against Audiveris 86.3 and homr 55.9; structure 71.8 against 22.5 and 17.7; OMR-NED in notes and rests 0.046 against 0.226 and 0.256.
+  - **Real-world clef artefacts:** in 7 of the 14 real uploads that fail on structure, the only mismatches are clefs the reader found and the PDMX MusicXML lacks, or a percussion clef named differently. In the one file checked, every note is right, so the printed clefs differ from the MusicXML. Counted as right, structure would be 82.5 percent. Not yet confirmed for the other files.
+  - **Commercial files:** 20 of 21 converted (the scan was refused, as planned). Direct exports mostly read with high confidence (Dorico 77 to 90 percent of bars unflagged, Sibelius 68 and 100, Finale on macOS 73). Files printed to PDF through a printer driver mostly do not (0 to 38 percent; the Mozart Ave verum was read as 20 parts). Dorico 6.2's The Planets, 31 parts, had no unflagged bars.
+
 ## Next steps
 
-1. Stage 1.7: speed and the gate review. Reading a PDF takes about 1.4 seconds a pair on the regression set (with 4 at once); writing about 0.06. Run `omr evaluate --recogniser omr` on the development and regression sets and the real uploads, and compare with `baselines.md`. Stage 1.6 work left for later (`musicxml-spec.md`, "Known limits"): beams, part groups, instruments and transposition, barline styles, and braille formatting (OI-1).
+1. The owner decides what happens at the gate (`phase1-report.md`, "Options for the owner"). The report recommends keeping on before sign-off, structure first. Stage 1.6 work left for later (`musicxml-spec.md`, "Known limits"): beams, part groups, instruments and transposition, barline styles, and braille formatting (OI-1). Still to check: the real-world clef artefacts, the printed-to-PDF commercial files, and The Planets.
 2. Stage 1.4 work left for later (`markings-spec.md`, "Known limits"): slurs across two staves and two slurs from one note, outlined text on Type B pages, chord kinds written without their printed text.
 3. Stage 1.3 work left for later (`notation-spec.md`, "Known limits"): cross-staff tuplets, three voices on one staff, stems that are hidden with no beam, tremolos, LilyPond and Verovio octave marks, a bare 8 between two staves given to the wrong staff (now flagged), and merging or splitting bars by bar arithmetic.
 4. Stage 1.2 work left for later: one-line percussion staves and six-line tablature staves, multi-bar rests, LilyPond bar counts and Verovio clefs and keys on the development set.
