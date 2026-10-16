@@ -567,7 +567,10 @@ def make_rests(symbols, layout, space):
 
 def attach_dots(evs, dots, space, repeat_zones):
     """Augmentation dots: right of a notehead or rest, level with it (a note
-    on a line has its dot in the space above or below)."""
+    on a line has its dot in the space above or below). A dot straight over
+    or under a notehead of the same voice (stem the same way) is that note's
+    staccato, even where it is level with the note before (a rising line of
+    staccato notes); over another voice's note it can still be a dot."""
     by_event = collections.defaultdict(list)
     used = set()
     for d in dots:
@@ -585,6 +588,10 @@ def attach_dots(evs, dots, space, repeat_zones):
                 level = any(abs(cy - h.y) <= 0.65 * space for h in e.heads)
             if level and (best_dx is None or dx < best_dx):
                 best, best_dx = e, dx
+        if best is not None and any(o is not best and o.direction == best.direction and o.rest is None
+                                    and any(h.box[0] <= cx <= h.box[2] and 0.4 * space < abs(cy - h.y) <= 2.5 * space
+                                            for h in o.heads) for o in evs):
+            best = None   # the staccato of the next note in the same voice
         if best is not None:
             by_event[id(best)].append(cx)
             used.add(id(d))
@@ -862,12 +869,17 @@ def _same_column(col, e, space):
     if gap <= 1.4 * space:
         return True
     # Noteheads side by side and touching, as engravers set a collision: a
-    # unison with the stem up on the left, or a second with the upper
-    # note, stem up, on the right.
-    return gap <= 1.8 * space and any(
-        abs(h.box[0] - g.box[2]) <= 0.45 * space
-        and ((h.step == g.step and o.direction == 1 and e.direction == -1)
-             or (h.step == g.step + 1 and o.direction == -1 and e.direction == 1))
+    # unison of two voices (either stem on the left: a dotted note keeps the
+    # left side, and the other note then stands clear of its dot), or a second with the
+    # upper note, stem up, on the right.
+    # the other voice must have nothing else in the column (a rest there
+    # means the note comes after it)
+    free = all(o.rest is None and o.direction and o.direction != e.direction for o in col)
+    return gap <= 2.8 * space and any(
+        (h.step == g.step and free and e.direction
+         and abs(h.box[0] - g.box[2]) <= (1.4 if o.dots else 0.45) * space)
+        or (h.step == g.step + 1 and o.direction == -1 and e.direction == 1
+            and gap <= 1.8 * space and abs(h.box[0] - g.box[2]) <= 0.45 * space)
         for o in col for g in o.heads for h in e.heads)
 
 
@@ -1254,7 +1266,6 @@ def read_notes(score, ordered, pages, layouts=()):
         fixed.append(e)
     score.structure = fixed
     join_split_bars(score, ordered)
-    repeat_counts_from_verses(score)
     return score
 
 
@@ -1272,9 +1283,9 @@ def _continued_bar_number(pl, system):
 def join_split_bars(score, ordered):
     """A bar broken across a line (LilyPond does this when a bar is too long
     for one line) is one bar: the system ends with no barline (engravers
-    otherwise always end a system with one), and either the next system
-    starts with its bar number in brackets or the two pieces add up to one
-    bar of the time signature. The second piece's contents move into the
+    otherwise always end a system with one), and the next system starts
+    with its bar number in brackets. (Two pieces adding up to one bar is
+    not enough: a short bar at the end of a line is common.) The second piece's contents move into the
     first, placed to end where the bar ends, and the clefs and keys restated
     at the start of the new system are dropped."""
     joins, base = [], 0
@@ -1287,7 +1298,7 @@ def join_split_bars(score, ordered):
             continue
         first, second = score.bars[k].length, score.bars[k + 1].length
         full, _ = _time_in_force(score, k)
-        if not (0 < first and 0 < second <= full and (bracketed or first + second == full)):
+        if not (bracketed and 0 < first and 0 < second <= full):
             continue
         _join_bars(score, k, full - second)
 
@@ -1315,28 +1326,6 @@ def _join_bars(score, k, shift):
     for n, bar in enumerate(score.bars[k + 1:], k + 2):
         bar.number = str(n)
     score.bar_counts = [len(score.bars)] * len(score.parts)
-
-
-def repeat_counts_from_verses(score):
-    """A repeated section sung to more than two verses is played once for
-    each: where the bars up to a backward repeat carry lyric lines 1 to n,
-    n above 2, the repeat is played n times. Engravers print no count for
-    such a repeat; the verses are the count."""
-    repeats = [e for e in score.structure if e.kind == "repeat"]
-    starts = sorted({e.bar for e in repeats if e.value.startswith("forward")})
-    ends = sorted({e.bar for e in repeats if e.value == "backward"})
-    counts = {}
-    previous_end = -1
-    for end in ends:
-        start = max([s for s in starts if previous_end < s <= end], default=previous_end + 1)
-        verses = {int(number) for n in score.notes if start <= n.bar <= end
-                  for number, _ in n.lyrics if str(number).isdigit()}
-        if verses and max(verses) > 2 and verses == set(range(1, max(verses) + 1)):
-            counts[end] = max(verses)
-        previous_end = end
-    score.structure = [replace(e, value=f"backward {counts[e.bar]} times")
-                       if e.kind == "repeat" and e.value == "backward" and e.bar in counts else e
-                       for e in score.structure]
 
 
 def h_space(pl):

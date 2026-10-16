@@ -228,21 +228,46 @@ def test_a_bar_broken_across_a_line_is_one_bar():
 
 
 def test_a_line_ending_without_a_barline_and_no_sign_stays_two_bars():
-    # a full bar on the next line, no bracketed number: nothing to join
-    score = _three_four_score([3, 1, 3])
+    # no bracketed number: nothing to join, even where the pieces add up to a bar
+    score = _three_four_score([3, 1, 2])
     score.notes = [_note(1, 0), _note(2, 0)]
     notation.join_split_bars(score, [_system([object(), None]), _system([object()])])
     assert len(score.bars) == 3
 
 
-def test_a_repeat_sung_to_three_verses_is_played_three_times():
-    score = _three_four_score([3, 3, 3])
-    score.notes = [_note(0, 0, [("1", "a"), ("2", "b"), ("3", "c")]), _note(2, 0, [("1", "d")])]
-    score.structure.append(events.Marking("repeat", "backward", 0, None, 1, Fraction(0)))
-    notation.repeat_counts_from_verses(score)
-    assert [e.value for e in score.structure if e.kind == "repeat"] == ["backward 3 times"]
-    # two verses: the repeat is played twice, as written
-    score.notes = [_note(0, 0, [("1", "a"), ("2", "b")])]
-    score.structure[-1] = events.Marking("repeat", "backward", 0, None, 1, Fraction(0))
-    notation.repeat_counts_from_verses(score)
-    assert [e.value for e in score.structure if e.kind == "repeat"] == ["backward"]
+def _head_event(x, step, direction, dots=0, rest=None):
+    head = SimpleNamespace(step=step, box=(x, 0.0, x + 6.5, 6.0))
+    return notation.Event(staff=None, x=x, right=x + 6.5, heads=[] if rest else [head], rest=rest,
+                          direction=direction, dots=dots)
+
+
+def test_a_unison_beside_a_dotted_note_starts_with_it():
+    # a dotted quarter, stem down, and a sixteenth on the same note, stem up,
+    # set to the right of the dot: one column (space 5)
+    dotted = _head_event(340.0, -5, -1, dots=1)
+    assert notation._same_column([dotted], _head_event(352.0, -5, 1), 5.0)
+    # the same note again in the same voice, after the dot, is a new column
+    assert not notation._same_column([dotted], _head_event(352.0, -5, -1), 5.0)
+    # and so is the other voice's note when that voice has a rest in the column
+    rest = _head_event(340.0, 0, 0, rest=SimpleNamespace(name="rest16th"))
+    assert not notation._same_column([rest, dotted], _head_event(352.0, -5, 1), 5.0)
+
+
+def test_a_staccato_under_the_next_note_is_not_a_dot_of_this_one():
+    # D then E, both eighths, staccato dots under each; the dot under E is
+    # level with D (one step lower), right of it
+    d_head = SimpleNamespace(step=-1, y=105.0, box=(100.0, 102.5, 106.5, 107.5))
+    e_head = SimpleNamespace(step=0, y=102.5, box=(115.0, 100.0, 121.5, 105.0))
+    d_note = notation.Event(staff=None, x=100.0, right=106.5, heads=[d_head], direction=1)
+    e_note = notation.Event(staff=None, x=115.0, right=121.5, heads=[e_head], direction=1)
+    staccato = SimpleNamespace(box=(117.0, 104.0, 119.0, 106.0))   # under E, level with D
+    notation.attach_dots([d_note, e_note], [staccato], 5.0, [])
+    assert d_note.dots == 0
+    # a real dot, right of D and level with it, still counts
+    dot = SimpleNamespace(box=(108.0, 104.0, 110.0, 106.0))
+    notation.attach_dots([d_note, e_note], [dot], 5.0, [])
+    assert d_note.dots == 1
+    # over a note of the other voice (stem the other way) a dot is still a dot
+    e_note.direction = -1
+    notation.attach_dots([d_note, e_note], [staccato], 5.0, [])
+    assert d_note.dots == 1

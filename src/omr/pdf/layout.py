@@ -320,12 +320,23 @@ def _neighbour(candidates, staff):
 BAR_NUMBER = re.compile(r"^\(?\d+\)?$")
 
 
-def _starts_system(staff, text):
+CLEF_NAMES = ("gClef", "fClef", "cClef", "gClef8vb", "gClef8va", "fClef8vb", "cClef8vb")
+
+
+def _starts_system(staff, text, symbols=()):
     """A bar number just above the left end of the staff: engravers number
-    the first bar of each system, so the staff starts a system."""
+    the first bar of each system, so the staff starts a system. The 8 under
+    an octave clef of the staff above is not a bar number."""
     space = staff.space
+    clefs = [s.box for s in symbols if s.name in CLEF_NAMES]
+
+    def under_clef(box):
+        return any(c[0] - space <= (box[0] + box[2]) / 2 <= c[2] + space and c[1] < box[1] <= c[3] + 2 * space
+                   for c in clefs)
+
     return any(BAR_NUMBER.match(run.text.strip()) and staff.top - 4 * space <= run.box[3] <= staff.top + 0.5 * space
-               and staff.x0 - 3 * space <= run.box[2] <= staff.x0 + 3 * space for run in text)
+               and staff.x0 - 3 * space <= run.box[2] <= staff.x0 + 3 * space and not under_clef(run.box)
+               for run in text)
 
 
 def join_systems(staves, verticals, symbols, barlines, page_number, system_gap=None, text=()):
@@ -360,7 +371,7 @@ def join_systems(staves, verticals, symbols, barlines, page_number, system_gap=N
                 s.name in BRACE_NAMES and s.box[1] <= upper.middle and s.box[3] >= lower.middle
                 and s.box[2] <= min(upper.x0, lower.x0) + space
                 for s in symbols)
-        if not bridged and system_gap and lower.top - upper.bottom <= ALIGNED_GAP * system_gap                 and not _starts_system(lower, text):
+        if not bridged and system_gap and lower.top - upper.bottom <= ALIGNED_GAP * system_gap                 and not _starts_system(lower, text, symbols):
             bridged = _aligned(upper, lower, barlines)
         if bridged:
             parent[root(b)] = root(a)

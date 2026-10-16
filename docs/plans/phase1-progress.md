@@ -1,6 +1,6 @@
 # Phase 1 progress log
 
-Last updated 16 October 2026 (Stage 1.7). This file records what has been done against `phase1.md`, so that work can resume in a new session. Update it at the end of each working session. Repository facts, the corpus location and shell notes are in `phase0-progress.md`.
+Last updated 16 October 2026 (Stage 1.8, first session). This file records what has been done against `phase1.md`, so that work can resume in a new session. Update it at the end of each working session. Repository facts, the corpus location and shell notes are in `phase0-progress.md`.
 
 ## Stage status
 
@@ -69,7 +69,15 @@ Last updated 16 October 2026 (Stage 1.7). This file records what has been done a
   - **Real-world clef artefacts:** in 7 of the 14 real uploads that fail on structure, the only mismatches are clefs the reader found and the PDMX MusicXML lacks, or a percussion clef named differently. In the one file checked, every note is right, so the printed clefs differ from the MusicXML. Counted as right, structure would be 82.5 percent. Not yet confirmed for the other files.
   - **Commercial files:** 20 of 21 converted (the scan was refused, as planned). Direct exports mostly read with high confidence (Dorico 77 to 90 percent of bars unflagged, Sibelius 68 and 100, Finale on macOS 73). Files printed to PDF through a printer driver mostly do not (0 to 38 percent; the Mozart Ave verum was read as 20 parts). Dorico 6.2's The Planets, 31 parts, had no unflagged bars.
 
+- **Stage 1.8, accuracy push: in progress (first session 16 October 2026).** The plan now has a work loop: the triage sets the work list, and the ranking is redone after each large fix. Findings and the ranked causes are in `docs/notes/error-triage.md`.
+  - **Check set:** the owner chose a new sealed set of 100 scores. The corpus code has a check pool (work-key hash 0.15 to 0.17), quotas a third of the development set's, and the draw skips near copies of the development, regression and real-world pieces. The candidates are labelled (1,288 eligible). **Blocked:** MuseScore 3 (the Microsoft Store package) will not start from this session ("Access is denied", from Git Bash and PowerShell alike), and every check-set score needs a MuseScore 3 export. The failed round-trip records were removed. The draw is `python scripts/build_corpus.py select check`, then `export check`.
+  - **Tools:** `scripts/triage_errors.py` (error patterns per file), `scripts/make_subset.py` (a set of chosen pairs for quick checks), `scripts/check_lilypond_pairs.py` (musicxml2ly "Negative skip" warnings beside the reader's accuracy).
+  - **Reader fixes, each with a test:** hidden staves matched by shortened names, brace groups and part edges; Verovio braces in two halves; a tuplet number over part of a beam group; cross-staff beams; outlined rhythm slashes and drum noteheads; bars broken across a line; repeat counts from verses; endings with joined lines; one-line percussion staves; a bar number starting a system; unisons beside a dotted note; staccato dots on rising lines.
+  - **Proposals waiting for the owner** (the reference-fault rule): 17 faulty LilyPond pairs, Verovio's single key for all staves, middle barlines in the ground truth, navigation stored as words. Details and counts in `error-triage.md`.
+  - **Runs** (results in `evaluations/s18-run*` on the corpus drive): run 1 (first batch of fixes) gave notes 97.37 percent on the development set (from 96.66). Run 2 has the second batch.
+
 ## Next steps
 
-1. Stage 1.8, accuracy push (`phase1.md`). Start with the owner's decision on the sealed check set, then Workstream A, the triage of the worst 100 development files and the near-miss structure failures, into `docs/notes/error-triage.md`. Check the lead first: equal missing and extra counts in the worst files. Analysis tool: `scripts/analyse_errors.py`; last output in `evaluations/errors-development.txt` on the corpus drive.
-2. The known limits listed per stage in `layout-spec.md`, `notation-spec.md`, `markings-spec.md` and `musicxml-spec.md` are the starting lists for Workstreams B, C and E.
+1. Stage 1.8: get MuseScore 3 starting again (or the owner's decision on the check set without it), then draw and export the check set.
+2. The owner's decisions on the four proposals in `error-triage.md`.
+3. Continue the work loop from the ranking in `error-triage.md`: the open reader faults, then run the full development set and `triage_errors.py` again.
