@@ -1,6 +1,6 @@
 # Phase 1 report: vector PDF to MusicXML
 
-Stage 1.7, 16 October 2026. Gate review for `docs/plans/phase1.md`. Waiting for the owner's decision.
+Stage 1.7, 16 October 2026. Gate review for `docs/plans/phase1.md`. The owner chose option 1 below: Stage 1.8, an accuracy push, is planned in `phase1.md`, and the gate will be reviewed again in Stage 1.9.
 
 ## Summary
 

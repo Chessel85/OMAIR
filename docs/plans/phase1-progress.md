@@ -60,7 +60,7 @@ Last updated 16 October 2026 (Stage 1.7). This file records what has been done a
   - **MusicXML 4.0 schema:** fetched from the W3C repository into `tools/musicxml-4.0-schema` on the corpus drive.
   - **Tests:** `tests/test_musicxml.py` (16: a synthetic score with every kind the writer handles comes back unchanged, accidentals, rest values, tuplet brackets, the four-voice limit, chord symbols, the schema, a regression pair scored the same written as in memory, braille, and the command). All 339 tests pass; `check_regression.py`, `check_notes.py` (98.4 percent) and the harness figures are unchanged.
 
-- **Stage 1.7, speed and the gate review: runs done and report written (16 October 2026); waiting for the owner's decision.** The gate is not met. The report and the options are in `docs/notes/phase1-report.md`.
+- **Stage 1.7, speed and the gate review: runs done and report written (16 October 2026); first gate review done.** The gate is not met. The owner chose to keep working: Stage 1.8 is planned in `phase1.md`. The report and the options are in `docs/notes/phase1-report.md`.
   - **Runs:** `scripts/run_phase1_gate.sh` (timing set one at a time, regression, real-world, full development set, and the baseline sample scored from the development outputs), about an hour on 3 workers, no failures. Results in `evaluations/gate-*` on the corpus drive. The 21 commercial files were converted into `evaluations/gate-commercial-omr`.
   - **Speed (OP-3):** about 0.6 seconds a page against 10; the slowest page took 7.8 seconds. No profiling needed.
   - **ACC-1:** notes 96.7 percent on the development set (MuseScore 98.1 to 98.2, LilyPond 94.1, Verovio 93.1), 98.4 on the regression set, 93.0 on the real uploads (96.2 without the faulty pair). Structure 77.8, 80.5 and 65.0 percent. Target 99 and 95.
@@ -71,7 +71,5 @@ Last updated 16 October 2026 (Stage 1.7). This file records what has been done a
 
 ## Next steps
 
-1. The owner decides what happens at the gate (`phase1-report.md`, "Options for the owner"). The report recommends keeping on before sign-off, structure first. Stage 1.6 work left for later (`musicxml-spec.md`, "Known limits"): beams, part groups, instruments and transposition, barline styles, and braille formatting (OI-1). Still to check: the real-world clef artefacts, the printed-to-PDF commercial files, and The Planets.
-2. Stage 1.4 work left for later (`markings-spec.md`, "Known limits"): slurs across two staves and two slurs from one note, outlined text on Type B pages, chord kinds written without their printed text.
-3. Stage 1.3 work left for later (`notation-spec.md`, "Known limits"): cross-staff tuplets, three voices on one staff, stems that are hidden with no beam, tremolos, LilyPond and Verovio octave marks, a bare 8 between two staves given to the wrong staff (now flagged), and merging or splitting bars by bar arithmetic.
-4. Stage 1.2 work left for later: one-line percussion staves and six-line tablature staves, multi-bar rests, LilyPond bar counts and Verovio clefs and keys on the development set.
+1. Stage 1.8, accuracy push (`phase1.md`). Start with the owner's decision on the sealed check set, then Workstream A, the triage of the worst 100 development files and the near-miss structure failures, into `docs/notes/error-triage.md`. Check the lead first: equal missing and extra counts in the worst files. Analysis tool: `scripts/analyse_errors.py`; last output in `evaluations/errors-development.txt` on the corpus drive.
+2. The known limits listed per stage in `layout-spec.md`, `notation-spec.md`, `markings-spec.md` and `musicxml-spec.md` are the starting lists for Workstreams B, C and E.

@@ -1,6 +1,6 @@
 # Phase 1 Plan (draft): Vector PDF to MusicXML
 
-Version 0.1 draft, 9 October 2026, drafted from what Phase 0 showed. Gate wording agreed by the owner; the rest still needs review. Plain headings and lists only. Model suggestions follow the Phase 0 plan: Opus for design and judgement, Sonnet for implementation, escalate to Opus after two or three failed attempts.
+Version 0.2, 16 October 2026: Stages 1.8 (accuracy push) and 1.9 (gate review again) added after the first gate review. Drafted on 9 October 2026 from what Phase 0 showed. Gate wording agreed by the owner; the rest still needs review. Plain headings and lists only. Model suggestions follow the Phase 0 plan: Opus for design and judgement, Sonnet for implementation, escalate to Opus after two or three failed attempts.
 
 ## Goal and gate
 
@@ -97,13 +97,93 @@ Done when: `omr convert` runs from PDF to MusicXML and braille, with a one-line 
 
 Done when: the gate (as agreed) is met and the report is signed off.
 
+Outcome (16 October 2026): runs done, gate not met. Speed is 0.6 seconds a page. Notes are 96.7 percent and structure 77.8 percent on the development set. See `docs/notes/phase1-report.md`. The owner chose to keep working (Stage 1.8) and to review the gate again afterwards (Stage 1.9).
+
+## Stage 1.8: Accuracy push to ACC-1
+
+**Model: Opus for triage, design and every rule that decides rhythm, voices or structure; Sonnet for implementation, tests and runs.** This is a long stage over several sessions. Record progress in `phase1-progress.md` at the end of each session.
+
+Aim: meet ACC-1 outright on every engraver, not on average. That means at least 99 percent note accuracy and at least 95 percent of files structurally correct on the development set, the regression set and the real uploads, for LilyPond and Verovio as well as MuseScore. It also means the commercial files read as well as the generated ones.
+
+### Starting point
+
+- **Development set:** notes 96.7 percent and structure 77.8 percent. MuseScore is at 98.1 percent notes and 84 to 85 percent structure, LilyPond at 94.1 and 55.4, Verovio at 93.1 and 71.0.
+- **Regression set:** notes 98.4 percent, structure 80.5 percent.
+- **Real uploads:** notes 93.0 percent (96.2 without the faulty pair), structure 65.0 percent.
+- **Errors are concentrated.** The worst 100 of 1,778 files hold 70 percent of the note errors. 60 percent of all errors happen in an engraving where another engraving of the same score was read more accurately; LilyPond and Verovio account for about 23,000 of those.
+- **Structure failures are often near misses.** 195 of the 395 failing files have only one or two mismatches. 207 fail on one kind only: clef 48, bar count 41, repeat 30, ending 28, key 17, navigation 11, parts 10, time 9, other 13.
+- **A lead to check first:** several of the worst files have nearly equal counts of missing and extra notes (for example 568 and 568). That pattern suggests whole bars or voices placed out of line, probably by a bar-count or staff-matching fault, rather than misread notes. If so, one structure fix could repair hundreds of notes.
+- **Tools:** `scripts/analyse_errors.py RESULTS.json` (concentration, engraver gap, mismatch kinds, near misses, worst files). The last full analysis is `evaluations/errors-development.txt` on the corpus drive. The gate runs are `scripts/run_phase1_gate.sh`, with results in `evaluations/gate-*`.
+
+### Rules for the whole stage
+
+- **Hold-out set.** A rule-based reader can still overfit to the files it was tuned on. Before any fix, ask the owner to agree a sealed check set: about 100 scores drawn by seed from the training pool and exported by all six jobs, the same way as the development set (`scripts/build_corpus.py`; the rules are in `corpus-sampling.md`). Those scores then leave the training pool. Score the check set only at milestones and at the gate, never to diagnose a fault. Report it beside the development figures. If the owner declines, split the development scores in two by seed instead: diagnose on one half and report both halves.
+- **Every fix needs a test.** Add a unit test or a regression pair that fails before the fix. Keep `check_regression.py`, `check_notes.py`, `check_markings.py`, `check_flags.py` and `check_convert.py` passing. Raise the CI floors (`--min-accuracy`, `--min-acc6`, `--min-recall`) as the figures rise, so no gain is lost.
+- **Fast loops, full runs at milestones.** Use `omr evaluate` filters (`--engraver`, `--limit`) or `check_notes.py` and `check_structure.py` on the affected files for each change. Run the full development set (about 45 minutes on 3 workers) after each workstream. Any drop on another engraver or another error kind must be explained before going on.
+- **Reference faults are the owner's call.** Where the reference MusicXML is wrong or cannot be matched from the page, do not bend the reader to it. Write the case up with examples and propose a fix to the harness, the spec or the pairs. Examples: missing clef changes in PDMX, navigation stored as plain words, chord kinds without text, a part hidden in the PDF. Do not change `evaluation-spec.md` until the owner agrees. Report figures both with and without such pairs until then.
+- **Speed must stay under 2 seconds a page** on the timing set, one file at a time.
+
+### Workstream A: triage (first, Opus)
+
+- Classify every error in the worst 100 development files, and in every structure failure with one or two mismatches, as one of: a reader fault, a fault in the reference file, or information the PDF does not hold. Group the reader faults by cause, with counts of notes and files affected.
+- Check the lead above (equal missing and extra counts) first.
+- Write the result in `docs/notes/error-triage.md`, ranked by notes and files a fix would recover. That ranking sets the order of Workstreams B to E. Each cause should name the code it touches (`layout.py`, `structure.py`, `notation.py`, `markings.py`, `rules.py`, `musicxml.py`).
+- Settle the real-world clef artefact: compare the printed clefs with the PDMX MusicXML in all 7 files. Propose the fix to the owner if PDMX is at fault.
+
+### Workstream B: structure (Opus to design, Sonnet to build)
+
+Target: at least 95 percent structurally correct on every engraver.
+
+- **Bar counts:** multi-bar rests, mid-bar barlines, invisible barlines (from the bar arithmetic and the other staves), pickup and split bars, and LilyPond bar counts. Use bar arithmetic to merge or split bars where the barlines disagree with the music.
+- **Clefs and keys:** Verovio clefs and keys, clef changes inside a bar, courtesy clefs and keys at system ends, and key changes to C.
+- **Repeats, endings and navigation:** endings across systems, repeat counts in words ("3 times"), segno, coda, Fine and D.C. as glyphs or words. Where the reference stores them as plain words, follow the reference-fault rule.
+- **Parts:** one-line percussion staves, six-line tablature staves, hidden staves in large scores, and staves matched to parts in more than one way.
+
+### Workstream C: notes (Opus for rhythm and voices, Sonnet for the rest)
+
+Target: at least 99 percent on every engraver.
+
+- **Close the engraver gap first.** For each LilyPond and Verovio file that reads worse than the same score's MuseScore engraving, find the drawing habit the reader mishandles: octave marks, beams, stems, rests, tuplet brackets, or system and staff joins. These are the 23,000 errors that the same music proves readable.
+- **Tuplets:** cross-staff tuplets, nested tuplets, unprinted tuplets by bar arithmetic, and tuplet numbers that are hidden or far from their notes.
+- **Voices:** three or more voices on a staff, voices that start and stop mid-bar, and rests shared between voices.
+- **The rest:** stems hidden with no beam, tremolos (notes and the marking), cross-staff beams and notes, a bare 8 between two staves, and grace notes before rests.
+- Grow the confidence rules alongside, so that ACC-4 stays at least 90 percent with at most 10 percent of bars flagged as the errors shrink.
+
+### Workstream D: commercial files
+
+Target: on direct exports, at least 90 percent of bars unflagged and no wrong part counts. On printed-to-PDF files, at least 80 percent of bars unflagged.
+
+- **Find out why printed-to-PDF files fail:** the Ave verum read as 20 parts, The Planets with no unflagged bars, and the low share on the driver-printed Sibelius and Finale files. Possible causes are renamed fonts, outlines, split text runs and different line drawing; triage first.
+- **Make ground truth for a few files.** Unflagged bars are a rough guide, not an accuracy figure. Ask the owner whether ground truth can be made for 3 to 5 commercial files, for example by checking our MusicXML against the page bar by bar in MuseScore. If yes, add them to the check set as commercial pairs.
+- **More files:** if the owner can get more Sibelius, Finale or Dorico PDFs (another IMSLP list, or the owner's own), add them to the survey and this workstream.
+
+### Workstream E: markings and the MusicXML writer (Sonnet, after B and C)
+
+These are not part of ACC-1, but they shape the output a braille reader gets.
+
+- **Markings known limits:** slurs across two staves, two slurs from one note, outlined text on Type B pages, words (67.8 percent recall on exact pairs), tremolo and wavy-line ornaments (0 percent), breath marks and caesuras.
+- **Writer known limits:** beams, part groups, instruments and transposition, barline styles, and the four-voice limit.
+
+### Done when
+
+On both the development set and the sealed check set, every engraver has at least 99 percent note accuracy and at least 95 percent structural correctness. The regression set meets the same. The real uploads meet it, excluding pairs the owner agrees are faulty. ACC-6 and ACC-4 still meet their targets, speed is under 2 seconds a page, and the commercial targets above are met or each shortfall is explained. Where a target is not reachable because the PDF does not hold the information, the triage note says so with counts, and the owner agrees the limit.
+
+## Stage 1.9: Gate review again
+
+**Model: Opus.**
+
+- Run `scripts/run_phase1_gate.sh`, adding the check set and the commercial files, and run `scripts/analyse_errors.py` on the results.
+- Update `docs/notes/phase1-report.md` to the new position, with the comparison against the baselines, and ask the owner for sign-off.
+
+Done when: the gate (as agreed) is met and the report is signed off.
+
 ## Order and dependencies
 
 1. Stage 1.0 first. The other stages need its spec decision.
 2. Stages 1.1 and 1.2 together, then 1.3.
 3. Stage 1.4 can start once 1.2 gives staves and positions.
 4. Stage 1.5 after 1.3. Stage 1.6 can start early with fake data.
-5. Stage 1.7 last.
+5. Stage 1.7, then Stage 1.8 (Workstream A first; B and C in the order the triage sets; D alongside; E last), then Stage 1.9.
 
 ## Risks specific to Phase 1
 
