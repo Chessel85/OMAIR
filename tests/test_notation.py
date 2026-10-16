@@ -186,3 +186,63 @@ def test_a_triplet_number_over_a_whole_group_keeps_it():
     group = _beamed(["1/2", "1/4", "1/2", "1/4"], [0, 15, 30, 45])
     first = notation.TupletMark(3, None, 9, -10, (7, -12, 11, -8))
     assert notation._tuplet_run(first, group) == group
+
+
+# ------------------------------------------------- bars and repeats from the page
+
+from types import SimpleNamespace  # noqa: E402
+
+from omr.evaluate import events  # noqa: E402
+
+
+def _system(bars_end, text=()):
+    staff = SimpleNamespace(top=100.0, space=5.0)
+    bars = [SimpleNamespace(end=end) for end in bars_end]
+    return (SimpleNamespace(text=list(text)), SimpleNamespace(staves=[staff], bars=bars, x0=50.0), None)
+
+
+def _note(bar, onset, lyrics=()):
+    pitch = events.Pitch("C", Fraction(0), 4)
+    return events.Note(0, 1, "1", bar, Fraction(onset), pitch, Fraction(1), "quarter", lyrics=tuple(lyrics))
+
+
+def _three_four_score(lengths):
+    score = events.Score(parts=[events.Part("Voice", 1)])
+    score.bars = [events.Bar(str(k + 1), 1, 1, Fraction(n)) for k, n in enumerate(lengths)]
+    score.structure = [events.Marking("time", "3/4", 0, None, 0, Fraction(0))]
+    return score
+
+
+def test_a_bar_broken_across_a_line_is_one_bar():
+    # the first system ends with no barline and the next starts with "(2)":
+    # bar 2 is one beat at the end of a line and two at the start of the next
+    score = _three_four_score([3, 1, 2, 3])
+    score.notes = [_note(1, 0), _note(2, 0), _note(2, 1), _note(3, 0)]
+    score.structure.append(events.Marking("clef", "G 2", 0, 1, 2, Fraction(0)))   # restated at the line
+    bracketed = SimpleNamespace(text="(2)", box=(30.0, 85.0, 48.0, 95.0))
+    ordered = [_system([object(), None]), _system([object(), object()], [bracketed])]
+    notation.join_split_bars(score, ordered)
+    assert len(score.bars) == 3 and score.bars[1].length == 3
+    assert [(n.bar, n.onset) for n in score.notes] == [(1, 0), (1, 1), (1, 2), (2, 0)]
+    assert not any(e.kind == "clef" for e in score.structure)
+
+
+def test_a_line_ending_without_a_barline_and_no_sign_stays_two_bars():
+    # a full bar on the next line, no bracketed number: nothing to join
+    score = _three_four_score([3, 1, 3])
+    score.notes = [_note(1, 0), _note(2, 0)]
+    notation.join_split_bars(score, [_system([object(), None]), _system([object()])])
+    assert len(score.bars) == 3
+
+
+def test_a_repeat_sung_to_three_verses_is_played_three_times():
+    score = _three_four_score([3, 3, 3])
+    score.notes = [_note(0, 0, [("1", "a"), ("2", "b"), ("3", "c")]), _note(2, 0, [("1", "d")])]
+    score.structure.append(events.Marking("repeat", "backward", 0, None, 1, Fraction(0)))
+    notation.repeat_counts_from_verses(score)
+    assert [e.value for e in score.structure if e.kind == "repeat"] == ["backward 3 times"]
+    # two verses: the repeat is played twice, as written
+    score.notes = [_note(0, 0, [("1", "a"), ("2", "b")])]
+    score.structure[-1] = events.Marking("repeat", "backward", 0, None, 1, Fraction(0))
+    notation.repeat_counts_from_verses(score)
+    assert [e.value for e in score.structure if e.kind == "repeat"] == ["backward"]

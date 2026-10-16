@@ -8,6 +8,7 @@ layout to structure".
 """
 
 import collections
+import dataclasses
 import re
 import statistics
 from dataclasses import dataclass, field
@@ -239,15 +240,22 @@ def _abbreviates(word, full):
 def _same_name(short, full):
     """Whether `short` names the same instrument as `full`: each of its words
     stands for a word of `full`, in order (full words may be skipped, as in
-    "Tr. Fa" for "Trompes en Fa"), and roman numbers ("I", "II") agree."""
+    "Tr. Fa" for "Trompes en Fa"), and numbers ("1", "II") agree where both
+    names have them."""
     a, b = _name_words(short), _name_words(full)
     if not a or not b:
         return False
     if a == b:
         return True
     romans = {"i", "ii", "iii", "iv", "v", "vi"}
-    if [w for w in a if w in romans or w.isdigit()] != [w for w in b if w in romans or w.isdigit()]:
+    numbers_a = [w for w in a if w in romans or w.isdigit()]
+    numbers_b = [w for w in b if w in romans or w.isdigit()]
+    if numbers_a and numbers_b and numbers_a != numbers_b:
         return False
+    # a number in one name only is left out (LilyPond sets the bar number
+    # beside the name: "S 10" for "Soprano")
+    a = [w for w in a if not w.isdigit()] or a
+    b = [w for w in b if not w.isdigit()] or b
     k = 0
     for word in a:
         while k < len(b) and not _abbreviates(word, b[k]):
@@ -491,8 +499,9 @@ def staff_times(page_layout, system, staff):
         group = sorted((s for s in digits if s.x <= x0 + 3 * staff.space), key=lambda s: s.x)
         # by the middle of the ink: SMuFL digits are centred on their origin,
         # Emmentaler's stand on it
-        upper = "".join(TIME_DIGITS[s.name] for s in group if staff.exact_step((s.box[1] + s.box[3]) / 2) > 4)
-        lower = "".join(TIME_DIGITS[s.name] for s in group if staff.exact_step((s.box[1] + s.box[3]) / 2) < 4)
+        middle = (staff.top + staff.bottom) / 2
+        upper = "".join(TIME_DIGITS[s.name] for s in group if (s.box[1] + s.box[3]) / 2 < middle)
+        lower = "".join(TIME_DIGITS[s.name] for s in group if (s.box[1] + s.box[3]) / 2 > middle)
         if upper and lower:
             out.append((k, f"{int(upper)}/{int(lower)}"))
     return out
@@ -514,9 +523,18 @@ def system_endings(page_layout, system, horizontals):
         if not system.x0 - space <= run.box[0] <= system.x1:
             continue
         numbers = " ".join(re.findall(r"\d+", run.text))
-        lines = [h for h in horizontals if run.box[0] - 2 * space <= h.x0 <= run.box[0] + 0.5 * space
-                 and run.box[1] - 2 * space <= h.y <= run.box[1] + 0.5 * space and h.length >= 2 * space
-                 and h.thickness <= 0.3 * space]   # a beam is thicker
+        near = [h for h in horizontals if run.box[1] - 2 * space <= h.y <= run.box[1] + 0.5 * space
+                and h.length >= 2 * space and h.thickness <= 0.3 * space]   # a beam is thicker
+        lines = [h for h in near if run.box[0] - 2 * space <= h.x0 <= run.box[0] + 0.5 * space]
+        if not lines:
+            # the line may have been joined with the ending drawn just before
+            # it: the ending starts at the hook down from it, left of the number
+            for h in near:
+                hook = [x for x, t, b, _ in page_layout.verticals
+                        if run.box[0] - 2 * space <= x <= run.box[0] + 0.5 * space and h.x0 + space < x < h.x1 - space
+                        and abs(t - h.y) <= 0.5 and b >= h.y + space]
+                if hook:
+                    lines.append(dataclasses.replace(h, x0=max(hook)))
         if not lines:
             continue
         line = max(lines, key=lambda h: h.length)

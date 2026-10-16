@@ -20,6 +20,7 @@ The rules are in docs/notes/layout-spec.md. In short:
    first bar instead.
 """
 
+import re
 import statistics
 from dataclasses import dataclass, field
 
@@ -54,6 +55,7 @@ class Staff:
     x0: float
     x1: float
     system: int = -1    # index of its system on the page
+    lines: int = 5      # 1 for a one-line (percussion) staff, kept as a five-line staff centred on its line
 
     @property
     def bottom(self):
@@ -65,11 +67,13 @@ class Staff:
 
     def step(self, y):
         """Staff position of a y: 0 on the bottom line, 8 on the top line, a
-        step for each line and space, rounded."""
-        return round((self.bottom - y) / (self.space / 2))
+        step for each line and space, rounded. A one-line staff's line is
+        its bottom line, as MusicXML counts it, so it is 0 there."""
+        return round(self.exact_step(y))
 
     def exact_step(self, y):
-        return (self.bottom - y) / (self.space / 2)
+        step = (self.bottom - y) / (self.space / 2)
+        return step - 4 if self.lines == 1 else step
 
 
 @dataclass
@@ -313,10 +317,22 @@ def _neighbour(candidates, staff):
     return None
 
 
-def join_systems(staves, verticals, symbols, barlines, page_number, system_gap=None):
+BAR_NUMBER = re.compile(r"^\(?\d+\)?$")
+
+
+def _starts_system(staff, text):
+    """A bar number just above the left end of the staff: engravers number
+    the first bar of each system, so the staff starts a system."""
+    space = staff.space
+    return any(BAR_NUMBER.match(run.text.strip()) and staff.top - 4 * space <= run.box[3] <= staff.top + 0.5 * space
+               and staff.x0 - 3 * space <= run.box[2] <= staff.x0 + 3 * space for run in text)
+
+
+def join_systems(staves, verticals, symbols, barlines, page_number, system_gap=None, text=()):
     """Group the staves into systems (rule 3). `barlines` is staff_barlines().
     `system_gap` is the gap between systems (system_gaps); staves joined only
-    by their barlines must be clearly closer than that."""
+    by their barlines must be clearly closer than that, and not when the
+    lower staff has a bar number at its start (`text` is the page's text)."""
     parent = list(range(len(staves)))
 
     def root(i):
@@ -344,7 +360,7 @@ def join_systems(staves, verticals, symbols, barlines, page_number, system_gap=N
                 s.name in BRACE_NAMES and s.box[1] <= upper.middle and s.box[3] >= lower.middle
                 and s.box[2] <= min(upper.x0, lower.x0) + space
                 for s in symbols)
-        if not bridged and system_gap and lower.top - upper.bottom <= ALIGNED_GAP * system_gap:
+        if not bridged and system_gap and lower.top - upper.bottom <= ALIGNED_GAP * system_gap                 and not _starts_system(lower, text):
             bridged = _aligned(upper, lower, barlines)
         if bridged:
             parent[root(b)] = root(a)
@@ -497,10 +513,38 @@ def page_lines(page):
     return horizontal_lines(candidates)
 
 
+PERCUSSION_CLEFS = ("unpitchedPercussionClef1", "unpitchedPercussionClef2")
+
+
+def one_line_staves(lines, staves, symbols, page_number):
+    """One-line staves (percussion): a single line at least six staff spaces
+    long, outside every five-line staff, with a percussion clef on it near
+    its start. Each is kept as a five-line staff centred on its line, with
+    the page's staff space, so that its notes, rests and barlines are read as
+    on any staff (a note on the line is on the middle line)."""
+    if not staves:
+        return []
+    space = statistics.median(s.space for s in staves)
+    found = []
+    for clef in (s for s in symbols if s.name in PERCUSSION_CLEFS):
+        middle = (clef.box[1] + clef.box[3]) / 2
+        if any(st.top - 0.5 * space <= middle <= st.bottom + 0.5 * space for st in staves + found):
+            continue
+        near = [l for l in lines if abs(l.y - middle) <= 0.5 * space and l.length >= 6 * space
+                and l.thickness <= space / 3 and l.x0 - space <= clef.box[0] <= l.x0 + 6 * space]
+        if near:
+            line = max(near, key=lambda l: l.length)
+            found.append(Staff(page_number, line.y - 2 * space, space, line.x0, line.x1, lines=1))
+    return found
+
+
 def read_document(doc, pages):
     """Layouts of the pages of a document, from their Stage 1.1 PageSymbols."""
     lines = [page_lines(doc[p.page - 1]) for p in pages]
     staves = [find_staves(l, p.page) for l, p in zip(lines, pages)]
+    for l, p, found in zip(lines, pages, staves):
+        found.extend(one_line_staves(l, found, p.symbols, p.page))
+        found.sort(key=lambda s: (s.top, s.x0))
     gaps = system_gaps(staves)
     return [read_layout(p, doc[p.page - 1], s, g, l) for p, s, g, l in zip(pages, staves, gaps, lines)]
 
@@ -518,7 +562,7 @@ def read_layout(page_symbols, page, staves=None, system_gap=None, lines=None):
     verticals = vertical_lines(page)
     notes = [(s.x, s.y, s.box) for s in symbols if is_note(s.name)]
     barlines = staff_barlines(staves, verticals, notes)
-    systems = join_systems(staves, verticals, symbols, barlines, number, system_gap)
+    systems = join_systems(staves, verticals, symbols, barlines, number, system_gap, page_symbols.text)
     layout = PageLayout(number, staves, systems, symbols, page_symbols.text,
                         horizontals=lines, verticals=verticals)
     if not staves:

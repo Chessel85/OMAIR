@@ -1253,7 +1253,90 @@ def read_notes(score, ordered, pages, layouts=()):
                 e = replace(e, onset=onset)
         fixed.append(e)
     score.structure = fixed
+    join_split_bars(score, ordered)
+    repeat_counts_from_verses(score)
     return score
+
+
+CONTINUED_BAR = re.compile(r"^\(\d+\)$")
+
+
+def _continued_bar_number(pl, system):
+    """A bar number in brackets at the start of the system, which LilyPond
+    prints when the system starts in the middle of a bar."""
+    top, space = system.staves[0], system.staves[0].space
+    return any(CONTINUED_BAR.match(run.text.strip()) and system.x0 - 3 * space <= run.box[2] <= system.x0 + 6 * space
+               and top.top - 6 * space <= run.box[3] <= top.top + space for run in pl.text)
+
+
+def join_split_bars(score, ordered):
+    """A bar broken across a line (LilyPond does this when a bar is too long
+    for one line) is one bar: the system ends with no barline (engravers
+    otherwise always end a system with one), and either the next system
+    starts with its bar number in brackets or the two pieces add up to one
+    bar of the time signature. The second piece's contents move into the
+    first, placed to end where the bar ends, and the clefs and keys restated
+    at the start of the new system are dropped."""
+    joins, base = [], 0
+    for i, (pl, system, mapping) in enumerate(ordered):
+        base += len(system.bars)
+        if i + 1 < len(ordered) and system.bars and system.bars[-1].end is None:
+            joins.append((base - 1, _continued_bar_number(*ordered[i + 1][:2])))
+    for k, bracketed in reversed(joins):
+        if k + 1 >= len(score.bars):
+            continue
+        first, second = score.bars[k].length, score.bars[k + 1].length
+        full, _ = _time_in_force(score, k)
+        if not (0 < first and 0 < second <= full and (bracketed or first + second == full)):
+            continue
+        _join_bars(score, k, full - second)
+
+
+def _join_bars(score, k, shift):
+    """Move bar k + 1 into bar k, after `shift` quarters, and number the
+    bars after it down by one."""
+
+    def moved(item):
+        if item.bar == k + 1:
+            return replace(item, bar=k, onset=None if item.onset is None else item.onset + shift)
+        if item.bar > k + 1:
+            return replace(item, bar=item.bar - 1)
+        return item
+
+    restated = ("clef", "key", "time")
+    score.notes = [moved(n) for n in score.notes]
+    score.rests = [moved(r) for r in score.rests]
+    score.markings = [moved(m) for m in score.markings]
+    score.structure = [moved(e) for e in score.structure
+                       if not (e.bar == k + 1 and e.onset == 0 and e.kind in restated)]
+    score.doubts = [moved(d) for d in score.doubts]
+    score.bars[k].length += score.bars[k + 1].length
+    del score.bars[k + 1]
+    for n, bar in enumerate(score.bars[k + 1:], k + 2):
+        bar.number = str(n)
+    score.bar_counts = [len(score.bars)] * len(score.parts)
+
+
+def repeat_counts_from_verses(score):
+    """A repeated section sung to more than two verses is played once for
+    each: where the bars up to a backward repeat carry lyric lines 1 to n,
+    n above 2, the repeat is played n times. Engravers print no count for
+    such a repeat; the verses are the count."""
+    repeats = [e for e in score.structure if e.kind == "repeat"]
+    starts = sorted({e.bar for e in repeats if e.value.startswith("forward")})
+    ends = sorted({e.bar for e in repeats if e.value == "backward"})
+    counts = {}
+    previous_end = -1
+    for end in ends:
+        start = max([s for s in starts if previous_end < s <= end], default=previous_end + 1)
+        verses = {int(number) for n in score.notes if start <= n.bar <= end
+                  for number, _ in n.lyrics if str(number).isdigit()}
+        if verses and max(verses) > 2 and verses == set(range(1, max(verses) + 1)):
+            counts[end] = max(verses)
+        previous_end = end
+    score.structure = [replace(e, value=f"backward {counts[e.bar]} times")
+                       if e.kind == "repeat" and e.value == "backward" and e.bar in counts else e
+                       for e in score.structure]
 
 
 def h_space(pl):

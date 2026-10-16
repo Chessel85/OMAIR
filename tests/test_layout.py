@@ -176,3 +176,46 @@ def test_shortened_names_choose_the_parts(monkeypatch):
         ["gClef", "gClef", "gClef", "fClef", "fClef"], [[0], [1], [2, 3], [4]])
     chosen, _ = structure._match_staves(page, system, names, clefs, slots)
     assert chosen == [0, 2, 3, 4, 5]
+
+
+def test_two_endings_drawn_with_one_joined_line():
+    # two first-time brackets side by side: their lines touch and are joined
+    # into one, but each has its hook and its number
+    from types import SimpleNamespace
+
+    staff = SimpleNamespace(top=100.0, space=5.0)
+    bars = [SimpleNamespace(x0=x0, x1=x1, end=object()) for x0, x1 in ((50, 100), (100, 200), (200, 300), (300, 500))]
+    system = SimpleNamespace(staves=[staff], bars=bars, x0=50.0, x1=500.0)
+    run = lambda text, x: SimpleNamespace(text=text, box=(x, 85.0, x + 5, 92.0))
+    page = SimpleNamespace(text=[run("1.", 103), run("1.", 205)],
+                           verticals=[(100.0, 83.0, 93.0, 0.5), (198.0, 83.0, 93.0, 0.5),
+                                      (202.0, 83.0, 93.0, 0.5), (300.0, 83.0, 93.0, 0.5)])
+    line = layout._Line(83.0, 100.0, 300.0, 0.5)
+    assert structure.system_endings(page, system, [line]) == [(1, 1, "1", True), (2, 2, "1", True)]
+
+
+def test_a_one_line_percussion_staff():
+    # a five-line staff, then a single line with a percussion clef on it
+    from types import SimpleNamespace
+
+    five = [layout._Line(100 + 5 * k, 50, 500, 0.5) for k in range(5)]
+    single = layout._Line(160, 50, 500, 0.5)
+    staves = layout.find_staves(five + [single], 1)
+    assert len(staves) == 1
+    clef = SimpleNamespace(name="unpitchedPercussionClef1", box=(55, 155, 60, 165))
+    found = layout.one_line_staves(five + [single], staves, [clef], 1)
+    assert len(found) == 1 and found[0].lines == 1 and found[0].middle == 160
+    # a note on the line is on line 1, as MusicXML counts a one-line staff
+    assert found[0].step(160) == 0 and found[0].step(157.5) == 1
+    # a line with no percussion clef is not a staff (a long tie, a hairpin)
+    assert layout.one_line_staves(five + [single], staves, [], 1) == []
+
+
+def test_a_bar_number_at_a_staff_start_starts_a_system():
+    from types import SimpleNamespace
+
+    staff = layout.Staff(1, 300.0, 4.0, 35.0, 500.0)
+    number = SimpleNamespace(text="72", box=(27.0, 291.0, 35.0, 298.0))
+    lyric = SimpleNamespace(text="Man,", box=(49.0, 290.0, 72.0, 298.0))
+    assert layout._starts_system(staff, [number])
+    assert not layout._starts_system(staff, [lyric])
