@@ -1,7 +1,7 @@
 """Find candidate scores in PDMX and OpenScore and compute their labels.
 
-Only scores that the pool split makes eligible for the development or
-regression set are extracted and parsed, which keeps the run short. The split
+Only scores that the pool split makes eligible for the development,
+regression or check set are extracted and parsed, which keeps the run short. The split
 depends only on the seed and the work key (see labels.pool_of).
 """
 
@@ -52,7 +52,7 @@ def _clean(value):
     return "" if value in (None, "NA") else value.strip()
 
 
-SET_POOLS = ("development", "regression")
+SET_POOLS = ("development", "regression", "check")
 
 
 def pdmx_candidates(log, pools=SET_POOLS):
@@ -195,13 +195,24 @@ def label_candidates(candidates, log):
 
 
 def load_or_build(log, refresh=False):
-    """The labelled candidate list, cached in the corpus work folder."""
+    """The labelled candidate list, cached in the corpus work folder. A pool
+    the cache does not yet record (the check pool, added later) is labelled
+    and added, leaving the other candidates as they are."""
     cache = work_dir() / "candidates.json"
+    pools_file = work_dir() / "candidate-pools.txt"
     if cache.is_file() and not refresh:
         data = json.loads(cache.read_text(encoding="utf-8"))
         log.info(f"Read {len(data)} labelled candidates from {cache}.")
-        return [Candidate(**d) for d in data]
-    pdmx = extract_pdmx(pdmx_candidates(log), log)
-    everything = label_candidates(pdmx + openscore_candidates(log), log)
+        everything = [Candidate(**d) for d in data]
+        done = set(pools_file.read_text(encoding="utf-8").split()) if pools_file.is_file() else {"development", "regression"}
+        missing = tuple(p for p in SET_POOLS if p not in done)
+        if not missing:
+            return everything
+        pdmx = extract_pdmx(pdmx_candidates(log, pools=missing), log)
+        everything += label_candidates(pdmx + openscore_candidates(log, pools=missing), log)
+    else:
+        pdmx = extract_pdmx(pdmx_candidates(log), log)
+        everything = label_candidates(pdmx + openscore_candidates(log), log)
     cache.write_text(json.dumps([asdict(c) for c in everything], indent=1), encoding="utf-8")
+    pools_file.write_text(" ".join(SET_POOLS) + "\n", encoding="utf-8")
     return everything

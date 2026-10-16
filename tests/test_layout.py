@@ -127,3 +127,52 @@ def test_key_letters_follow_the_clef():
 def test_octave_clef_value():
     assert structure.clef_value("gClef8vb", 2) == "G 2 octave -1"
     assert structure.clef_value("cClef", 6) == "C 4"
+
+
+# ------------------------------------------------- systems with hidden staves
+
+def test_shortened_instrument_names():
+    for short, full in [("Pno.", "Piano"), ("Bk. Voc.", "Backing Vocals"), ("B. Guit.", "Bass Guitar"),
+                        ("B♭ Tpt.", "B♭ Trumpet"), ("Tr. Fa", "Trompes en Fa"), ("Vl. II", "Violins II"),
+                        ("Vln. 1", "Violin 1"), ("Piano", "Piano")]:
+        assert structure._same_name(short, full), (short, full)
+    for short, full in [("Bk. Voc.", "Lead Vocals"), ("Vl. I", "Violins II"), ("Vln. 2", "Violin 1"),
+                        ("A.", "Soprano")]:
+        assert not structure._same_name(short, full), (short, full)
+
+
+def _hidden_staff_system(monkeypatch, names, clefs, groups):
+    """A system of len(clefs) staves whose names, clefs and brace groups are given."""
+    staves = [object() for _ in clefs]
+    clef_of = dict(zip(map(id, staves), clefs))
+    system = type("System", (), {"staves": staves})()
+    page = type("Page", (), {"symbols": [], "text": []})()
+    monkeypatch.setattr(structure, "_names_at_left", lambda pl, sy: names)
+    monkeypatch.setattr(structure, "_initial_clef", lambda pl, st: clef_of[id(st)])
+    monkeypatch.setattr(structure, "staff_groups", lambda sy, symbols, text: groups)
+    return page, system
+
+
+# master: a two-staff part, a one-staff part, a two-staff part, none named in the system
+MASTER_NAMES = ["Piano eléctrico", "Piano eléctrico", "Piano de cola", "Piano", "Piano"]
+MASTER_CLEFS = ["gClef", "fClef", "fClef", "gClef", "fClef"]
+MASTER_SLOTS = [(0, 1), (0, 2), (1, 1), (2, 1), (2, 2)]
+
+
+def test_a_braced_pair_matches_a_whole_two_staff_part(monkeypatch):
+    # treble and bass joined by a brace, then a lone bass staff: the clefs alone
+    # fit three ways; the brace and the part edges leave one
+    page, system = _hidden_staff_system(monkeypatch, {}, ["gClef", "fClef", "fClef"], [[0, 1], [2]])
+    chosen, certain = structure._match_staves(page, system, MASTER_NAMES, MASTER_CLEFS, MASTER_SLOTS)
+    assert chosen == [0, 1, 2] and certain
+
+
+def test_shortened_names_choose_the_parts(monkeypatch):
+    names = ["B♭ Trumpet", "Lead Vocals", "Backing Vocals", "Piano", "Piano", "Bass Guitar"]
+    clefs = ["gClef", "gClef", "gClef", "gClef", "fClef", "fClef"]
+    slots = [(0, 1), (1, 1), (2, 1), (3, 1), (3, 2), (4, 1)]
+    page, system = _hidden_staff_system(
+        monkeypatch, {0: "B♭ Tpt.", 1: "Bk. Voc.", 2: "Pno.", 4: "B. Guit."},
+        ["gClef", "gClef", "gClef", "fClef", "fClef"], [[0], [1], [2, 3], [4]])
+    chosen, _ = structure._match_staves(page, system, names, clefs, slots)
+    assert chosen == [0, 2, 3, 4, 5]

@@ -126,11 +126,20 @@ Aim: meet ACC-1 outright on every engraver, not on average. That means at least 
 ### Workstream A: triage (first, Opus)
 
 - Classify every error in the worst 100 development files, and in every structure failure with one or two mismatches, as one of: a reader fault, a fault in the reference file, or information the PDF does not hold. Group the reader faults by cause, with counts of notes and files affected.
+- For each of those files, say what would have to change for it to convert correctly: each change, the code it touches (`layout.py`, `structure.py`, `notation.py`, `markings.py`, `rules.py`, `musicxml.py`), and whether it corrects an existing rule or needs a new one. This shows which files need several fixes and which fixes are shared.
 - Check the lead above (equal missing and extra counts) first.
-- Write the result in `docs/notes/error-triage.md`, ranked by notes and files a fix would recover. That ranking sets the order of Workstreams B to E. Each cause should name the code it touches (`layout.py`, `structure.py`, `notation.py`, `markings.py`, `rules.py`, `musicxml.py`).
+- Write the result in `docs/notes/error-triage.md`, ranked by notes and files a fix would recover. That ranking is the work list for Workstreams B to E.
 - Settle the real-world clef artefact: compare the printed clefs with the PDMX MusicXML in all 7 files. Propose the fix to the owner if PDMX is at fault.
 
+### The work loop
+
+- Take the top-ranked cause, fix it with its test, and run the affected files.
+- After each large fix, and at the end of each workstream, run the full development set and `analyse_errors.py` again, and update the ranking in `error-triage.md`. One fix can move many errors, so the next cause is chosen from the new ranking, not the old one.
+- Workstreams B to E list the causes already suspected from the known limits. They are candidates, not commitments: work on one only when the triage ranks it, and add causes the triage finds that are not listed.
+
 ### Workstream B: structure (Opus to design, Sonnet to build)
+
+The lists in Workstreams B to E are candidates; see the work loop above.
 
 Target: at least 95 percent structurally correct on every engraver.
 

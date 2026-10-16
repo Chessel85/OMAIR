@@ -10,11 +10,13 @@ here. (The draw itself skips near copies of pieces already chosen.)
 from omr.corpus import labels, select, sources
 
 
-def selected_pieces(set_names=("development", "regression")):
+def selected_pieces(set_names=("development", "regression", "check")):
     """(set, id, title, composer) for every score in the selection files."""
     pieces = []
     for name in set_names:
         path = select.SELECTION_DIR / f"{name}.txt"
+        if not path.is_file():
+            continue
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.startswith("#") or not line.strip():
                 continue

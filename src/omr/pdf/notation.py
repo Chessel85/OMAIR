@@ -674,7 +674,7 @@ def apply_tuplets(marks, evs, stems, lines, verticals, space, compound):
                               else min(abs(m.y - st.top), abs(m.y - st.bottom)))
                 members = [e for e in members if e.staff is nearest]
         else:
-            members = _beam_group(m, evs, space)
+            members = _tuplet_run(m, _beam_group(m, evs, space))
         if len(members) < 2:
             unused.append(m)
             continue
@@ -752,6 +752,36 @@ def _beam_group(m, evs, space):
     return list(group.values())
 
 
+def _power_of_two(value):
+    return value > 0 and value.numerator & (value.numerator - 1) == 0 and         value.denominator & (value.denominator - 1) == 0
+
+
+def _tuplet_run(m, group):
+    """The notes of a beam group that a tuplet number stands for. A number
+    may cover only part of its beam group (an eighth beamed to three triplet
+    sixteenths, the "3" over the sixteenths), so the group is cut to the
+    unbroken run of notes that is centred nearest under the number and adds
+    up to `actual` equal values (three sixteenths, or an eighth and a
+    sixteenth). A group that adds up as a whole keeps all its notes, and
+    grace notes count for nothing."""
+    whole = sorted(group, key=lambda e: e.x)
+    group = [e for e in whole if not e.grace]
+    if len(group) < 3 or _power_of_two(sum(e.value for e in group) / m.actual):
+        return whole
+    best, best_key = group, None
+    for i in range(len(group)):
+        total = Fraction(0)
+        for j in range(i, len(group)):
+            total += group[j].value
+            if j == i or not _power_of_two(total / m.actual):
+                continue
+            centre = (group[i].x + group[j].right) / 2
+            key = (round(abs(centre - m.x), 1), -(j - i))
+            if best_key is None or key < best_key:
+                best, best_key = group[i:j + 1], key
+    return [e for e in whole if best[0].x <= e.x <= best[-1].x]
+
+
 # ------------------------------------------------------- hidden tuplets
 
 HIDDEN_TUPLETS = {3: 2, 5: 4, 6: 4, 7: 4, 9: 8, 10: 8, 12: 8}
@@ -781,14 +811,16 @@ def beam_groups(evs):
     return [sorted(g, key=lambda e: e.x) for g in groups.values()]
 
 
-def hidden_tuplets(evs, space, bar_length, cost):
+def hidden_tuplets(evs, space, bar_length, cost, exclude=frozenset()):
     """Bar arithmetic (ACC-5) for tuplets whose number is not printed: when
     the bar does not add up, beam groups of 3, 5, 6, 7, 9, 10 or 12 notes of
     one value with no tuplet are read as tuplets (3 in the time of 2, 6 in
     the time of 4, and so on). The reading is kept if the bar then adds up
-    better. Returns the cost of the reading kept."""
+    better. Returns the cost of the reading kept. Events in `exclude` (on a
+    beam shared with another staff, so only part of their group is here)
+    are left alone."""
     groups = [g for g in beam_groups(evs) if len(g) in HIDDEN_TUPLETS and all(e.tuplet is None for e in g)
-              and len({e.value for e in g}) == 1]
+              and len({e.value for e in g}) == 1 and not any(id(e) in exclude for e in g)]
     if not groups:
         return cost
     for g in groups:
@@ -911,6 +943,39 @@ def assign_onsets(staff_events, space, bar_length=None, reference=()):
             e.onset = t
     _assign_voices(staff_events)
     return best_cost
+
+
+def _in_line(group):
+    """Each event of the beam group starts where the one before it ends."""
+    return all(b.onset == a.onset + a.duration for a, b in zip(group, group[1:]))
+
+
+def cross_staff_beams(evs, by_staff_bar, lengths_by, space):
+    """A beam that joins notes on two staves (a figure passed between the
+    hands) is one line of notes: each starts where the one before it ends.
+    Read alone, each staff packs its own notes of the beam together, so the
+    staves of such a bar are read again together, as one staff, and the new
+    reading is kept when it puts the beam's notes in line. Voices are then
+    set for each staff on its own."""
+    done = set()
+    for group in beam_groups([e for e in evs if not e.grace and e.onset is not None]):
+        staff_ids = sorted({id(e.staff) for e in group})
+        if len(staff_ids) < 2 or len({e.bar for e in group}) != 1 or _in_line(group):
+            continue
+        k = group[0].bar
+        if (tuple(staff_ids), k) in done:
+            continue
+        done.add((tuple(staff_ids), k))
+        mains = [[e for e in by_staff_bar[(sid, k)] if not e.grace] for sid in staff_ids]
+        joint = [e for main in mains for e in main]
+        before = [(e.onset, e.voice) for e in joint]
+        assign_onsets(joint, space, lengths_by[(staff_ids[0], k)])
+        if _in_line(group):
+            for main in mains:
+                _assign_voices(main)
+        else:
+            for e, (onset, voice) in zip(joint, before):
+                e.onset, e.voice = onset, voice
 
 
 def _rhythm_doubts(staff_events, bar_length):
@@ -1276,6 +1341,8 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
         e.bar = k
         by_staff_bar[(id(e.staff), k)].append(e)
     costs, lengths_by = {}, {}
+    cross = {id(e) for g in beam_groups([e for e in evs if not e.grace]) if len({id(e.staff) for e in g}) > 1
+             for e in g}
     for (staff_id, k), group in by_staff_bar.items():
         main = [e for e in group if not e.grace]
         part = mapping.staves[[id(st) for st in system.staves].index(staff_id)][0]
@@ -1287,7 +1354,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
         costs[(staff_id, k)] = assign_onsets(main, space, bar_length)
         if costs[(staff_id, k)]:
             printed = {id(e) for e in main if e.tuplet}
-            costs[(staff_id, k)] = hidden_tuplets(main, space, bar_length, costs[(staff_id, k)])
+            costs[(staff_id, k)] = hidden_tuplets(main, space, bar_length, costs[(staff_id, k)], cross)
             if any(e.tuplet and id(e) not in printed for e in main):
                 doubt(main[0].staff, k, "unprinted tuplet", "a tuplet is read from the bar's length, "
                       "with no number printed")
@@ -1302,6 +1369,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
                      for col in _columns([e for e in g if not e.grace], space)]
         if reference:
             assign_onsets([e for e in group if not e.grace], space, lengths_by[(staff_id, k)], reference)
+    cross_staff_beams(evs, by_staff_bar, lengths_by, space)
     for (staff_id, k), group in by_staff_bar.items():
         assign_graces(group, space)
         for reason, onset in _rhythm_doubts([e for e in group if not e.grace], lengths_by[(staff_id, k)]):

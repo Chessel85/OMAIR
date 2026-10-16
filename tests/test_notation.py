@@ -162,3 +162,27 @@ def test_regression_pairs_read_their_notes(score_id, job, floor):
     _, _, pdf, truth = pairs[0]
     figures = check_notes.check_pair(pdf, truth)
     assert check_notes.accuracy(figures["notes"]) >= floor
+
+
+# ------------------------------------------------ a tuplet over part of a beam
+
+def _beamed(values, xs):
+    return [notation.Event(staff=None, x=x, right=x + 4, base=Fraction(v)) for v, x in zip(values, xs)]
+
+
+def test_a_triplet_number_over_part_of_a_beam_group():
+    # an eighth beamed to three triplet sixteenths, the "3" over the sixteenths
+    group = _beamed(["1/2", "1/4", "1/4", "1/4"], [0, 20, 30, 40])
+    mark = notation.TupletMark(3, None, 32, -10, (30, -12, 34, -8))
+    assert notation._tuplet_run(mark, group) == group[1:]
+
+
+def test_a_triplet_number_over_a_whole_group_keeps_it():
+    group = _beamed(["1/2", "1/2", "1/2"], [0, 20, 40])
+    mark = notation.TupletMark(3, None, 22, -10, (20, -12, 24, -8))
+    assert notation._tuplet_run(mark, group) == group
+    # an eighth and a sixteenth under each of two numbers: the whole group
+    # is two triplets, so each number keeps it
+    group = _beamed(["1/2", "1/4", "1/2", "1/4"], [0, 15, 30, 45])
+    first = notation.TupletMark(3, None, 9, -10, (7, -12, 11, -8))
+    assert notation._tuplet_run(first, group) == group

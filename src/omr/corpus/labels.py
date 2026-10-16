@@ -240,12 +240,14 @@ def pool_fraction(key, seed=config.SEED):
 
 
 def pool_of(key, seed=config.SEED):
-    """'regression', 'development' or 'training' (spec, 'Splitting into pools')."""
+    """'regression', 'development', 'check' or 'training' (spec, 'Splitting into pools')."""
     x = pool_fraction(key, seed)
     if x < config.REGRESSION_SHARE:
         return "regression"
     if x < config.DEVELOPMENT_SHARE:
         return "development"
+    if x < config.CHECK_SHARE:
+        return "check"
     return "training"
 
 

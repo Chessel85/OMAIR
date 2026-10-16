@@ -1,4 +1,4 @@
-"""Draw the development and regression sets (spec, 'Drawing the sets')."""
+"""Draw the development, regression and check sets (spec, 'Drawing the sets')."""
 
 import random
 from pathlib import Path
@@ -60,6 +60,28 @@ def _gain(c, cfg, genre_counts, feature_counts):
     return priority_gain, genre_gain, feature_gain
 
 
+def earlier_pieces():
+    """(title, composer) of every score the check set must not copy: the
+    development and regression selections and the real-world uploads."""
+    pieces = []
+    for set_name in ("development", "regression"):
+        path = SELECTION_DIR / f"{set_name}.txt"
+        if path.is_file():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if line.strip() and not line.startswith("#"):
+                    fields = line.split(" | ")
+                    pieces.append((fields[5], fields[6]))
+    try:
+        realworld = paths.require_corpus_dir() / "generated" / "realworld"
+    except paths.CorpusDirError:
+        realworld = None
+    if realworld is not None and realworld.is_dir():
+        for meta in realworld.glob("*/*/metadata.txt"):
+            fields = dict(line.split(": ", 1) for line in meta.read_text(encoding="utf-8").splitlines() if ": " in line)
+            pieces.append((fields.get("title", ""), fields.get("composer", "")))
+    return pieces
+
+
 def select_set(name, candidates, log, composers=None):
     """Return (chosen candidates with their round-trip records, shortfalls)."""
     cfg = config.SETS[name]
@@ -70,7 +92,9 @@ def select_set(name, candidates, log, composers=None):
         pool = [c for c in pool if regression_allowed(c, composers)]
     log.info(f"{name}: {len(pool)} eligible candidates.")
     chosen, genre_counts, feature_counts, used_keys = [], {}, {}, set()
-    near_copies = labels.NearCopyIndex([])
+    # The check set is drawn last, so it also skips near copies of every
+    # score already used for diagnosis.
+    near_copies = labels.NearCopyIndex(earlier_pieces() if name == "check" else [])
     shortfalls = []
     for texture in config.TEXTURES:
         quota = cfg["textures"][texture]

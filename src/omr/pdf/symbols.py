@@ -322,7 +322,69 @@ def read_page(page, number, programs=None, identifier=None, ev=None):
         result.symbols.extend(outline_symbols(page, ev, result.unmapped))
     else:
         result.symbols.extend(outline_braces(page, ev))
+    braces = [s.box for s in result.symbols if s.name == "brace"]
+    result.symbols.extend(b for b in brace_halves(page, ev)
+                          if not any(_boxes_overlap(b.box, other) for other in braces))
     return result
+
+
+def _curve_box(items):
+    """The ink box of a path, from points along its curves (a curve's control
+    points can lie far outside its ink)."""
+    points = []
+    for item in items:
+        if item[0] == "c":
+            p0, p1, p2, p3 = item[1:]
+            for k in range(11):
+                t = k / 10
+                u = 1 - t
+                points.append((u ** 3 * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t ** 3 * p3.x,
+                               u ** 3 * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t ** 3 * p3.y))
+        else:
+            points.extend(evidence._item_points(item))
+    return evidence._bbox(points)
+
+
+def _boxes_overlap(a, b):
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def brace_halves(page, ev):
+    """Braces drawn as two halves (Verovio does this): two narrow curved
+    shapes, one above the other, meeting at the brace's point, with the same
+    left and right edges. Each half alone looks like a tie, so the shape
+    tests above skip it."""
+    space = ev.staves.staff_space_pt
+    if not space:
+        return []
+    turn = evidence._display_turn(page)
+    halves = []
+    for d in page.get_drawings():
+        items = d["items"]
+        if "f" not in d["type"] or not items or any(item[0] != "c" for item in items) or len(items) > 4:
+            continue
+        if turn is not None:
+            items = [(item[0], *(part * turn if hasattr(part, "transform") else part for part in item[1:]))
+                     for item in items]
+        x0, y0, x1, y1 = _curve_box(items)
+        if y1 - y0 > 1.5 * space and x1 - x0 < (y1 - y0) / 3:
+            halves.append((x0, y0, x1, y1))
+    halves.sort(key=lambda b: (b[1], b[0]))
+    found, used = [], set()
+    for i, upper in enumerate(halves):
+        if i in used:
+            continue
+        for j in range(i + 1, len(halves)):
+            lower = halves[j]
+            if j in used or abs(lower[1] - upper[3]) > 0.1 * space:
+                continue
+            same_edges = abs(lower[0] - upper[0]) < 0.2 * space and abs(lower[2] - upper[2]) < 0.2 * space
+            if same_edges and abs((lower[3] - lower[1]) - (upper[3] - upper[1])) < 0.2 * space:
+                used.update((i, j))
+                box = (upper[0], upper[1], upper[2], lower[3])
+                found.append(Symbol("brace", box[0], box[3], 4 * space, box, "outlines", "outline"))
+                break
+    return found
 
 
 def outline_braces(page, ev):
@@ -410,6 +472,8 @@ def _ink_boxes(programs, page, mappings):
 # the plain staccatissimo it means.
 OUTLINE_CANDIDATES = (
     "noteheadBlack", "noteheadHalf", "noteheadWhole", "noteheadDoubleWhole",
+    "noteheadSlashHorizontalEnds", "noteheadSlashWhiteHalf", "noteheadSlashWhiteWhole",   # rhythm slashes
+    "noteheadXBlack", "noteheadCircleX", "noteheadDiamondBlack",                          # drums and harmonics
     "restWhole", "restHalf", "restQuarter", "rest8th", "rest16th", "rest32nd", "rest64th",
     "accidentalSharp", "accidentalFlat", "accidentalNatural", "accidentalDoubleSharp", "accidentalDoubleFlat",
     "gClef", "fClef", "cClef", "gClef8vb", "unpitchedPercussionClef1",
@@ -461,6 +525,10 @@ def outline_symbols(page, ev, unmapped):
                 if name:   # a rest drawn as a plain rectangle
                     found.append(Symbol(name, x0, y0 if name == "restWhole" else y1, 4 * space,
                                         (x0, y0, x1, y1), "outlines", "outline"))
+            if _rhythm_slash(points, w, h):   # a slash notehead drawn as a slanted four-sided piece
+                found.append(Symbol("noteheadSlashHorizontalEnds", x0, (y0 + y1) / 2, 4 * space,
+                                    (x0, y0, x1, y1), "outlines", "outline"))
+                continue
             if len(items) <= 4:
                 continue   # rectangles and four-sided pieces: stems, barlines, beams
         if set(kinds) == {"c"} and len(kinds) <= 3:
@@ -523,6 +591,22 @@ def _thin_band(shape, w, h):
     if shape.image is None or w < 2.4 * h:   # a fermata is about twice as wide as tall
         return False
     return float(shape.image.mean()) < 0.25
+
+
+def _rhythm_slash(points, w, h):
+    """A rhythm slash: four corners, a short level edge at the top right and
+    one at the bottom left, about two staff spaces wide and high (`w` and
+    `h` are in staff spaces)."""
+    corners = sorted(set((round(x, 1), round(y, 1)) for x, y in points))
+    if len(corners) != 4 or not (1.2 <= w <= 2.6 and 1.4 <= h <= 2.6):
+        return False
+    top = sorted((p for p in corners if abs(p[1] - min(c[1] for c in corners)) < 0.2), key=lambda p: p[0])
+    bottom = sorted((p for p in corners if abs(p[1] - max(c[1] for c in corners)) < 0.2), key=lambda p: p[0])
+    if len(top) != 2 or len(bottom) != 2:
+        return False
+    top_edge, bottom_edge = top[1][0] - top[0][0], bottom[1][0] - bottom[0][0]
+    width = max(c[0] for c in corners) - min(c[0] for c in corners)
+    return top_edge < 0.5 * width and bottom_edge < 0.5 * width and top[0][0] > bottom[1][0] - 0.5 * top_edge
 
 
 def _level_rectangle(points):

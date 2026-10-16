@@ -7,6 +7,7 @@ apply to it unchanged. The rules are in docs/notes/layout-spec.md, "From
 layout to structure".
 """
 
+import collections
 import re
 import statistics
 from dataclasses import dataclass, field
@@ -114,7 +115,8 @@ def assign_parts(layouts):
     """[(page layout, system, SystemParts)] in score order, and the part list
     [(name, staves)]. The system with the most staves (the first if several)
     sets the parts; a system with fewer staves (empty staves hidden) is matched
-    to it by instrument names where it has them, else by the clef of each staff."""
+    to it by instrument names where it has them (full or shortened), by the
+    clef of each staff, and by how braces group its staves."""
     systems = [(pl, sy) for pl in layouts for sy in pl.systems]
     if not systems:
         return [], []
@@ -130,66 +132,130 @@ def assign_parts(layouts):
         for n, k in enumerate(group, 1):
             master_slots.append((p, n))
             master_clefs.append(_initial_clef(master_pl, master.staves[k]))
-    master_names = [names.get(k, "") for k in range(len(master.staves))]
+    master_names = [parts[p][0] for p, _ in master_slots]
     out = []
     for pl, sy in systems:
         mapping = SystemParts(sy)
         if len(sy.staves) == len(master.staves):
             mapping.staves = list(master_slots)
         else:
-            chosen, mapping.certain = _match_staves(pl, sy, master_names, master_clefs)
+            chosen, mapping.certain = _match_staves(pl, sy, master_names, master_clefs, master_slots)
             mapping.staves = [master_slots[k] for k in chosen]
         out.append((pl, sy, mapping))
     return out, parts
 
 
-def _match_staves(page_layout, system, master_names, master_clefs):
+NAME_SCORE = 2.0     # a system staff's name agrees (or disagrees) with the master part's
+CLEF_SCORE = 1.0     # its first clef agrees (or disagrees) with the master staff's
+GROUP_SCORE = 1.5    # two neighbouring staves are grouped (or not) as their master staves are
+EXACT_NAME_BONUS = 0.5   # the name is the master part's in full, not shortened
+EDGE_SCORE = 0.75    # a group's first (last) staff is a part's first (last) staff, or not
+
+
+def _match_staves(page_layout, system, master_names, master_clefs, master_slots):
     """Indices of the master staves that the system's staves are, in order:
-    the in-order choice that best agrees on names (short names allowed) and
-    clefs; and whether it is the only choice that agrees as well."""
+    the in-order choice that best agrees on names, clefs and grouping; and
+    whether it is the only choice that agrees as well.
+
+    `master_names` holds the name of each master staff's part and
+    `master_slots` its (part, staff number). Two neighbouring system staves
+    joined by a brace (one instrument) should be neighbouring staves of one
+    master part, and two that are not joined should be in different parts."""
     names = _names_at_left(page_layout, system)
     clefs = [_initial_clef(page_layout, st) for st in system.staves]
+    groups = staff_groups(system, page_layout.symbols, page_layout.text)
+    group_of = {k: g for g, members in enumerate(groups) for k in members}
     n, m = len(system.staves), len(master_names)
     if n > m:
         return list(range(m)) + [m - 1] * (n - m), False
+    part_size = collections.Counter(p for p, _ in master_slots)
 
     def score(i, j):
         s = 0.0
+        part, number = master_slots[j]
+        if i == 0 or group_of[i - 1] != group_of[i]:
+            s += EDGE_SCORE if number == 1 else -EDGE_SCORE
+        if i == n - 1 or group_of[i + 1] != group_of[i]:
+            s += EDGE_SCORE if number == part_size[part] else -EDGE_SCORE
         if names.get(i) and master_names[j]:
-            s += 2.0 if _same_name(names[i], master_names[j]) else -2.0
+            if _name_words(names[i]) == _name_words(master_names[j]):
+                s += NAME_SCORE + EXACT_NAME_BONUS
+            else:
+                s += NAME_SCORE if _same_name(names[i], master_names[j]) else -NAME_SCORE
         if clefs[i] and master_clefs[j]:
-            s += 1.0 if clefs[i] == master_clefs[j] else -1.0
+            s += CLEF_SCORE if clefs[i] == master_clefs[j] else -CLEF_SCORE
         return s
 
-    # best[i][j]: the best total for the first i system staves within the first j master staves
-    best = [[float("-inf")] * (m + 1) for _ in range(n + 1)]
-    take = [[False] * (m + 1) for _ in range(n + 1)]
-    ways = [[0] * (m + 1) for _ in range(n + 1)]   # choices that reach the best total
-    for j in range(m + 1):
-        best[0][j], ways[0][j] = 0.0, 1
-    for i in range(1, n + 1):
-        for j in range(i, m + 1):
-            skip = best[i][j - 1]
-            use = best[i - 1][j - 1] + score(i - 1, j - 1)
-            if use >= skip:
-                best[i][j], take[i][j] = use, True
-            else:
-                best[i][j] = skip
-            ways[i][j] = (ways[i][j - 1] if skip == best[i][j] else 0) + (
-                ways[i - 1][j - 1] if use == best[i][j] else 0)
-    chosen, i, j = [], n, m
-    while i > 0:
-        if take[i][j]:
-            chosen.append(j - 1)
-            i -= 1
-        j -= 1
-    return chosen[::-1], ways[n][m] == 1
+    def pair(i, j_before, j):
+        """Agreement of system staves i - 1 and i, matched to j_before and j."""
+        joined = group_of[i - 1] == group_of[i]
+        same_part = master_slots[j_before][0] == master_slots[j][0] and j == j_before + 1
+        return GROUP_SCORE if joined == same_part else -GROUP_SCORE
+
+    # best[i][j]: the best total with system staff i matched to master staff j
+    best = [[float("-inf")] * m for _ in range(n)]
+    back = [[None] * m for _ in range(n)]
+    ways = [[0] * m for _ in range(n)]     # choices that reach the best total
+    for j in range(m):
+        best[0][j], ways[0][j] = score(0, j), 1
+    for i in range(1, n):
+        for j in range(i, m):
+            for jb in range(i - 1, j):
+                total = best[i - 1][jb] + pair(i, jb, j)
+                if total > best[i][j] + 1e-9:
+                    best[i][j], back[i][j], ways[i][j] = total, jb, ways[i - 1][jb]
+                elif abs(total - best[i][j]) <= 1e-9:   # a tie goes to the later staff
+                    back[i][j] = jb
+                    ways[i][j] += ways[i - 1][jb]
+            best[i][j] += score(i, j)
+    last = max(range(n - 1, m), key=lambda j: (best[n - 1][j], j))
+    top = best[n - 1][last]
+    count = sum(ways[n - 1][j] for j in range(n - 1, m) if abs(best[n - 1][j] - top) <= 1e-9)
+    chosen = [last]
+    for i in range(n - 1, 0, -1):
+        chosen.append(back[i][chosen[-1]])
+    return chosen[::-1], count == 1
+
+
+def _name_words(text):
+    """Lower-case words of an instrument name, with flat and sharp signs as
+    letters ("B♭ Trumpet" -> ["bb", "trumpet"])."""
+    text = text.lower().replace("♭", "b").replace("♯", "#")
+    return re.findall(r"[a-z]+|\d+", text)
+
+
+def _abbreviates(word, full):
+    """A word of a short name stands for a word of the full name: the same
+    number, or the same first letter and its letters in order ("pno" for
+    "piano", "bk" for "backing")."""
+    if word.isdigit() or full.isdigit():
+        return word == full
+    if word[0] != full[0]:
+        return False
+    rest = iter(full[1:])
+    return all(ch in rest for ch in word[1:])
 
 
 def _same_name(short, full):
-    a = re.sub(r"[^a-z0-9]", "", short.lower())
-    b = re.sub(r"[^a-z0-9]", "", full.lower())
-    return bool(a) and bool(b) and (a == b or b.startswith(a[:3]) or a.startswith(b[:3]))
+    """Whether `short` names the same instrument as `full`: each of its words
+    stands for a word of `full`, in order (full words may be skipped, as in
+    "Tr. Fa" for "Trompes en Fa"), and roman numbers ("I", "II") agree."""
+    a, b = _name_words(short), _name_words(full)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    romans = {"i", "ii", "iii", "iv", "v", "vi"}
+    if [w for w in a if w in romans or w.isdigit()] != [w for w in b if w in romans or w.isdigit()]:
+        return False
+    k = 0
+    for word in a:
+        while k < len(b) and not _abbreviates(word, b[k]):
+            k += 1
+        if k == len(b):
+            return False
+        k += 1
+    return True
 
 
 # ---------------------------------------------------------- per staff

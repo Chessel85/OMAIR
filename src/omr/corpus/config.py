@@ -4,9 +4,11 @@ docs/notes/corpus-sampling.md; change that file first, then this one."""
 SEED = 20261005
 
 # Pool split: work-key hash below REGRESSION_SHARE is regression-eligible,
-# below DEVELOPMENT_SHARE (and not regression) is development-eligible.
+# below DEVELOPMENT_SHARE (and not regression) is development-eligible, and
+# below CHECK_SHARE (and not development) is check-eligible.
 REGRESSION_SHARE = 0.03
 DEVELOPMENT_SHARE = 0.15
+CHECK_SHARE = 0.17
 
 # Filters
 MIN_BARS, MAX_BARS = 8, 200
@@ -44,6 +46,16 @@ SETS = {
         "genre_min": {g: 3 for g in GENRES},
         "feature_min": {"lyrics": 10, "chord symbols": 5, "several voices on a staff": 8,
                         "tuplets": 5, "repeats or endings": 8, "dynamics or hairpins": 15, "guitar": 3},
+    },
+    # The sealed check set: a third of the development set's quotas.
+    "check": {
+        "size": 100,
+        "textures": {"single line": 15, "voice with piano": 17, "piano": 23,
+                     "choir": 17, "chamber": 17, "small ensemble": 11},
+        "genre_min": {g: 7 for g in GENRES},
+        "feature_min": {"lyrics": 20, "chord symbols": 10, "several voices on a staff": 13,
+                        "tuplets": 8, "grace notes": 7, "repeats or endings": 13,
+                        "key or time changes": 8, "dynamics or hairpins": 27, "guitar": 5},
     },
 }
 

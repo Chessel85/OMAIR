@@ -3,7 +3,7 @@ PDMX survey sample, each paired with the MusicXML that PDMX gives for the same
 upload. Written as a set folder (generated/realworld) with its own index.txt,
 so `omr evaluate --set development --set-root ...` can run it.
 
-Only works outside the training pool are used, with the same metadata filters
+Only works outside the training pool and the check set are used, with the same metadata filters
 as the corpus (deduplicated, valid, 8 to 200 bars, up to 12 parts), and only
 PDFs whose pages the survey found to be all Type A (or N, no music). The ground
 truth is what the uploader entered, so it counts as "engraver input".
@@ -68,7 +68,7 @@ def main():
             composer = (row["composer_name"] or row["artist_name"] or "").strip()
             if composer == "NA":
                 composer = ""
-            if labels.pool_of(labels.work_key(composer, title)) == "training":
+            if labels.pool_of(labels.work_key(composer, title)) in ("training", "check"):
                 continue
             name, licence = pdf_names[key]
             ok, music_fonts, pages = fonts.get(name, (False, [], 0))

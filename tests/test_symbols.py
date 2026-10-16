@@ -186,3 +186,21 @@ def test_whole_and_half_rests_are_told_apart_by_the_staff_line():
     # a whole rest hangs from the fourth line (y 105), a half rest sits on the middle line (y 110)
     assert symbols._whole_or_half(staves, 105.0, 107.5, 5.0) == "restWhole"
     assert symbols._whole_or_half(staves, 107.5, 110.0, 5.0) == "restHalf"
+
+
+def test_a_brace_drawn_in_two_halves():
+    # Verovio draws a brace as two crescents meeting at its point; each alone
+    # looks like a tie, so they are joined here
+    doc = pymupdf.open()
+    page = doc.new_page(width=200, height=300)
+    for top, bottom in ((50, 100), (100, 150)):
+        tip_y, end_y = (bottom, top) if top == 50 else (top, bottom)
+        shape = page.new_shape()
+        shape.draw_bezier((17, end_y), (3, end_y + 0.3 * (tip_y - end_y)), (24, tip_y - 0.3 * (tip_y - end_y)), (10, tip_y))
+        shape.draw_bezier((10, tip_y), (21, tip_y - 0.3 * (tip_y - end_y)), (6, end_y + 0.3 * (tip_y - end_y)), (17, end_y))
+        shape.finish(fill=(0, 0, 0), color=(0, 0, 0))
+        shape.commit()
+    ev = type("Evidence", (), {"staves": type("Staves", (), {"staff_space_pt": 7.2})()})()
+    found = symbols.brace_halves(page, ev)
+    assert len(found) == 1
+    assert found[0].name == "brace" and abs(found[0].box[1] - 50) < 1 and abs(found[0].box[3] - 150) < 1

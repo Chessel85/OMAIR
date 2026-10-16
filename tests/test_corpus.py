@@ -95,6 +95,7 @@ def test_guitar_is_a_priority_feature_with_a_minimum_in_both_sets():
     assert "guitar" in config.PRIORITY_FEATURES
     assert config.SETS["development"]["feature_min"]["guitar"] >= 10
     assert config.SETS["regression"]["feature_min"]["guitar"] >= 3
+    assert sum(config.SETS["check"]["textures"].values()) == config.SETS["check"]["size"]
 
 
 def test_priority_feature_is_chosen_before_genre_minimums(monkeypatch):
@@ -142,6 +143,7 @@ def test_pool_split_is_stable_and_roughly_right():
     assert pools == [labels.pool_of(k) for k in keys]
     assert 0.02 < pools.count("regression") / len(keys) < 0.04
     assert 0.10 < pools.count("development") / len(keys) < 0.14
+    assert 0.015 < pools.count("check") / len(keys) < 0.025
     # The seed changes the split.
     assert [labels.pool_of(k, seed=1) for k in keys[:200]] != pools[:200]
 
@@ -362,6 +364,23 @@ def test_training_pool_drops_near_copies_and_selection_skips_them(monkeypatch):
                   texture="piano", genre="sacred")
     chosen, _ = select.select_set("development", [a, b], ProgressLog("t"), composers=set())
     assert len(chosen) == 1
+
+
+def test_check_set_skips_near_copies_of_the_diagnosis_sets(monkeypatch):
+    from omr.corpus.roundtrip import RoundTrip
+
+    monkeypatch.setattr(select.roundtrip, "check", lambda c: RoundTrip(True, "ok", "/r", 1))
+    monkeypatch.setattr(select, "earlier_pieces", lambda: [("Amazing Grace", "John Newton")])
+    a = Candidate("a", "PDMX", "p", "m", "Amazing Grace in G", "", "sacred", "", "ka", "check",
+                  texture="piano", genre="sacred")
+    b = Candidate("b", "PDMX", "p", "m", "Greensleeves", "Trad", "folk", "", "kb", "check",
+                  texture="piano", genre="folk")
+    chosen, _ = select.select_set("check", [a, b], ProgressLog("t"), composers=set())
+    assert [c.id for c, _ in chosen] == ["b"]
+    # The other sets are drawn without that list.
+    a.pool = b.pool = "development"
+    chosen, _ = select.select_set("development", [a, b], ProgressLog("t"), composers=set())
+    assert len(chosen) == 2
 
 
 def fake_export_job(spec, reference, out):
