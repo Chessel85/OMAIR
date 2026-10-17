@@ -34,6 +34,21 @@ Last updated 17 October 2026. This file records what has been done against `phas
   - **OCR engine: RapidOCR** (Apache-2.0, ONNX Runtime, PP-OCR models; installs on Python 3.14, where PaddlePaddle does not). Its default models read Chinese and English, so Stage 2.5 must measure PP-OCR's Latin model on lyrics; Tesseract is the fallback. In the licence register, not yet installed.
   - **Estimate** (agreed by the owner): 1 session; rendering 30 to 60 minutes on 3 CPU workers, no GPU; about 4 GB. **Actual:** 1 session, with the homr test added; rendering 2 hours 38 minutes on 3 workers (the owner agreed the longer run; inspecting every page in all four versions takes about two thirds of it); 5.0 GB; the homr test about 15 minutes on the GPU.
 
+- **Stage 2.1, training-data generator: started (17 October 2026). The label rule is written; the estimate waits for the owner's agreement before the bulk.**
+  - **Label rule:** `docs/notes/raster-labels-spec.md`. It is built on a count of the names the vector reader gives on the development set (138 SMuFL names, 2.4 million symbols, 7 minutes on 3 workers). In short: 104 detector classes, grouped by what a symbol looks like, so the same mark gets the same label from every engraver (MuseScore 3's separate "m" and "f" glyphs and MuseScore 4's single "mf" glyph are both `dynamicMF`; LilyPond's clef and small 8 make one `gClef8vb` box); stems, barlines, beams, ledger lines and curves are left to the line finder (Stage 2.2); one `text` class gives Stage 2.5 its text regions; boxes are the vector reader's ink boxes, at least half a staff space a side. Labels are checked by numbers for each engraver and font, including a count of glyph-like ink with no label.
+  - **Sequence-reader tokens come from the ground truth**, through homr's own parser, not from the vector reader's output. The vector reader only says which bars each staff holds, checked by counting noteheads.
+  - **homr token lengths, measured** on the 300 MuseScore 4 development pairs (7,678 staves): median 22 tokens, 95th percentile 113, longest 382; 3.5 percent over 128 and 0.1 percent over 256. So nearly every staff fits the 128-token limit that the 2 GB card allows at batch 4.
+  - **homr cannot write octave clefs or octave lines.** Its parser refused 68 of the 300 files for an octave clef (mostly tenor parts) and 12 for an octave line. Such staves are tokenised as they look, and the octave is restored from the clef or line Engine 1 reads.
+  - **Overlap with homr's training data.** homr was trained on all OpenScore Lieder and a fixed draw of 500 PDMX files. 24 of the selected scores are among them (16 Lieder and 1 PDMX file in the development set, 4 Lieder in the regression set, 3 in the check set). Engine 2 figures will be reported with and without them.
+  - **Estimate (proposed, not yet agreed):**
+    - Claude sessions: 3 more (the generator and label checks, then reading the check results and fixing labels).
+    - Run 1, overnight: filter the training pool and run the round trip on about 1,300 to 1,600 candidates (about 2 hours), then export 1,000 scores through the 6 jobs, 6,000 exports at about 2.3 seconds each (about 4 hours). 6 to 8 hours in all. 3 CPU workers, no GPU.
+    - Run 2, overnight or a long afternoon: read the 6,000 PDFs with the vector reader (about 25 minutes), render about 35,000 pages, cut about 10,000 tiles and 100,000 staff crops, and run the label checks. 3 to 5 hours. 3 CPU workers, no GPU.
+    - Disk: about 10 GB on the corpus drive (exports 2 GB, page truth files 1 GB, tiles 1.5 GB, staff crops 4 to 5 GB). The drive has 835 GB free.
+    - Neither run can share the CPU with another heavy job. Stage 2.2's design and code can go on alongside.
+    - 1,000 scores, not the plan's "a few thousand": 10,000 tiles need only about 700 pages, and 100,000 staves need about 4,000 pairs, so 1,000 scores in 6 jobs already give more than enough, in a third of the export time. More can be drawn later without changing those drawn.
+
 ## Next steps
 
-1. Start Stage 2.1 (label rule first) with Stage 2.2 alongside, after giving the owner the Stage 2.1 estimate. Stage 2.1 must also measure how many homr tokens real staves need, because the fine-tune fits in 2 GB only up to 128 tokens at batch 4.
+1. Get the owner's agreement to the Stage 2.1 estimate above. Then write the generator from `docs/notes/raster-labels-spec.md` (Sonnet), try it on a few training scores, and start run 1.
+2. Stage 2.2 (staff lines and lines in the image) can start alongside.
