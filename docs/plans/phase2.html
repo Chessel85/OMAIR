@@ -80,10 +80,9 @@ vector work loop already handles.</li>
 batch 8, about 1.5 to 2 days a full run; a sequence reader of about 29
 million parameters, 1 to 2 days a fine-tune. Two things must be checked
 first: the render scale, and the starting weights’ architecture. Stage
-2.0 found the chosen starting weights, homr’s, are about 60 million
-parameters (homr’s decoder file is stored in INT8, which the Phase 0
-estimate did not allow for), so whether they train in 2 GB is the first
-thing to measure.</li>
+2.0 found the chosen starting weights, homr’s, are 75 million parameters
+in PyTorch; they train in 2 GB only with the encoder frozen and staves
+of up to 128 tokens at batch 4 (about 2.5 staves a second).</li>
 <li><strong>Accuracy comes before speed.</strong> The owner recorded at
 the Phase 0 sign-off that the 60 second raster target (OP-3) is low
 priority and not a Phase 2 blocker. It is measured and reported, not
@@ -317,11 +316,15 @@ Sonnet for training.</strong></p>
 model must be the pretrained one. The chosen weights are homr’s (Stage
 2.0): an encoder of 13.2 million parameters and a decoder of 46.9
 million, about 60 million in all, above the 20 to 46 million range
-measured in Phase 0. <code>scripts/benchmark_homr_finetune.py</code>
-measures whether they train in 2 GB, in full or with the encoder frozen.
-If they do not fit, the fallback is SMT (21.4 million, MIT), which needs
-more training on the project’s own staves because it was trained on
-piano grand staves only.</li>
+measured in Phase 0. Measured in Stage 2.0
+(<code>scripts/benchmark_homr_finetune.py</code>): the whole model
+overflows 2 GB at every batch size, but with the encoder frozen, batch 4
+at up to 128 tokens fits and trains about 2.5 staves a second, so 3
+passes over 100,000 staves take about 1.4 days. Staves longer than 128
+tokens are split or trained at batch 2. If the frozen encoder holds the
+accuracy back, the fallback is SMT (21.4 million, MIT), which needs more
+training on the project’s own staves because it was trained on piano
+grand staves only.</li>
 <li><strong>Build the key-value cache and test INT8 before
 training.</strong> Without a cache a staff takes about 17 seconds; with
 one the estimate is 6 to 13. This decides how the engine can be used on

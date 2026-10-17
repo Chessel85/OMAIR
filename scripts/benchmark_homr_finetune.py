@@ -14,7 +14,7 @@ repository, on the corpus drive:
     <corpus>/tools/dl/homr-src/ckpt    the unpacked checkpoint (.pth)
     <corpus>/tools/dl/homr-src/libs    timm, x-transformers, safetensors (pip --target)
 
-usage: python scripts/benchmark_homr_finetune.py [--steps N]
+usage: python scripts/benchmark_homr_finetune.py [--steps N] [--only N,N...]
 """
 
 import argparse
@@ -35,6 +35,11 @@ SETTINGS = [
     ("batch 8, 256 tokens", 8, 256, False),
     ("batch 4, 608 tokens, encoder frozen", 4, 608, True),
     ("batch 8, 608 tokens, encoder frozen", 8, 608, True),
+    ("batch 2, 608 tokens, encoder frozen", 2, 608, True),
+    ("batch 8, 128 tokens", 8, 128, False),
+    ("batch 4, 128 tokens, encoder frozen", 4, 128, True),
+    ("batch 8, 128 tokens, encoder frozen", 8, 128, True),
+    ("batch 16, 128 tokens, encoder frozen", 16, 128, True),
 ]
 
 
@@ -95,6 +100,7 @@ def one_setting(batch, length, frozen, steps):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--steps", type=int, default=6)
+    parser.add_argument("--only", help="run only these settings, numbered from 1, as 2,5")
     parser.add_argument("--child", nargs=3, type=int, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.child:
@@ -104,7 +110,8 @@ def main():
     out = paths.require_corpus_dir() / "benchmark" / "results"
     out.mkdir(parents=True, exist_ok=True)
     log = ProgressLog("benchmark_homr_finetune", out / "homr-finetune.txt")
-    for label, batch, length, frozen in SETTINGS:
+    chosen = [SETTINGS[int(n) - 1] for n in args.only.split(",")] if args.only else SETTINGS
+    for label, batch, length, frozen in chosen:
         started = time.time()
         child = subprocess.run([sys.executable, __file__, "--steps", str(args.steps), "--child",
                                 str(batch), str(length), str(int(frozen))],
@@ -121,7 +128,7 @@ def main():
         else:
             reason = "out of GPU memory" if "out of memory" in child.stderr.lower() else (child.stderr.strip().splitlines() or ["no output"])[-1]
             log.warning(f"{label}: failed, {reason}.")
-    return log.finish(f"{len(SETTINGS)} settings tried")
+    return log.finish(f"{len(chosen)} settings tried")
 
 
 if __name__ == "__main__":
