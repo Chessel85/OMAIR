@@ -673,6 +673,9 @@ def gather(page, number):
 
 # ----------------------------------------------------------- raster measures
 
+TILT_GAIN = 1.5  # the best angle must beat level by this factor to count as tilt
+
+
 def raster_measures(page, images):
     """Render the page at 100 dpi in greyscale and measure the signs of a
     physical page (spec, 'Telling C from D'). The only code here that renders."""
@@ -706,8 +709,15 @@ def raster_measures(page, images):
         matrix = cv2.getRotationMatrix2D(centre, angle, 1.0)
         rotated = cv2.warpAffine(band, matrix, (band.shape[1], band.shape[0]))
         score = float(np.var(rotated.sum(axis=1)))
+        if step == 0:
+            level_score = score
         if score > best_score + 1e-9:
             best_angle, best_score = angle, score
+    # A real tilt sharpens the staff lines a great deal (2 to 4 times the level
+    # score at 0.5 to 2 degrees); a level page with sloping beams or little ink
+    # gains at most a sixth from a wrong angle.
+    if best_score < TILT_GAIN * level_score:
+        best_angle = 0.0
 
     # 4. bilevel scan: every large image is 1 bit or a bilevel compression
     large = [i for i in images if i["drawn_width_pt"] * i["drawn_height_pt"] >= 0.1 * page.rect.width * page.rect.height]

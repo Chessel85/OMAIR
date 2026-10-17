@@ -118,7 +118,7 @@ Render the page at 100 dpi in greyscale (for an image file, scale the image to t
 
 1. **Background.** Split the page into a 4 by 4 grid. In each cell take the 90th percentile of brightness (the paper colour). The page is uneven if the largest and smallest cell values differ by more than 40 out of 255.
 2. **Dark border.** The page has a dark border if more than 30 percent of the pixels in the outer 3 percent of the page, on any side, are darker than 100 out of 255.
-3. **Tilt.** Find the staff lines in the image with a horizontal projection over a band in the middle of the page, trying angles from minus 3 to plus 3 degrees in steps of 0.1 degree, nearest level first, so that a tie keeps the level angle (a nearly blank last page has no ink in the band, and every angle scores the same). The page is tilted if the best angle is more than 0.3 degrees from level.
+3. **Tilt.** Find the staff lines in the image with a horizontal projection over a band in the middle of the page, trying angles from minus 3 to plus 3 degrees in steps of 0.1 degree, nearest level first, so that a tie keeps the level angle (a nearly blank last page has no ink in the band, and every angle scores the same). The best angle counts only if its score is at least 1.5 times the level score: a real tilt of 0.5 to 2 degrees scores 2 to 4 times level, while on a level page sloping beams or sparse ink let a wrong angle win by at most a sixth. Otherwise the tilt is 0. The page is tilted if the best angle is more than 0.3 degrees from level.
 4. **Bilevel scan.** All large images are 1 bit per pixel, or use CCITT or JBIG2 compression.
 
 The decision:

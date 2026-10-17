@@ -139,6 +139,21 @@ def test_image_with_no_ink_in_the_middle_is_level(tmp_path):
     assert decision.type == "C"
 
 
+def test_sloping_beams_on_a_level_page_are_not_tilt(tmp_path):
+    # Two beams sloping by about 1.8 degrees beside one level staff: the beams'
+    # angle scores a little better than level, but far less than a real tilt.
+    image = np.full((1100, 850), 255, dtype=np.uint8)
+    for y in range(150, 190, 10):
+        cv2.line(image, (100, y), (750, y), 0, 1)
+    for k in range(2):
+        cv2.line(image, (230, 300 + k * 60), (620, 288 + k * 60), 0, 3)
+    png = tmp_path / "beams.png"
+    cv2.imwrite(str(png), image)
+    ev, decision = page_result(wrap_image(png, tmp_path / "beams.pdf"))
+    assert ev.raster["tilt_degrees"] == 0.0
+    assert decision.type == "C"
+
+
 def test_png_file_is_inspected_directly(raster_png):
     ev, decision = page_result(raster_png)
     assert decision.type == "C"
