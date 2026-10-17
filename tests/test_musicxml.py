@@ -281,5 +281,22 @@ def test_convert_failures(tmp_path, capsys):
     (tmp_path / "notes.txt").write_text("not music", encoding="utf-8")
     assert main(["convert", str(tmp_path / "notes.txt"), str(tmp_path / "missing.pdf")]) == 1
     out = capsys.readouterr().out
-    assert "is not a PDF" in out
+    assert "is not a PDF or an image" in out
     assert "Summary: 0 files converted, 2 failed" in out
+
+
+def test_convert_names_raster_input(tmp_path, capsys):
+    pymupdf = pytest.importorskip("pymupdf")
+    pytest.importorskip("cv2")
+    src = pymupdf.open(str(DATA / "ms4_leland.pdf"))
+    pix = src[0].get_pixmap(dpi=150, colorspace=pymupdf.csGRAY)
+    png = tmp_path / "page.png"
+    pix.save(str(png))
+    doc = pymupdf.open()
+    page = doc.new_page(width=src[0].rect.width, height=src[0].rect.height)
+    page.insert_image(page.rect, filename=str(png))
+    doc.save(str(tmp_path / "page.pdf"))
+    assert main(["convert", str(png), str(tmp_path / "page.pdf"), "--out", str(tmp_path / "out")]) == 1
+    out = capsys.readouterr().out
+    assert "page.png is an image" in out
+    assert "holds images of music, not vector music (every page, Type C or D)" in out

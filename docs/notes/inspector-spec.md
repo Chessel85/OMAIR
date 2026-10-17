@@ -118,7 +118,7 @@ Render the page at 100 dpi in greyscale (for an image file, scale the image to t
 
 1. **Background.** Split the page into a 4 by 4 grid. In each cell take the 90th percentile of brightness (the paper colour). The page is uneven if the largest and smallest cell values differ by more than 40 out of 255.
 2. **Dark border.** The page has a dark border if more than 30 percent of the pixels in the outer 3 percent of the page, on any side, are darker than 100 out of 255.
-3. **Tilt.** Find the staff lines in the image with a horizontal projection over a band in the middle of the page, trying angles from minus 3 to plus 3 degrees in steps of 0.1 degree. The page is tilted if the best angle is more than 0.3 degrees from level.
+3. **Tilt.** Find the staff lines in the image with a horizontal projection over a band in the middle of the page, trying angles from minus 3 to plus 3 degrees in steps of 0.1 degree, nearest level first, so that a tie keeps the level angle (a nearly blank last page has no ink in the band, and every angle scores the same). The page is tilted if the best angle is more than 0.3 degrees from level.
 4. **Bilevel scan.** All large images are 1 bit per pixel, or use CCITT or JBIG2 compression.
 
 The decision:
@@ -126,6 +126,8 @@ The decision:
 - Type D if the page is uneven, has a dark border, or is tilted. The reason names which.
 - Otherwise Type C. If it is a bilevel scan, add the note "clean bilevel scan of a printed page" and set the confidence to medium, because such pages came from paper and may still need deskewing.
 - C and D decisions are never given high confidence in Phase 0.
+
+Checked in Phase 2 Stage 2.0 on the raster sets (every page of the regression, development and check sets and the 21 commercial files, rendered at 300, 200 and 150 dpi in greyscale and at 300 dpi in black and white): see `docs/plans/phase2-progress.md` for the count of pages called Type C.
 
 The thresholds are starting values. Stage 8 calibrates them on real IMSLP scans and on known Type C pages (a MuseScore PDF rasterised at 300 dpi and wrapped in a PDF, which the tests can build). If the thresholds change, change them here as well as in the code.
 

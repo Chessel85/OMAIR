@@ -696,11 +696,12 @@ def raster_measures(page, images):
     strips = [grey[:bh, :], grey[-bh:, :], grey[:, :bw], grey[:, -bw:]]
     dark_border = bool(any((s < 100).mean() > 0.30 for s in strips))
 
-    # 3. tilt: horizontal projection over the middle columns, angles -3 to 3
+    # 3. tilt: horizontal projection over the middle columns, angles -3 to 3,
+    # nearest level first, so a tie (a page with no ink there) stays level
     band = (grey[:, w // 4: 3 * w // 4] < 160).astype(np.float32)
     best_angle, best_score = 0.0, -1.0
     centre = (band.shape[1] / 2, band.shape[0] / 2)
-    for step in range(-30, 31):
+    for step in sorted(range(-30, 31), key=abs):
         angle = step / 10
         matrix = cv2.getRotationMatrix2D(centre, angle, 1.0)
         rotated = cv2.warpAffine(band, matrix, (band.shape[1], band.shape[0]))

@@ -46,8 +46,8 @@ The ID prefixes are:
 | REC-2 | Notes and rests | Recognise every note's pitch, its position (onset) in the bar and its duration. This includes chords, rests, dots, ties, tuplets and grace notes. | Must | 1 | VS |
 | REC-3 | Voices | Recognise multiple voices on one staff, and notes that cross from one staff to another. | Must | 1 | VS |
 | REC-4 | Performance markings | Recognise dynamics, hairpins (crescendo and diminuendo), articulations, slurs, fermatas, ornaments, and tempo and expression text. | Should | 1 for vector input, 2 for raster input | VS |
-| REC-5 | Lyrics | Recognise lyrics, attached to the correct notes. | Should | 1 for vector input | PO (broad range of genres) |
-| REC-6 | Chord symbols | Recognise chord symbols, as used in popular music, jazz and lead sheets. | Should | 1 for vector input | PO (broad range of genres) |
+| REC-5 | Lyrics | Recognise lyrics, attached to the correct notes. | Should | 1 for vector input, 2 for raster input | PO (broad range of genres) |
+| REC-6 | Chord symbols | Recognise chord symbols, as used in popular music, jazz and lead sheets. | Should | 1 for vector input, 2 for raster input | PO (broad range of genres) |
 | REC-7 | Score text | Recognise the title, composer, lyricist, part and instrument names, and rehearsal marks. | Should | 1 | D |
 | REC-8 | Beaming and layout | Recognise beaming and other cosmetic layout. | Could | Not assigned | VS (not essential) |
 | REC-9 | Specialised notations | Recognise percussion notation, guitar tablature and fretboard diagrams, and figured bass. | Could | Later phase | D |

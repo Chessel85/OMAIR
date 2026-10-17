@@ -11,7 +11,7 @@ import json
 import sys
 from pathlib import Path
 
-from omr.inspect import InspectError, open_document
+from omr.inspect import IMAGE_SUFFIXES, InspectError, inspect_file, open_document
 
 OUTPUTS = ("musicxml", "braille", "report", "flags")
 
@@ -38,17 +38,26 @@ def read_score(path):
     """(Score, pages in the file). Raises InspectError with the reason."""
     from omr.confidence_report import read_file
 
-    if Path(path).suffix.lower() != ".pdf":
-        raise InspectError(f"{Path(path).name} is not a PDF. Only vector PDFs can be converted so far; "
-                           "images and scans are planned for Phase 2.")
+    name = Path(path).name
+    suffix = Path(path).suffix.lower()
+    if suffix in IMAGE_SUFFIXES:
+        open_document(path).close()  # a missing or damaged file says so first
+        raise InspectError(f"{name} is an image. Reading music from images (Type C and D) is being built "
+                           "in Phase 2; so far only vector PDFs can be converted.")
+    if suffix != ".pdf":
+        raise InspectError(f"{name} is not a PDF or an image (PNG, JPEG or TIFF), so it cannot be converted.")
     doc = open_document(path)
     pages = doc.page_count
     doc.close()
     score = read_file(path)
     if not score.bars:
-        raise InspectError(f"no staves were found in {Path(path).name}. Only vector PDFs, made by a music "
-                           "program, can be read so far; scanned pages are planned for Phase 2. "
-                           "Run omr inspect on the file to see its page types.")
+        raster = [i for i, (_, d) in enumerate(inspect_file(path)["results"], 1) if d.type in ("C", "D")]
+        if raster:
+            where = "every page" if len(raster) == pages else f"page{'s' if len(raster) > 1 else ''} {', '.join(map(str, raster))}"
+            raise InspectError(f"{name} holds images of music, not vector music ({where}, Type C or D). Reading "
+                               "music from images is being built in Phase 2; so far only vector PDFs can be converted.")
+        raise InspectError(f"no staves were found in {name}. Only vector PDFs, made by a music "
+                           "program, can be read so far. Run omr inspect on the file to see its page types.")
     return score, pages
 
 

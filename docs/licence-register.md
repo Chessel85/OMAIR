@@ -25,6 +25,7 @@ These were settled by a default rule so that work is not blocked. Change any you
 
 - CPDL: Default rule adopted so work is not blocked. Change it if you prefer.
 - Mutopia: Default rule adopted so work is not blocked. Change it if you prefer.
+- homr weights: one of their training datasets may be non-commercial. Default: use them for the sequence reader, and settle this before anything trained from them is released.
 - OLiMPiC: Default: internal only. Change it if you want to train on it and ship the result.
 
 ## Datasets
@@ -124,28 +125,30 @@ These were settled by a default rule so that work is not blocked. Change any you
 ### YOLO pretrained weights (Ultralytics)
 
 - Kind: model
-- Version: n/a
-- Licence: AGPL-3.0
-- Use: Starting point for the symbol detector. Fine-tuned weights are AGPL too, which fits C-2.
-- Source: solution-design.md and recollection. Not yet checked.
+- Version: YOLO11 nano (`yolo11n.pt`), the size measured in the Phase 0 training benchmark
+- Licence: AGPL-3.0, or the Ultralytics Enterprise Licence for those who buy it. The repository's licence section offers these two for "Ultralytics software and AI models"; it does not give the pretrained weights a licence of their own.
+- Use: Chosen in Stage 2.0 as the starting point for the symbol detector (Engine 1), shipped after fine-tuning. Fine-tuned weights are AGPL too, which fits C-2. No detector weights trained on DeepScores with a stated licence were found, so the project's own labels (Stage 2.1) do the music-specific training.
+- Source: github.com/ultralytics/ultralytics, licence section, checked 17 October 2026.
 - Status: ok
 
 ### homr
 
 - Kind: model
-- Version: 0.7.0 (installed in Stage 9)
-- Licence: AGPL-3.0 (github.com/liebharc/homr). The weights licence was not separately seen.
-- Use: Baseline in Stage 9, and a possible starting point for the sequence reader.
-- Source: solution-design.md and recollection. Not yet checked.
-- Status: ok
+- Version: 0.7.0 (installed in Stage 9). For fine-tuning, the PyTorch checkpoint `pytorch_model_465` from the repository's "checkpoints" release, which matches the training code at commit ab369ac (15 October 2026).
+- Licence: AGPL-3.0 for the code and the weights ("published under the AGPL as well", LICENSE_FAQ.md). The same page says the AGPL "can't grant more rights than the training data allows", and lists the transformer's training data: OpenScore Lieder and String Quartets (CC0), GrandStaff (MIT on Hugging Face), PDMX's no-licence-conflict subset (CC BY 4.0), the MuseTrainer library (public domain by its description) and Camera-PrIMuS, whose Hugging Face copy is listed as CC BY-NC 4.0. Every transformer checkpoint released so far includes PrIMuS. The segmentation models were trained on DeepScores V2 (CC BY 4.0).
+- Size: encoder 13.2 million parameters (FP32 in the ONNX file), decoder 46.9 million (INT8 in the ONNX file), about 60 million in all. Input a staff image of 256 by 1280 pixels; output six token streams (rhythm, pitch, lift, articulation, slur, staff position), up to 608 tokens.
+- Use: Baseline in Phase 0, and chosen by the owner in Stage 2.0 as the starting point for the sequence reader (Engine 2), shipped after fine-tuning, if it trains on the laptop (Stage 2.6).
+- Source: github.com/liebharc/homr README and LICENSE_FAQ.md, and the release asset list, checked 17 October 2026. Sizes measured from the installed ONNX files.
+- Status: owner to resolve before a release. The weights are AGPL like the project, but one training dataset may be non-commercial. homr itself calls the question open. The project is never commercial, but the AGPL lets others use it commercially. Default: use the weights, and settle this before anything trained from them is released. SMT is the fallback.
 
 ### SMT (Sheet Music Transformer)
 
 - Kind: model
-- Version: to be pinned
-- Licence: MIT (code and model, per search)
-- Use: Possible starting point for the sequence reader.
-- Source: solution-design.md and recollection. Not yet checked.
+- Version: `antoniorv6/smt-grandstaff` on Hugging Face, if used
+- Licence: MIT (the model card's licence field, and the code repository)
+- Size: 21.4 million parameters; a ConvNeXt encoder and a Transformer decoder; output in bekern (Humdrum kern) tokens. Trained on GrandStaff (piano grand staves) only.
+- Use: Fallback starting point for the sequence reader, if homr's weights do not train in 2 GB or their licence question goes the wrong way.
+- Source: huggingface.co/antoniorv6/smt-grandstaff and github.com/antoniorv6/SMT, checked 17 October 2026.
 - Status: ok
 
 ### LEGATO
@@ -790,6 +793,15 @@ These are pinned in `requirements.txt` or `requirements-torch.txt` and installed
 - Licence: MIT
 - Use: shipped (installed as a dependency)
 - Source: package metadata in the installed environment
+- Status: ok
+
+### RapidOCR
+
+- Kind: dependency (planned, not yet installed)
+- Version: 3.10.0 (installs on Python 3.14), with the PP-OCR models it carries
+- Licence: Apache-2.0 for the code. The models are converted from PaddleOCR's and are Apache-2.0 too, copyright Baidu and the PaddleOCR authors.
+- Use: Chosen in Stage 2.0 as the OCR engine for text in images (titles, tempo and expression text, lyrics, chord symbols), shipped. It runs on ONNX Runtime, which the project already uses, and needs neither PaddlePaddle (not available for Python 3.14) nor a separate program. homr uses it for the same job. The default models read Chinese and English; lyrics in other languages need PP-OCR's Latin recognition model, which Stage 2.5 measures. Tesseract (Apache-2.0, a separate program) is the fallback if the Latin model reads lyrics poorly.
+- Source: github.com/RapidAI/RapidOCR licence section, and the package metadata, checked 17 October 2026.
 - Status: ok
 
 ### requests

@@ -128,6 +128,17 @@ def test_tilt_alone_is_enough_for_type_d(raster_png, tmp_path):
     assert abs(abs(ev.raster["tilt_degrees"]) - 2.0) <= 0.5
 
 
+def test_image_with_no_ink_in_the_middle_is_level(tmp_path):
+    # The last page of a score can be nearly blank; every angle then ties.
+    image = np.full((1100, 850), 255, dtype=np.uint8)
+    image[100:110, 20:150] = 0
+    png = tmp_path / "blank.png"
+    cv2.imwrite(str(png), image)
+    ev, decision = page_result(wrap_image(png, tmp_path / "blank.pdf"))
+    assert ev.raster["tilt_degrees"] == 0.0
+    assert decision.type == "C"
+
+
 def test_png_file_is_inspected_directly(raster_png):
     ev, decision = page_result(raster_png)
     assert decision.type == "C"

@@ -1,30 +1,32 @@
 <h1 id="phase-2-plan-clean-raster-input-to-musicxml">Phase 2 Plan: Clean
 Raster Input to MusicXML</h1>
-<p><strong>Status: draft, 17 October 2026, for the owner to
-review.</strong> The gate wording below is proposed, not yet agreed.
-Drafted from the solution design (section 6), the Phase 0 and Phase 1
-plans and progress logs, <code>docs/notes/phase1-report.md</code> and
-the Phase 2 decisions in <code>docs/notes/training-benchmark.md</code>.
-Plain headings and lists only. Model suggestions follow the Phase 0
-plan: Opus for design and judgement, Sonnet for implementation, escalate
-to Opus after two or three failed attempts.</p>
+<p><strong>Status: agreed, 17 October 2026.</strong> The owner agreed
+the gate wording below at the start of Stage 2.0. Drafted from the
+solution design (section 6), the Phase 0 and Phase 1 plans and progress
+logs, <code>docs/notes/phase1-report.md</code> and the Phase 2 decisions
+in <code>docs/notes/training-benchmark.md</code>. Plain headings and
+lists only. Model suggestions follow the Phase 0 plan: Opus for design
+and judgement, Sonnet for implementation, escalate to Opus after two or
+three failed attempts.</p>
 <h2 id="goal-and-gate">Goal and gate</h2>
 <p>Goal: read clean raster pages (Type C: a PDF holding a clean page
 image, or a PNG, JPEG or TIFF file) to at least 97 percent note accuracy
 (ACC-2), with confidence flags that catch the errors (ACC-4), the
-self-check by re-rendering (DEV-3), and the performance markings (REC-4
-for raster input). The solution design estimates 8 to 12 weeks.</p>
+self-check by re-rendering (DEV-3), and the performance markings, lyrics
+and chord symbols (REC-4, REC-5 and REC-6 for raster input). The
+solution design estimates 8 to 12 weeks.</p>
 <p>Gate as the solution design words it: “ACC-2 and ACC-4 are met.” That
 leaves open what the raster corpus is and where ACC-4 is measured: the
 requirement measures ACC-4 on the exact pairs of the vector corpus.
-<strong>Proposed wording:</strong> “ACC-2 is met on the raster versions
-of the development set and the sealed check set, at both 300 dpi and 200
+<strong>Agreed wording:</strong> “ACC-2 is met on the raster versions of
+the development set and the sealed check set, at both 300 dpi and 200
 dpi in greyscale (each page of the pair’s PDF rendered at that
 resolution), over all engravers, excluding pairs the owner agrees are
 faulty. ACC-4 is met on the exact pairs of those raster sets. The 150
 dpi versions and the real Type C files obtained in Stage 2.0 are
 converted and their result reported, with any shortfall listed as a
-known limit.” For the owner to agree or change.</p>
+known limit.” The owner has no real Type C files to give, so the real
+files are the 21 commercial PDFs rendered as images.</p>
 <p>Why these choices:</p>
 <ul>
 <li><strong>Rendered pages as the corpus.</strong> Every vector pair
@@ -77,7 +79,11 @@ vector work loop already handles.</li>
 (<code>training-benchmark.md</code>): YOLO11 nano at 640 pixel tiles,
 batch 8, about 1.5 to 2 days a full run; a sequence reader of about 29
 million parameters, 1 to 2 days a fine-tune. Two things must be checked
-first: the render scale, and the starting weights’ architecture.</li>
+first: the render scale, and the starting weights’ architecture. Stage
+2.0 found the chosen starting weights, homr’s, are about 60 million
+parameters (homr’s decoder file is stored in INT8, which the Phase 0
+estimate did not allow for), so whether they train in 2 GB is the first
+thing to measure.</li>
 <li><strong>Accuracy comes before speed.</strong> The owner recorded at
 the Phase 0 sign-off that the 60 second raster target (OP-3) is low
 priority and not a Phase 2 blocker. It is measured and reported, not
@@ -295,21 +301,27 @@ rehearsal marks.</li>
 <li>Dynamics in letters and glyphs, hairpins, articulations, fermatas
 and ornaments come from the detector and lines (REC-4). Measure ACC-6 on
 the raster sets beside the vector figures.</li>
-<li>Lyrics and chord symbols only if the owner chose them in Stage
-2.0.</li>
+<li>Lyrics and chord symbols (REC-5, REC-6), which the owner put in
+scope for raster input in Stage 2.0. Lyric syllables go to
+<code>text.py</code>’s lyric rules with their position under the staff,
+so hyphens, melismas and verses are handled as for vector input.</li>
 </ul>
-<p>Done when: text kinds and ACC-6 are measured on the raster
-development set, with the vector figures beside them.</p>
+<p>Done when: text kinds, lyrics, chord symbols and ACC-6 are measured
+on the raster development set, with the vector figures beside them.</p>
 <h2 id="stage-2.6-sequence-reader-engine-2">Stage 2.6: Sequence reader
 (Engine 2)</h2>
 <p><strong>Model: Opus for the architecture check and the decoding,
 Sonnet for training.</strong></p>
 <ul>
 <li><strong>Check the starting weights first.</strong> The fine-tuned
-model must be the pretrained one. homr’s transformer files imply about
-25 million parameters; if the chosen weights are far from 29 million,
-the size follows them, within the 20 to 46 million range measured in
-Phase 0.</li>
+model must be the pretrained one. The chosen weights are homr’s (Stage
+2.0): an encoder of 13.2 million parameters and a decoder of 46.9
+million, about 60 million in all, above the 20 to 46 million range
+measured in Phase 0. <code>scripts/benchmark_homr_finetune.py</code>
+measures whether they train in 2 GB, in full or with the encoder frozen.
+If they do not fit, the fallback is SMT (21.4 million, MIT), which needs
+more training on the project’s own staves because it was trained on
+piano grand staves only.</li>
 <li><strong>Build the key-value cache and test INT8 before
 training.</strong> Without a cache a staff takes about 17 seconds; with
 one the estimate is 6 to 13. This decides how the engine can be used on
