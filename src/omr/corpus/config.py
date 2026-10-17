@@ -86,3 +86,9 @@ MS4_STAFF_SIZES_MM = (1.5, 1.75, 2.0)
 
 MIN_FREE_GB = 100
 LILYPOND_TIMEOUT_S = 300
+
+# The training draw for the raster engines (docs/notes/raster-labels-spec.md,
+# "Source scores"): how many scores, and how many of the shuffled training
+# pool are labelled to draw them from.
+TRAINING_SIZE = 1000
+TRAINING_LABELLED = 10000

@@ -63,6 +63,7 @@ class PageSymbols:
     symbols: list = field(default_factory=list)
     text: list = field(default_factory=list)
     unmapped: Counter = field(default_factory=Counter)   # (font, description) -> uses
+    unnamed: list = field(default_factory=list)          # ink boxes of outlined shapes not matched
     fonts: dict = field(default_factory=dict)            # font name -> FontMapping
 
     @property
@@ -319,7 +320,7 @@ def read_page(page, number, programs=None, identifier=None, ev=None):
                 box = tuple(bbox)
             result.symbols.append(Symbol(symbol, origin[0], y, size, box, name, mapping.table))
     if outlined_page(ev):
-        result.symbols.extend(outline_symbols(page, ev, result.unmapped))
+        result.symbols.extend(outline_symbols(page, ev, result.unmapped, result.unnamed))
     else:
         result.symbols.extend(outline_braces(page, ev))
     braces = [s.box for s in result.symbols if s.name == "brace"]
@@ -493,14 +494,15 @@ OUTLINE_MATCH = 0.75    # similarity needed to name an outlined shape
 MAX_SYMBOL_SPACES = 8   # larger shapes (slurs, ties, beams) are not symbols
 
 
-def outline_symbols(page, ev, unmapped):
+def outline_symbols(page, ev, unmapped, unnamed=None):
     """Name the filled vector shapes of the page that look like music symbols.
     Identical shapes (the same fingerprint) are matched once. Three kinds of
     shape get their own tests, because a plain shape match cannot name them:
     a small level rectangle on a staff line (a whole or half rest drawn
     without curves), a tall narrow shape (a brace, drawn at the height of
     the staves it joins), and a vertical wiggle (an arpeggio, which SMuFL
-    draws level and engravers turn upright)."""
+    draws level and engravers turn upright). The ink boxes of shapes that
+    look like symbols but match none are added to `unnamed`."""
     space = ev.staves.staff_space_pt
     if not space:
         return []
@@ -543,6 +545,8 @@ def outline_symbols(page, ev, unmapped):
         if match is None:
             if "c" in kinds and w <= MAX_SYMBOL_SPACES and h <= MAX_SYMBOL_SPACES:
                 unmapped[("outlines", "an outlined shape not matched")] += 1
+                if unnamed is not None:
+                    unnamed.append((x0, y0, x1, y1))
             continue
         name, ref = match
         if name in ("restWhole", "restHalf"):

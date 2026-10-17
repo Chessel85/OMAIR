@@ -1,0 +1,10 @@
+# training set, seed 20261005. Fields: id | source | source path | texture | genre | title | composer
+pdmx-4SAoGDP2JXvX | PDMX | mxl/13/55/QmVYy27yW268mXZyBZNy24vGaTXoisBdn44SAoGDP2JXvX.mxl | chamber | classical | Nativitas gloriosæ virginis - Nicolas Merques | Nicolas Merques
+pdmx-cSYJRPswBB5u | PDMX | mxl/13/16/QmVDg7NknrHQDEfQF4WG1AyoMEJCxj37QUcSYJRPswBB5u.mxl | chamber | educational | chord exercise | Aleksq7
+pdmx-2L9nVQNxK9TM | PDMX | mxl/2/37/QmcPNvgwZgkmaZAFKZWmvUc1vctHDXgDj42L9nVQNxK9TM.mxl | chamber | folk | Speechless Dan + Shay Oboe | Dan + Shay
+pdmx-Au8nJnqtu7Vn | PDMX | mxl/13/9/QmVac7h8AcFcRxhEhubS2HEDWpPCP3eqG4Au8nJnqtu7Vn.mxl | chamber | jazz | Let it snow | Dean Martin
+pdmx-yJAT9GvUhGcB | PDMX | mxl/11/21/QmTgY5Cy1RnJugVtmGzJddSbyVbQ7AYkxyyJAT9GvUhGcB.mxl | chamber | other | 1492 Vangelis Quartet | Vangelis
+pdmx-8AeQcv6BVbSw | PDMX | mxl/7/32/QmPM75JLfdXjyED1oSSCJf9fpSAtBd5DG58AeQcv6BVbSw.mxl | chamber | popular | Ma Cherie | Dj Antoine
+pdmx-PCLRujY1vbQT | PDMX | mxl/17/55/QmZYnnjbbt6nQPoii575xDMGTYPVNY2f6mPCLRujY1vbQT.mxl | chamber | sacred | It Is Well With My Soul | ARR Christopher A. Gray
+pdmx-pHFr2h7JNswm | PDMX | mxl/4/2/Qme3s8QuiuKHgQZQqBoJK9zwcxJHYQfcvipHFr2h7JNswm.mxl | chamber | unlabelled | Downfall of ParisThe3parts. JNu.38 | Misc tunes
+pdmx-M3iyn9rMxrZy | PDMX | mxl/3/17/QmdeEqqNyr7kvEj96gTcYv62QhE8C7WEXDM3iyn9rMxrZy.mxl | choir | choral | Chime the bells! lift high your voices - D. B. Towner | D. B. Towner

@@ -511,3 +511,37 @@ def test_a_job_with_another_font_than_the_plan_is_made_again(tmp_path, monkeypat
                     encoding="utf-8")
     assert generate.generate_set("development", chosen, log, workers=1) == (1, 0)
     assert f"font: {planned}\n" in meta.read_text(encoding="utf-8")
+
+
+def test_training_round_robin_takes_each_group_in_turn():
+    from omr.corpus import training
+
+    def cand(i, texture, genre):
+        c = Candidate(f"c{i}", "PDMX", "p", "m", f"t{i}", "", None, "", f"k{i}", "training")
+        c.texture, c.genre = texture, genre
+        return c
+
+    items = [cand(1, "piano", "jazz"), cand(2, "piano", "jazz"), cand(3, "choir", "sacred"), cand(4, "piano", "folk")]
+    assert [c.id for c in training.round_robin(items)] == ["c3", "c4", "c1", "c2"]
+
+
+def test_training_draw_keeps_the_first_passes_in_order(monkeypatch):
+    from omr.corpus import roundtrip, sources, training
+
+    items = []
+    for i in range(8):
+        c = Candidate(f"c{i}", "PDMX", "p", "m", f"t{i}", "", None, "", f"k{i}", "training")
+        c.texture, c.genre = "piano", "jazz"
+        items.append(c)
+    monkeypatch.setattr(training, "pool_candidates", lambda log: items)
+    monkeypatch.setattr(sources, "extract_pdmx", lambda cands, log: cands)
+    monkeypatch.setattr(sources, "label_candidates", lambda cands, log: cands)
+    monkeypatch.setattr(roundtrip, "check", lambda c: roundtrip.RoundTrip(c.id not in ("c2", "c5"), "x"))
+
+    class Log:
+        def info(self, *a): pass
+        def warning(self, *a): pass
+
+    chosen = training.draw(Log(), size=3, labelled=8, workers=1)
+    assert len(chosen) == 3 and all(t.ok for _, t in chosen)
+    assert len({c.id for c, _ in chosen}) == 3

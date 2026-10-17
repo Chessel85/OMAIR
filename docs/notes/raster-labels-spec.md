@@ -8,7 +8,8 @@ How the training data for the symbol detector (Engine 1) and the sequence reader
 - **A class is what a symbol looks like, not how it was drawn.** The same mark must get the same label whether the engraver drew it as one glyph, several glyphs, a text character or a filled path. Where engravers differ, the rules below merge or split to the form most of them use.
 - **Two SMuFL names share a class when they look alike and the reader can tell them apart from where they stand.** Above and below versions of an articulation, up and down flags, and the left and right brackets of a parenthesis pair are examples. Stage 2.4 gives each detection its exact SMuFL name from its position.
 - **Lines are not detector classes.** Staff lines, ledger lines, stems, barlines, beams, tremolo strokes, slurs, ties, hairpins, the upright part of brackets, tuplet brackets, ending and octave lines, pedal lines, straight glissando lines and grace-note slashes are drawings in the vector reader. Stage 2.2 finds them in the image. The detector sees them as background.
-- **Everything is written once, cut many times.** The generator writes a truth file for each rendered page with every symbol, text run and staff. Tiles, YOLO label files and staff crops are cut from the truth files. A change to the class list re-cuts the tiles but does not re-render or re-read the pages.
+- **A truth file for every page.** The generator writes a truth file for each rendered page with its scale, its variations, its staves and every box with its class and the names it came from, so a page can be rendered again exactly and its labels read without the vector reader.
+- **Code:** `src/omr/corpus/raster_labels.py` (classes, joins, boxes, rendering, tiles, checks), `src/omr/corpus/sequence_units.py` (homr units), and the driver `scripts/make_training_data.py`. The scores are drawn and exported by `scripts/build_corpus.py training-draw` and `training-export`.
 
 ## Source scores
 
@@ -24,7 +25,7 @@ Each class lists the SMuFL names it takes. A name not listed belongs to no class
 
 ### Noteheads
 
-- `noteheadBlack`: noteheadBlack, and the notehead part of metNote...Up glyphs in metronome marks (other engravers draw those notes with ordinary noteheads).
+- `noteheadBlack`: noteheadBlack, and the notehead part of metNote...Up glyphs in metronome marks (other engravers draw those notes with ordinary noteheads). The notehead part is the foot of the glyph, one staff space high and at most 1.2 wide; the stem above it is left out, like other stems.
 - `noteheadHalf`: noteheadHalf.
 - `noteheadWhole`: noteheadWhole.
 - `noteheadDoubleWhole`: noteheadDoubleWhole, noteheadDoubleWholeSquare.
@@ -38,7 +39,7 @@ Grace and cue noteheads are in the same classes as full-size ones. Stage 2.4 tel
 ### Rests
 
 - `restDoubleWhole`, `restWhole`, `restHalf`, `restQuarter`, `rest8th`, `rest16th`, `rest32nd`, and `rest64th` (64th and shorter).
-- restWholeLegerLine and restHalfLegerLine go to `restWhole` and `restHalf`. Their box is the plain rest's width from the same font, centred on the glyph, so the short line beside it is left to the line finder, as it is where Verovio draws it as a line.
+- restWholeLegerLine and restHalfLegerLine go to `restWhole` and `restHalf`. Their box is 1.3 staff spaces wide (a plain rest's width), centred on the glyph, so the short line beside it is left to the line finder, as it is where Verovio draws it as a line.
 - restLonga and other rests belong to no class.
 
 ### Flags and dots
@@ -82,7 +83,7 @@ One class per dynamic as it is read, not per letter: `dynamicP`, `dynamicPP`, `d
 - `accent`, `marcato`, `tenuto`, `fermata` (all fermata shapes, above and below), each taking its above and below names.
 - `breathMark` (breathMarkComma), `caesura` (caesura...).
 - `ornamentTrill`, `ornamentMordent`, `ornamentShortTrill`, `ornamentTurn`, `ornamentTurnInverted`; other ornament... names go to `ornamentOther`.
-- `arpeggio`: a column of wiggleArpeggiato... glyphs (with or without the arrow) is joined into one box, as the reader joins them. The joins between glyphs fall at different places in each engraver, so single glyphs would make inconsistent boxes.
+- `arpeggio`: a column of wiggleArpeggiato... glyphs (with or without the arrow) is joined into one box, as the reader joins them. The joins between glyphs fall at different places in each engraver, so single glyphs would make inconsistent boxes. The glyphs are drawn turned, so the font's boxes are not where the ink is: the box is taken from the column's left edge and shrunk to the ink found in the rendered page.
 - `trillLine`: a row of wiggleTrill glyphs, joined the same way. `wavyGlissando`: a run of wiggleGlissando glyphs, joined.
 - `upBow`, `downBow` (strings...).
 - `pedalPed`: keyboardPedalPed, and LilyPond's separate P, e, d and dot glyphs joined into one box. `pedalUp`: keyboardPedalUp.
@@ -92,13 +93,14 @@ One class per dynamic as it is read, not per letter: `dynamicP`, `dynamicPP`, `d
 
 ### Text
 
-- `text`: one box for each text run from `symbols.py` (titles, tempo, expression, lyrics, chord symbols, fingering, rehearsal marks, instrument names). Chord-symbol glyphs (csym...) join the text run they touch.
+- `text`: one box for each text run from `symbols.py` (titles, tempo, expression, lyrics, chord symbols, fingering, rehearsal marks, instrument names), shrunk to the ink found in the rendered page. Chord-symbol glyphs (csym...) join the text run they touch.
+- **Text drawn as outlines.** Verovio prints "MEI engraved with Verovio" at the foot of every page as filled shapes, and the vector reader matches some of its letters to music symbols. A row of shapes clear of the staves that holds a shape the reader could not name is text, together with any letters on that row that the reader did match. Its box is widened along the line while ink goes on within a staff space, to take in the logo, which the reader skips.
 - Stage 2.5 reads these boxes with OCR. The text kinds are decided there by `text.py`'s rules, so the detector needs no class per kind.
 
 ## How a box is made
 
-- **Glyph boxes** are the ink box `symbols.py` gives each symbol, in points, scaled to the page's pixels. Joined symbols take the union of their boxes.
-- **Text digits** (tuplet numbers) take the character's ink box from the text layer, clipped to the ink in the rendered page.
+- **Glyph boxes** are the ink box `symbols.py` gives each symbol, in points, scaled to the page's pixels. Joined symbols take the union of their boxes. Measured against the rendered ink, these boxes are within two pixels of it at 24 pixels a staff space.
+- **Shrunk to the ink:** text runs, tuplet digits (from the character's box in the text layer), octave marks written as text, arpeggios and LilyPond's joined octave clefs, whose boxes from the text layer or the font are not tight.
 - **Minimum size.** Each side of a box is at least half a staff space, grown evenly about its centre. A dot is then about 5 pixels at the smallest scale, rather than 4.
 - **Padding.** One pixel on every side, for anti-aliasing.
 - **Duplicates.** Two boxes of one class covering the same ink (intersection over union above 0.8) are one box. This happens where an engraver draws a unison notehead twice.
@@ -108,19 +110,19 @@ One class per dynamic as it is read, not per letter: `dynamicP`, `dynamicPP`, `d
 - **Scales.** Each page is rendered at a staff space drawn at random from 10 to 24 pixels (about 150 to 300 dpi on a typical score), taken from the page's own staff space in points. Each page is rendered at one scale, so the scales spread across scores. Greyscale, 8 bits.
 - **Variations** (all keep the labels exact): slight Gaussian blur, JPEG compression at quality 50 to 95, faint noise, and a share of pages turned black and white at a threshold. Each is drawn at random for each page, and the choice is written in the truth file. No camera distortions; those are Phase 4.
 - **Tiles.** 640 pixel squares, with an overlap of 160 pixels between neighbours. A box is kept in a tile if at least half of it lies inside, clipped to the tile. Tiles with no box are mostly dropped (one in ten is kept as background).
-- **Amount.** About 10,000 tiles to start, with a validation share of 10 percent split by score, so no score is in both. Pages are drawn at random across scores and jobs, so every score and engraver contributes. The count is a setting.
+- **Amount.** 2 percent of pages are cut into tiles, drawn at random across scores and jobs, so every score and engraver contributes: about 10,000 tiles from the 1,000 training scores. Validation takes 10 percent of the scores, so no score is in both. The share is a setting.
 - **Format.** YOLO: an image folder and a label folder, a `data.yaml` with the class list in the order above, and a class list file the label checks and Stage 2.4 also read.
 
 ## Sequence-reader data
 
-- **The unit is homr's:** one part in one system, which is one staff, or both staves of a grand staff (homr's "upper" and "lower" positions). The crop is the unit's staves with the margins homr's own staff cropping gives, so training matches homr's inference.
+- **The unit is homr's:** one part in one system, which is one staff, or both staves of a grand staff (homr's "upper" and "lower" positions). Parts of three staves or more are left out. The crop is the unit's staves with homr's own inference margins: 2 staff spaces left and right, 4 above the top staff and below the bottom one. It is saved no larger than 256 by 1280 pixels, the size homr shrinks every staff to.
 - **Tokens come from the ground truth**, through homr's own MusicXML parser (`training/omr_datasets/music_xml_parser.py`, AGPL-3.0), so they use its vocabulary exactly. They are not taken from the vector reader's output, which would teach its errors.
-- **The bars of each unit.** For MuseScore 4 pairs, from the system breaks in the pair's own MusicXML, which are exact. For the other jobs, from the vector reader's systems: the unit is kept only if the systems' bar counts add up to the ground truth's bars, and in each bar of the unit the noteheads found on the staff equal the notes the ground truth prints there. Counting noteheads does not depend on reading the rhythm, so the check does not favour easy staves.
+- **The bars of each unit** come from the vector reader's systems, which must add up to the ground truth's bars; for MuseScore 4 pairs they must also start where the system breaks in the pair's own MusicXML start. A unit is kept only if, in each of its bars, the noteheads found on its staves equal the notes the ground truth prints there. Counting noteheads does not depend on reading the rhythm, so the check does not favour easy staves. Systems with a multi-bar rest are left out. homr's own splitter (`MeasureCutter`) gives each unit its tokens, with the clef, key and time signature that start the line.
 - **Octave clefs and octave lines.** homr's vocabulary has neither. In a trial on the 300 MuseScore 4 development pairs, its parser refused 68 files for an octave clef and 12 for an octave line. Such staves are tokenised as they look: a treble clef with an 8 below becomes a plain treble clef, and every note keeps its written position, so its pitch is an octave higher than it sounds. Stage 2.6 restores the octave from the clef or line that Engine 1 and the line finder read.
-- **Length.** In the same trial, units needed a median of 22 tokens, 113 at the 95th percentile and 382 at most; 3.5 percent were over 128 and 0.1 percent over 256. Units up to 128 tokens train at batch 4 with the encoder frozen. Longer units are kept in a separate list and trained at batch 2, or split at a barline into two units under 128.
+- **Length.** In the same trial, units needed a median of 22 tokens, 113 at the 95th percentile and 382 at most; 3.5 percent were over 128 and 0.1 percent over 256. Units up to 128 tokens train at batch 4 with the encoder frozen. Longer units are kept in a separate list, to train at batch 2.
 - **Scale and variations.** Staff space drawn from 10 to 24 pixels, with the same variations as the detector data.
 - **Amount.** About 100,000 units. 1,000 scores in 6 jobs give about 150,000 before the checks.
-- **Format.** homr's: an image file and a token file for each unit, and an index listing them, so homr's data loader reads them unchanged.
+- **Format.** homr's: an image file and a token file for each unit, and index files with an "image,tokens" line for each (`index-train.txt` and `index-val.txt`, and `index-train-long.txt` and `index-val-long.txt` for units over 128 tokens), so homr's data loader reads them unchanged.
 
 ## Checking the labels
 
@@ -128,8 +130,8 @@ The owner cannot look at boxes drawn on a page, so every check is a number, writ
 
 - **Inside the image.** Every box lies inside its page with a positive width and height. Any failure is a fault.
 - **No double labels.** No two boxes of one class cover the same ink after the duplicate rule. Any left is a fault.
-- **Boxes fit the ink.** With the staff lines removed from the rendered page, the ink inside each box (grown by one pixel) must reach within two pixels of each of the box's edges, and the box must hold some ink. Reported as the share of boxes that fit, by class and job. A class under 98 percent in any job is investigated before training.
-- **No unlabelled symbols.** With the staff lines and every labelled box removed, the remaining ink is split into connected pieces. Pieces that are line-like (thinner than 0.3 staff spaces, or longer than 4 staff spaces in either direction) are left to the line finder. The others are glyph-like ink without a label. They are counted by job, with their size in staff spaces and their page and position, and the share of glyph-like ink they make up is reported. Any job over 0.5 percent is investigated before training, because unlabelled symbols teach the detector to miss them. Verovio's 522 unmatched outlined shapes on the regression set are a known case to look at first.
+- **Boxes fit the ink.** With the staff lines removed from the rendered page, the ink found around each box's ink box (before the minimum size and padding) must reach within 2 pixels plus a tenth of a staff space of each of its edges, and the box must hold some ink. The tenth allows for `symbols.py` measuring a glyph's ink from a drawing at 12 pixels a staff space. Here ink is any pixel darker than 200 of 255, because thin strokes (Verovio's sharps) render pale grey at small scales. Reported as the share of boxes that fit, by class and job, with those within 0.3 staff spaces counted apart. A class under 98 percent in any job is investigated before training.
+- **No unlabelled symbols.** On a page whose symbols are font glyphs (MuseScore, LilyPond), the page is rendered again with its drawings removed, which leaves the ink of every glyph and no lines. Visible glyph ink outside every box is split into connected pieces. The ink the rule leaves out on purpose (glyphs with no class, which are listed by name, and the stems of metronome-mark notes) and slivers two pixels thin at a box's edge are not counted. The pieces are counted by job with their page, position and size, and the share of glyph ink they make up is reported. Any job over 0.5 percent is investigated before training, because unlabelled symbols teach the detector to miss them. On a page drawn in outlines (Verovio), the shapes the vector reader could not name are counted instead.
 - **Tokens agree.** For each sequence unit, the number of notes in its tokens equals the noteheads counted in its bars, and the unit's token file parses with homr's tokenizer.
 - **A sample of every job.** The checks run on every page that is generated. Stage 2.1 is done when they pass on a sample of every job.
 

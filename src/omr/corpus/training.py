@@ -7,7 +7,8 @@ so every training-pool score that is a near copy of a selected piece is removed
 here. (The draw itself skips near copies of pieces already chosen.)
 """
 
-from omr.corpus import labels, select, sources
+from omr import parallel
+from omr.corpus import config, labels, roundtrip, select, sources
 
 
 def selected_pieces(set_names=("development", "regression", "check")):
@@ -63,3 +64,95 @@ def build(log):
     log.info(f"Training pool: {len(candidates)} candidates by metadata, {len(copies)} removed as near copies "
              f"of a selected piece, {len(kept)} kept. Lists are in {folder}.")
     return kept, copies
+
+
+# ------------------------------------------------- the training draw
+#
+# Scores for the raster engines' training data (raster-labels-spec.md,
+# "Source scores"): the training pool shuffled with the seed, the first
+# TRAINING_LABELLED labelled, then taken round robin over the texture and
+# genre groups until TRAINING_SIZE pass the round trip.
+
+def pool_candidates(log):
+    """The training-pool candidates listed in training-pool.txt, by metadata."""
+    listed = sources.work_dir() / "training-pool.txt"
+    if not listed.is_file():
+        raise FileNotFoundError(f"there is no training pool list at {listed}; run build_corpus.py training first")
+    ids = {line.split(" | ")[0] for line in listed.read_text(encoding="utf-8").splitlines()
+           if line.strip() and not line.startswith("#")}
+    candidates = sources.pdmx_candidates(log, pools=("training",)) + sources.openscore_candidates(log, pools=("training",))
+    return [c for c in candidates if c.id in ids]
+
+
+def round_robin(candidates):
+    """The candidates in turn from each (texture, genre) group, each group in
+    the order given, so every group is drawn from before any is drawn twice."""
+    groups = {}
+    for c in candidates:
+        groups.setdefault((c.texture, c.genre), []).append(c)
+    order = []
+    queues = [groups[k] for k in sorted(groups)]
+    while any(queues):
+        for q in queues:
+            if q:
+                order.append(q.pop(0))
+    return order
+
+
+def draw(log, size=config.TRAINING_SIZE, labelled=config.TRAINING_LABELLED, workers=parallel.DEFAULT_WORKERS):
+    """Return [(candidate, round trip)] for the first `size` candidates, in
+    round-robin order, that pass the round trip. Round trips run `workers` at
+    a time; the result does not depend on the number of workers."""
+    import random
+
+    pool = sorted(pool_candidates(log), key=lambda c: c.id)
+    random.Random(config.SEED).shuffle(pool)
+    pool = sources.extract_pdmx(pool[:labelled], log)
+    order = round_robin(sources.label_candidates(pool, log))
+    log.info(f"Training draw: {len(order)} labelled candidates in {len(set((c.texture, c.genre) for c in order))} groups.")
+    # Every candidate submitted is finished before the end, so the first `size`
+    # passes in draw order are the ones a run with one worker would choose.
+    results = {}
+    with parallel.pool(workers) as executor:
+        running, next_index = {}, 0
+        while next_index < len(order) or running:
+            passed = sum(t.ok for t in results.values())
+            while len(running) < 2 * workers and next_index < len(order) and passed < size:
+                running[executor.submit(roundtrip.check, order[next_index])] = next_index
+                next_index += 1
+            if not running:
+                break
+            for future, i in parallel.finished(running, block=True):
+                trip = results[i] = future.result()
+                c = order[i]
+                if trip.ok:
+                    log.info(f"Training draw: {c.id} ({c.texture}, {c.genre}) passed the round trip.")
+                else:
+                    log.info(f"Training draw: {c.id} rejected: {trip.reason}.")
+    chosen = [(order[i], results[i]) for i in sorted(results) if results[i].ok][:size]
+    rejected = sum(not t.ok for t in results.values())
+    log.info(f"Training draw: {len(chosen)} chosen, {rejected} rejected by the round trip.")
+    if len(chosen) < size:
+        log.warning(f"Training draw: only {len(chosen)} of {size} found; label more of the pool.")
+    return chosen
+
+
+def write_draw(chosen):
+    """The selection file (no music, committed) and the labelled candidates
+    (corpus work folder), so the export reads the same scores back."""
+    import json
+    from dataclasses import asdict
+
+    path = select.write_selection("training", chosen, [])
+    (sources.work_dir() / "training-candidates.json").write_text(
+        json.dumps([asdict(c) for c, _ in chosen], indent=1), encoding="utf-8")
+    return path
+
+
+def read_draw():
+    """[(candidate, round trip)] of the training draw, in draw order."""
+    import json
+
+    data = json.loads((sources.work_dir() / "training-candidates.json").read_text(encoding="utf-8"))
+    chosen = [sources.Candidate(**d) for d in data]
+    return [(c, roundtrip.check(c)) for c in chosen]

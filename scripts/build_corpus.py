@@ -6,6 +6,8 @@ Steps, each resumable:
   select SET   draw the set (development or regression) and write its selection file
   export SET   export every selected score through every engraver
   training     list the training pool without near copies of the selected pieces
+  training-draw    draw the raster engines' training scores from the pool
+  training-export  export the drawn training scores through every engraver
   report       count the pairs and failures in the corpus folder
 
 Rules: docs/notes/corpus-sampling.md. Output folder: OMR_CORPUS_DIR.
@@ -89,6 +91,31 @@ def cmd_training(args, log):
     return f"{len(kept)} training candidates kept, {len(copies)} near copies removed"
 
 
+def cmd_training_draw(args, log):
+    from omr.corpus import training
+
+    if not check_corpus(log):
+        return "stopped before starting"
+    chosen = training.draw(log, size=args.size, workers=args.workers)
+    path = training.write_draw(chosen)
+    log.info(f"Selection written to {path}.")
+    return f"{len(chosen)} training scores drawn"
+
+
+def cmd_training_export(args, log):
+    from omr.corpus import training
+
+    if not check_corpus(log):
+        return "stopped before starting"
+    chosen = training.read_draw()
+    if args.limit:
+        chosen = chosen[: args.limit]
+    log.info(f"Running up to {args.workers} exports at once.")
+    made, failed = generate.generate_set("training", chosen, log, retry_failures=args.retry_failures,
+                                         workers=args.workers)
+    return f"{made} exports made, {failed} failed for the training scores"
+
+
 def cmd_report(args, log):
     for name in config.SETS:
         index = generate.output_dir(name) / "index.txt"
@@ -116,6 +143,14 @@ def main(argv=None):
             p.add_argument("--workers", type=int, default=parallel.DEFAULT_WORKERS,
                            help=f"Exports to run at once (default {parallel.DEFAULT_WORKERS}; 1 runs them one at a time).")
     sub.add_parser("training")
+    workers_help = f"Jobs to run at once (default {parallel.DEFAULT_WORKERS}; 1 runs them one at a time)."
+    p = sub.add_parser("training-draw")
+    p.add_argument("--size", type=int, default=config.TRAINING_SIZE)
+    p.add_argument("--workers", type=int, default=parallel.DEFAULT_WORKERS, help=workers_help)
+    p = sub.add_parser("training-export")
+    p.add_argument("--limit", type=int, help="Only the first N scores.")
+    p.add_argument("--retry-failures", action="store_true")
+    p.add_argument("--workers", type=int, default=parallel.DEFAULT_WORKERS, help=workers_help)
     sub.add_parser("report")
     args = parser.parse_args(argv)
     if getattr(args, "workers", None) is not None:
@@ -126,7 +161,8 @@ def main(argv=None):
     log = make_log(f"build-corpus-{args.command}")
     try:
         summary = {"candidates": cmd_candidates, "composers": cmd_composers, "select": cmd_select,
-                   "export": cmd_export, "training": cmd_training, "report": cmd_report}[args.command](args, log)
+                   "export": cmd_export, "training": cmd_training, "training-draw": cmd_training_draw,
+                   "training-export": cmd_training_export, "report": cmd_report}[args.command](args, log)
     except paths.CorpusDirError as error:
         log.error(str(error))
         summary = "stopped"
