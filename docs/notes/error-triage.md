@@ -20,7 +20,7 @@ Plain headings and lists only.
 
 Results in `evaluations/s18-run3-*` on the corpus drive, with the analyses in `errors-s18-run3.txt` and `triage-s18-run3.txt`.
 
-- **Development set:** notes 97.83 percent (30,185 note errors, from 46,554), structure 80.4 percent (from 77.8). By job: MuseScore 4 98.73 and 98.81, MuseScore 3 98.84 and 98.77, Verovio 96.65 (from 93.05), LilyPond 94.85 (from 94.14). No file lost structural correctness. 20 files read worse than at the gate, most by a few notes; the largest two are faulty LilyPond pairs (cause 14).
+- **Development set:** notes 97.83 percent (30,185 note errors, from 46,554), structure 80.4 percent (from 77.8). By job: MuseScore 4 98.73 and 98.81, MuseScore 3 98.84 and 98.77, Verovio 96.65 (from 93.05), LilyPond 94.85 (from 94.14). ACC-4 on exact pairs 88.3 percent with 4.3 percent of bars flagged (92.4 at the gate): the fixes removed mostly flagged errors. No file lost structural correctness. 20 files read worse than at the gate, most by a few notes; the largest two are faulty LilyPond pairs (cause 14).
 - **Without the 17 faulty LilyPond pairs** (cause 14): notes 98.30 percent; LilyPond 97.92 percent, structure 64.4.
 - **Regression set:** notes 98.4 percent, structure 80.5, both unchanged. ACC-6 99.4 percent. Flagging recall 94.1 percent with 5.4 percent of bars flagged.
 - **Real-world uploads:** notes 96.5 percent (from 93.0), structure 65.0 (unchanged).

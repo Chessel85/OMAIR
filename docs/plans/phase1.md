@@ -1,6 +1,6 @@
-# Phase 1 Plan (draft): Vector PDF to MusicXML
+# Phase 1 Plan: Vector PDF to MusicXML
 
-Version 0.2, 16 October 2026: Stages 1.8 (accuracy push) and 1.9 (gate review again) added after the first gate review. Drafted on 9 October 2026 from what Phase 0 showed. Gate wording agreed by the owner; the rest still needs review. Plain headings and lists only. Model suggestions follow the Phase 0 plan: Opus for design and judgement, Sonnet for implementation, escalate to Opus after two or three failed attempts.
+**Status: closed on 17 October 2026.** The owner signed Phase 1 off with ACC-1 not met and the shortfall carried forward as known limits; see `docs/notes/phase1-report.md`. Drafted on 9 October 2026 from what Phase 0 showed. Gate wording agreed by the owner; the rest still needs review. Plain headings and lists only. Model suggestions follow the Phase 0 plan: Opus for design and judgement, Sonnet for implementation, escalate to Opus after two or three failed attempts.
 
 ## Goal and gate
 
@@ -175,7 +175,9 @@ These are not part of ACC-1, but they shape the output a braille reader gets.
 
 ### Done when
 
-On both the development set and the sealed check set, every engraver has at least 99 percent note accuracy and at least 95 percent structural correctness. The regression set meets the same. The real uploads meet it, excluding pairs the owner agrees are faulty. ACC-6 and ACC-4 still meet their targets, speed is under 2 seconds a page, and the commercial targets above are met or each shortfall is explained. Where a target is not reachable because the PDF does not hold the information, the triage note says so with counts, and the owner agrees the limit.
+Outcome (17 October 2026): stopped by the owner on diminishing returns, after Workstream A and the first passes of the work loop (ten reader faults fixed). Notes 97.8 percent and structure 80.4 percent on the development set, 97.7 and 83.1 on the check set. Workstreams D and E were not started. The open causes are ranked in `docs/notes/error-triage.md`.
+
+The target was: on both the development set and the sealed check set, every engraver has at least 99 percent note accuracy and at least 95 percent structural correctness. The regression set meets the same. The real uploads meet it, excluding pairs the owner agrees are faulty. ACC-6 and ACC-4 still meet their targets, speed is under 2 seconds a page, and the commercial targets above are met or each shortfall is explained. Where a target is not reachable because the PDF does not hold the information, the triage note says so with counts, and the owner agrees the limit.
 
 ## Stage 1.9: Gate review again
 
@@ -185,6 +187,8 @@ On both the development set and the sealed check set, every engraver has at leas
 - Update `docs/notes/phase1-report.md` to the new position, with the comparison against the baselines, and ask the owner for sign-off.
 
 Done when: the gate (as agreed) is met and the report is signed off.
+
+Outcome (17 October 2026): the development, regression and real-upload figures are from the last Stage 1.8 run, and the check set and commercial files were run for this review. The gate is not met; the owner signed the report off with the shortfall as known limits.
 
 ## Order and dependencies
 
