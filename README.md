@@ -2,7 +2,7 @@
 
 A free, offline optical music recognition tool. It converts sheet music PDFs and images into accurate MusicXML and braille music, and reports in plain text where it is unsure. Licensed under AGPL-3.0.
 
-The project is in Phase 1 (vector PDFs). It names the symbols of a vector PDF and reads its structure, its notes (pitch, rhythm, voices, ties, grace notes) and its text and markings (title and composer, lyrics, chord symbols, tempo and expression text, dynamics, hairpins, articulations, slurs, fingering), and flags the bars that may be wrong, but does not yet write MusicXML. `scripts/check_notes.py`, `scripts/check_markings.py` and `scripts/check_flags.py` measure what it reads and flags against the ground truth. The `omr` command has these subcommands:
+Phase 1 (vector PDFs) is closed, and the project is in Phase 2 (clean page images). For vector PDFs it names the symbols of a vector PDF and reads its structure, its notes (pitch, rhythm, voices, ties, grace notes) and its text and markings (title and composer, lyrics, chord symbols, tempo and expression text, dynamics, hairpins, articulations, slurs, fingering), and flags the bars that may be wrong, but does not yet write MusicXML. `scripts/check_notes.py`, `scripts/check_markings.py` and `scripts/check_flags.py` measure what it reads and flags against the ground truth. For page images, so far, it finds the staff lines, barlines, stems, beams and curves (`src/omr/raster`), checked against the vector reading by `scripts/check_raster_lines.py`; the symbol detector comes next. The `omr` command has these subcommands:
 
 - `omr inspect FILE`: says what kind of PDF each page is (vector music with font glyphs or outlines, a clean image, or a photo or scan) and which music font it uses.
 - `omr symbols FILE`: names every music symbol in a vector PDF (from its music font, or by shape where the symbols are outlines) and counts any that cannot be named.
@@ -13,7 +13,7 @@ The project is in Phase 1 (vector PDFs). It names the symbols of a vector PDF an
 
 Development conventions, including the accessibility rules for output and logs, are in `docs/conventions.md`.
 
-Design documents are in `docs/`: `requirements.md`, `solution-design.md` and `plans/phase0.md`. Progress against the Phase 0 plan is in `docs/plans/phase0-progress.md`.
+Design documents are in `docs/`: `requirements.md`, `solution-design.md`, and a plan and progress log for each phase in `docs/plans` (the current ones are `phase2.md` and `phase2-progress.md`). Specs for each part are in `docs/notes`.
 
 The GitHub repository is called OMAIR (https://github.com/Chessel85/OMAIR). The Python package and command are called `omr`.
 

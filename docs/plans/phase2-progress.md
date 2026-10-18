@@ -71,7 +71,27 @@ Last updated 18 October 2026. This file records what has been done against `phas
     - 1,000 scores, not the plan's "a few thousand": 10,000 tiles need only about 700 pages, and 100,000 staves need about 4,000 pairs, so 1,000 scores in 6 jobs already give more than enough, in a third of the export time. More can be drawn later without changing those drawn.
   - **Actual:** 2 sessions. Run 1 took 5 hours (the draw about 1 hour, the export about 4); making the data took 79 minutes the first time and 93 minutes after the fixes, with 21 more minutes for the Verovio pairs. About 9.5 GB: exports 1.5 GB, page truth files 0.7 GB, tiles 0.6 GB, and staff images 6.6 GB, more than the 4 to 5 GB estimated because there are nearly twice the staff units expected.
 
+- **Stage 2.2, staff lines and lines in the image: under way (started 18 October 2026).**
+  - **Estimate (agreed by the owner, 18 October 2026):**
+    - Claude sessions: 4 to 6 (1 for the design; 2 or 3 for the code: staves and tilt, barlines, stems and ledger lines, beams and the other long lines, and the comparison tool; 1 or 2 for reading the comparison and fixing).
+    - Comparison on the raster regression set (448 pages at 300, 200 and 150 dpi): about 20 to 40 minutes a run, 3 to 5 runs as fixes go in. 3 CPU workers, no GPU.
+    - One comparison on the development set at 300 and 200 dpi (about 22,000 pages), for the report, not the done condition: about 2 to 4 hours, overnight or a long afternoon. 3 CPU workers, no GPU. To be re-estimated from the regression speed before it starts.
+    - Disk: under 1 GB on the corpus drive (line files and comparison results). Nothing new is rendered.
+    - CPU only. It can overlap Stage 2.3's GPU training, but a comparison run alongside training slows both.
+  - **Design:** `docs/notes/raster-lines-spec.md`. The line finder (`src/omr/raster/lines.py`) works on the page image in pixels; `src/omr/raster/page.py` turns its lines into PyMuPDF drawing dictionaries in page points, and `RasterPage` answers the reader's `get_drawings` with them, so `layout.py` and `notation.py` run unchanged. Lines come after symbols: the detector's boxes (for this stage, the vector reader's ink boxes) tell symbol strokes from lines. Curves (ties and slurs) are traced from the ink, not a detector class. A tilted page is turned level first. Classical image processing only (numpy and OpenCV).
+  - **The check** (`src/omr/raster/check.py`, `scripts/check_raster_lines.py`): each pair is read twice with its vector symbols, with the PDF's drawings and with the image's lines, and the staves, barlines, stems, beams and curves the reader settles on are compared; both readings are scored against the ground truth. About 6 to 7 minutes a version for the regression set on 3 workers. The check set is refused.
+  - **Done condition met (18 October 2026), run `s22-run2`** (`evaluations/s22-run2-regression-<version>` on the corpus drive):
+    - 300 dpi: staves 3,368 of 3,368 (every pair); barlines 99.80 percent; stems 99.55 percent; beams 93.6 percent; curves 72.8 percent. Notes 96.78 percent with the image's lines against 98.52 with the vector lines (1,284 notes lost of 73,762).
+    - 200 dpi: staves 3,368 of 3,368; barlines 99.66; stems 99.49; beams 94.1; curves 64.4. Notes 96.64 percent (1,386 lost).
+    - 150 dpi (reported, not gated): staves 98.52 percent (10 pairs miss a staff); barlines 98.14; stems 97.27; beams 91.6; curves 55.5. Notes 93.18 percent (3,943 lost).
+    - Largest staff, barline and stem position errors: 0.05 to 0.07 staff spaces at 300 and 200 dpi, 0.11 at 150.
+  - **Run `s22-run3`** (later the same day): at low resolution level lines are found with a lighter ink level. 300 dpi unchanged; 200 dpi notes 96.71 percent (staves, barlines and stems as before); 150 dpi staves 99.73 percent (2 pairs miss a staff, a small staff at 7.7 pixels a space), barlines 99.44, stems 98.66, notes 95.08 percent (2,541 lost).
+  - **What the runs found** (each is in the spec): staff line positions must be measured to a fraction of a pixel, or the reader's 10 percent staff test fails; slurs, sloping beams and hairpins leave stair-step runs that look like short level lines; a stem's edge columns can form a second line, which split chords; flags hold the end of a stem inside their box; beams must sit on stems, or the thick middle of a slur becomes a beam, with exceptions for hidden stems and tremolos; a level beam on a staff line is also a level line to the reader, so its centre must be exact; octave lines need a dashed-line finder.
+  - **Sessions so far:** 1 (design, code and four regression runs in one long session).
+  - **Tests:** 13 new in `tests/test_raster_lines.py`; all 391 pass.
+  - **Not done yet:** tie ends (traced ties are up to a staff space short; ties do not count in note accuracy), long slurs in pieces, a false staff on one pair (pdmx-5zrh8nmuVjih, MuseScore 3 variant: ledger lines of neighbouring notes joined by the reader's fixed 2-point join, a reader fix to be measured on both paths), pair Gpyq556zefWD losing about 34 notes in each version (not yet looked at), and the development-set comparison (for the report, to be re-estimated: about 3,600 pairs-versions at 300 and 200 dpi, roughly 1.5 to 2 hours on 3 workers from the regression speed).
+
 ## Next steps
 
-1. Stage 2.2 (staff lines and lines in the image): give the owner an estimate before the bulk of it.
-2. Stage 2.3 (the symbol detector) can start once Stage 2.2 is under way; its training data is ready.
+1. Stage 2.2: the remaining items above (tie ends, long slurs, the false staff, pair Gpyq556zefWD), then the development-set comparison, after the owner agrees its time (about 1.5 to 2 hours on 3 workers). Then write up the stage and mark it done.
+2. Stage 2.3 (the symbol detector) can start; its training data is ready, and the line finder takes its boxes.
