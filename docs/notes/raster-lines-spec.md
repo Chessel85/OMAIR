@@ -84,11 +84,13 @@ How the staff lines and the other lines of a clean page image are found and hand
 - **Curves** are 82.5 percent found at 300 dpi, 76.6 at 200 and 68.8 at 150 (run `s22-run5`). Long slurs crossing many stems and lines can still come out in pieces, and at low resolution ends fall short more often. Ties and slurs do not count in note accuracy, but they do in the MusicXML.
 - **Small staves at 150 dpi.** A staff at 7.7 pixels a space can be missed (2 regression pairs).
 - **Extra beams at 150 dpi** (about 7,300 on the regression set, against 1,900 at 300 dpi).
+- **Verovio beams** are 64.7 percent found at 300 dpi and 64.1 at 200 on the development set (run `s22-dev`), against 92 to 99 percent for the other engravers; half the misses are in 10 of its 300 pairs.
+- **Staves lost at 200 dpi in one score** (pdmx-JQFGUynvuWVR, both MuseScore 3 versions: 36 to 42 of 78 staves missed).
 
 ## The check
 
 - Each pair of a raster set is read twice with the symbols of its vector PDF: with the PDF's own drawings, and with the lines of its image (`RasterPage`). Both readings run the whole reader, so the staves, barlines and stems compared are the ones the reader settles on, and both are scored against the ground truth: the difference is the notes lost to the image's lines alone.
 - **Staves** match when on the same page with the top line within 0.3 staff spaces and each end within 0.6. **Barlines** match when on the same system within 0.5 staff spaces along it. **Stems** match within 0.3 staff spaces across and 0.5 at each end. The share found is against the vector reading; the largest position error is reported in staff spaces.
 - **Beams and curves** are compared as the reader's `page_shapes` gives them, matching when each end is within half a staff space. The vector page's curves include symbols drawn as outlines (Verovio draws every symbol so), so only curves not lying mostly inside a symbol's box count. These two are diagnostics, not part of the done condition.
-- `python scripts/check_raster_lines.py regression g300 g200 g150` writes `results.jsonl` (one line per pair) and `summary.txt` (totals, and by engraver) to `evaluations/<name>-regression-<version>` on the corpus drive. About 6 minutes a version for the regression set on 3 workers. The check set is refused: it stays sealed.
+- `python scripts/check_raster_lines.py regression g300 g200 g150` writes `results.jsonl` (one line per pair) and `summary.txt` (totals, and by engraver) to `evaluations/<name>-regression-<version>` on the corpus drive. About 6 minutes a version for the regression set on 3 workers, and about 2 hours 20 minutes a version for the development set. The check set is refused: it stays sealed.
 - **Done when** (plan): on the raster regression set, every staff is found, and staff, barline and stem recall against the vector reading is at least 99 percent.

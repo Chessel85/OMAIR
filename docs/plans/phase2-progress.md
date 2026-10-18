@@ -71,7 +71,7 @@ Last updated 18 October 2026. This file records what has been done against `phas
     - 1,000 scores, not the plan's "a few thousand": 10,000 tiles need only about 700 pages, and 100,000 staves need about 4,000 pairs, so 1,000 scores in 6 jobs already give more than enough, in a third of the export time. More can be drawn later without changing those drawn.
   - **Actual:** 2 sessions. Run 1 took 5 hours (the draw about 1 hour, the export about 4); making the data took 79 minutes the first time and 93 minutes after the fixes, with 21 more minutes for the Verovio pairs. About 9.5 GB: exports 1.5 GB, page truth files 0.7 GB, tiles 0.6 GB, and staff images 6.6 GB, more than the 4 to 5 GB estimated because there are nearly twice the staff units expected.
 
-- **Stage 2.2, staff lines and lines in the image: under way (started 18 October 2026).**
+- **Stage 2.2, staff lines and lines in the image: done (18 October 2026).** Its done condition is met (run `s22-run2`), the tidy-up is in (run `s22-run5`), and the development-set comparison is reported below. The owner chose not to refine further now: the known weaknesses (Verovio beams, curves, one score's staves at 200 dpi) are listed in the spec's "Still to come", for a later pass round the phase if needed.
   - **Estimate (agreed by the owner, 18 October 2026):**
     - Claude sessions: 4 to 6 (1 for the design; 2 or 3 for the code: staves and tilt, barlines, stems and ledger lines, beams and the other long lines, and the comparison tool; 1 or 2 for reading the comparison and fixing).
     - Comparison on the raster regression set (448 pages at 300, 200 and 150 dpi): about 20 to 40 minutes a run, 3 to 5 runs as fixes go in. 3 CPU workers, no GPU.
@@ -95,16 +95,16 @@ Last updated 18 October 2026. This file records what has been done against `phas
     - Run 5, against run 3: at 300 dpi barlines 99.80 to 99.97 percent, curves 72.8 to 82.5, notes 96.78 to 97.06 percent (1,077 lost of 73,762), no extra staves; at 200 dpi barlines 99.91, curves 64.4 to 76.6, notes 96.71 to 97.08; at 150 dpi curves 55.5 to 68.8, notes 95.08 to 95.50 (staves still 99.73 percent, 2 pairs short). Stems unchanged.
     - Speed: 7.5 minutes at 300 dpi, 5.4 at 200 and 4.8 at 150 for the regression set's 448 pages on 3 workers.
     - Tests: 5 new; all 396 pass.
-  - **Sessions so far:** 2.
-  - **Not done yet:** the development-set comparison (for the report), then the write-up.
-  - **Development-set comparison: agreed by the owner (18 October 2026), to run straight away, in the afternoon, with light use of the laptop alongside (it may run a little slow).**
-    - Estimate: about 3 hours at 300 dpi and 2.2 at 200, about 5 to 6 hours in all, longer with other use. 3 CPU workers, no GPU, well under 1 GB. The development set has 10,927 pages a version, 24 times the regression set.
-    - Command, from the repository folder, started in the background so the session can watch it: `.venv/Scripts/python scripts/check_raster_lines.py development g300 g200 --name s22-dev`. A trial on 2 pairs worked (its output was deleted).
-    - Output: `evaluations/s22-dev-development-g300` and `-g200` (`results.jsonl`, `summary.txt`), progress in `evaluations/s22-dev.log`, about one line every 25 pairs of 1,778 in each version.
-    - It cannot be resumed: if stopped, it starts again from the beginning (each version's folder is rewritten). The laptop must not sleep while it runs.
-    - When it finishes: read both summaries; compare with the regression figures (run `s22-run5`) and the vector ceiling, by engraver; look at the pairs losing the most notes; then write up Stage 2.2 and mark it done.
+  - **Development-set comparison, run `s22-dev` (18 October 2026),** for the report, not the done condition (`evaluations/s22-dev-development-g300` and `-g200` on the corpus drive). 1,778 pairs in each version, none failed. Command: `.venv/Scripts/python scripts/check_raster_lines.py development g300 g200 --name s22-dev`.
+    - 300 dpi: staves 99.94 percent (every staff found in 1,751 pairs); barlines 99.80; stems 99.69; beams 91.33; curves 83.36. Notes 96.54 percent with the image's lines against 98.15 with the vector lines (22,348 lost of 1,385,182).
+    - 200 dpi: staves 99.85 percent (1,740 pairs); barlines 99.71; stems 99.44; beams 90.17; curves 75.48. Notes 96.25 percent (26,376 lost).
+    - Largest staff, barline and stem position error 0.08 staff spaces, except one LilyPond barline at 0.29 (300 dpi).
+    - Notes by engraver, image lines at 300 then 200 dpi (vector lines in brackets): LilyPond 94.67, 94.06 (96.31); MuseScore 3 97.45, 97.18 (98.87); MuseScore 4 97.23, 97.47 (98.85); Verovio 94.97, 93.85 (96.93).
+    - Against the regression set (run `s22-run5`: 97.06 and 97.08 percent), the development set loses 0.5 to 0.8 points more. The 98.15 percent with vector lines is this check's own figure (vector symbols, exact notes), not the 97.8 percent vector ceiling, which is scored differently.
+    - **Where the loss is:** the 100 worst pairs hold 54 percent of the notes lost at 300 dpi and 60 at 200. Verovio beams are found only 64.7 and 64.1 percent (half the misses in 10 of its 300 pairs). At 200 dpi one score, pdmx-JQFGUynvuWVR, loses 36 to 42 of 78 staves in both MuseScore 3 versions (1,585 notes). Some bad pairs (pdmx-wiKwQuZ8jipd, pdmx-PVBKBqQuh8Cx) have no beams and every staff found yet lose 180 to 400 notes each; not looked into.
+    - Time: 4 hours 45 minutes for both versions on 3 workers, within the 5 to 6 hour estimate.
+  - **Actual:** 3 sessions, against the estimate of 4 to 6. Regression runs about 6 to 7 minutes a version; 5 full runs and 4 trials. Disk well under 1 GB.
 
 ## Next steps
 
-1. Stage 2.2: the development-set comparison, agreed by the owner; start it as written above, if it is not already running (check `evaluations/s22-dev.log`). Then write up the stage and mark it done.
-2. Stage 2.3 (the symbol detector) can start; its training data is ready, and the line finder takes its boxes.
+1. Stage 2.3, the symbol detector: give the owner an estimate (sessions, training time on the GPU, disk) and get agreement before training. Its training data is ready (Stage 2.1), and the line finder takes its boxes.
