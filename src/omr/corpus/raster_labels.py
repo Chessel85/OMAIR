@@ -10,6 +10,7 @@ import hashlib
 import io
 import re
 from collections import Counter
+from types import SimpleNamespace
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -194,6 +195,13 @@ def page_labels(page_symbols, text_chars=()):
         labels.append(Label("text", _union([b for b, _ in row]), ["outlined text"], tighten=True))
         used.update(id(s) for _, s in row if s is not None)
     in_rows = {b for row in _box_rows(loose, space) for b, s in row if s is None}
+    # Verovio arpeggios the reader cannot match: columns of small upright pieces
+    upright = [SimpleNamespace(box=b) for b in page_symbols.unnamed if b not in in_rows
+               and b[3] - b[1] > 1.8 * (b[2] - b[0]) and b[2] - b[0] < 0.6 * space]
+    for g in _rows(upright, space, "y"):
+        if len(g) >= 3:
+            labels.append(Label(ARPEGGIO, _union([s.box for s in g]), ["outlined arpeggio"], tighten=True))
+            in_rows.update(s.box for s in g)
     ignored += [b for b in page_symbols.unnamed if b not in in_rows]
 
     # LilyPond's octave clefs: a clef with a small 8 below or above it
@@ -333,6 +341,13 @@ def _inside_centre(box, outer):
 
 def _overlap(a, b):
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def unboxed(boxes, labels):
+    """The boxes (points) not inside any label's box: the outlined shapes a
+    page's labels leave out."""
+    inside = lambda b, l: l[0] - 0.5 <= b[0] and l[1] - 0.5 <= b[1] and b[2] <= l[2] + 0.5 and b[3] <= l[3] + 0.5
+    return [b for b in boxes if not any(inside(b, lab.box) for lab in labels)]
 
 
 def text_characters(page):

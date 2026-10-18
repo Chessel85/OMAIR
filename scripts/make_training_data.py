@@ -65,6 +65,7 @@ def pair_job(score_id, job, pdf, truth, out, detector_share, sequence):
             grey = rl.render(page, zoom)
             labels, missing, ignored = rl.page_labels(ps, rl.text_characters(page))
             unlabelled.update(missing)
+            loose_shapes = rl.unboxed(ps.unnamed, labels)
             ignored = [tuple(v * zoom for v in box) for box in ignored]
             labels = rl.to_pixels(labels, zoom, space_px, grey.shape)
             staff_boxes = rl.staff_boxes_px(ps.evidence.staves, zoom)
@@ -75,7 +76,7 @@ def pair_job(score_id, job, pdf, truth, out, detector_share, sequence):
             glyphs = None if outlined else rl.glyph_ink(doc, ps.page, zoom) & (grey < rl.FAINT_INK)
             c, f, p = rl.check_page(labels, ink, space_px, glyphs, ignored)
             if outlined:
-                c["unnamed outlined shapes"] += sum(v for (kind, _), v in ps.unmapped.items() if kind == "outlines")
+                c["unnamed outlined shapes"] += len(loose_shapes)
             counts.update(c)
             fit.update(f)
             pieces += [(ps.page, *piece) for piece in p]
@@ -145,7 +146,7 @@ def write_report(out, results):
             share = c["unlabelled glyph ink"] / c["glyph ink"]
             lines.append(f"- Glyph ink with no box: {share:.2%} of the glyph ink, in {c['unlabelled pieces']} pieces.")
         if c["unnamed outlined shapes"]:
-            lines.append(f"- Outlined shapes the vector reader could not name: {c['unnamed outlined shapes']}.")
+            lines.append(f"- Outlined shapes the vector reader could not name, outside every box: {c['unnamed outlined shapes']}.")
         poor = []
         for cls in rl.CLASSES:
             boxes = g["fit"][(cls, "boxes")]

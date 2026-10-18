@@ -163,3 +163,11 @@ def test_turned_glyph_boxes_turn_with_the_glyph():
     ink = SimpleNamespace(left=0.0, top=-1.0, width=4.0, height=1.0)   # a level wiggle above its baseline
     assert symbols._placed_box(ink, (10, 50), 1.0, (1.0, 0.0)) == (10, 49, 14, 50)
     assert symbols._placed_box(ink, (10, 50), 1.0, (0.0, -1.0)) == (9, 46, 10, 50)   # drawn upward
+
+
+def test_a_column_of_unnamed_upright_shapes_is_an_arpeggio():
+    column = [(100, 100 + 4.5 * k, 2, 104.5 + 4.5 * k) for k in range(4)]
+    column = [(b[0], b[1], b[0] + b[2], b[3]) for b in column]
+    labels, _, ignored = rl.page_labels(page([], unnamed=column))
+    assert [(l.cls, l.box) for l in labels] == [("arpeggio", (100, 100, 102, 118.0))] and ignored == []
+    assert rl.unboxed(column + [(300, 300, 302, 305)], labels) == [(300, 300, 302, 305)]
