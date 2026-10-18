@@ -313,9 +313,7 @@ def read_page(page, number, programs=None, identifier=None, ev=None):
                 y -= size / 4   # a Sonata whole rest's origin is the line below the one it hangs from
             box = ink.get((xref, gid))
             if box is not None:
-                scale = size / 4
-                box = (origin[0] + box.left * scale, origin[1] + box.top * scale,
-                       origin[0] + (box.left + box.width) * scale, origin[1] + (box.top + box.height) * scale)
+                box = _placed_box(box, origin, size / 4, span["dir"] if turn is None else (1.0, 0.0))
             else:
                 box = tuple(bbox)
             result.symbols.append(Symbol(symbol, origin[0], y, size, box, name, mapping.table))
@@ -440,6 +438,17 @@ def _add_text(runs, run, font, size, code, origin, bbox, new_span=False):
     run = TextRun(char, origin[0], origin[1], tuple(bbox), font, size)
     runs.append(run)
     return run
+
+
+def _placed_box(shape, origin, scale, direction):
+    """The page box of a glyph's ink box, for a glyph drawn at `origin` with
+    its baseline along `direction` (MuseScore draws arpeggios upright and
+    slanted trill and glissando lines turned)."""
+    dx, dy = direction
+    corners = [(shape.left + u * shape.width, shape.top + v * shape.height) for u in (0, 1) for v in (0, 1)]
+    xs = [origin[0] + (a * dx - b * dy) * scale for a, b in corners]
+    ys = [origin[1] + (a * dy + b * dx) * scale for a, b in corners]
+    return (min(xs), min(ys), max(xs), max(ys))
 
 
 def _ink_boxes(programs, page, mappings):

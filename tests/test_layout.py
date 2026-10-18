@@ -3,6 +3,7 @@
 
 import sys
 from fractions import Fraction
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -219,3 +220,13 @@ def test_a_bar_number_at_a_staff_start_starts_a_system():
     lyric = SimpleNamespace(text="Man,", box=(49.0, 290.0, 72.0, 298.0))
     assert layout._starts_system(staff, [number])
     assert not layout._starts_system(staff, [lyric])
+
+
+def test_a_brace_round_other_braces_joins_no_staves():
+    staff = lambda top: SimpleNamespace(top=top, bottom=top + 20, middle=top + 10, x0=100.0, space=5.0)
+    system = SimpleNamespace(staves=[staff(100), staff(150), staff(200), staff(250)], x0=100.0)
+    brace = lambda top, bottom, x1: SimpleNamespace(name="brace", box=(x1 - 8, top, x1, bottom))
+    inner = [brace(100, 170, 98), brace(200, 270, 98)]
+    assert structure.staff_groups(system, inner, ()) == [[0, 1], [2, 3]]
+    assert structure.staff_groups(system, [*inner, brace(100, 270, 92)], ()) == [[0, 1], [2, 3]]
+    assert structure.staff_groups(system, [brace(100, 270, 92)], ()) == [[0, 1, 2, 3]]

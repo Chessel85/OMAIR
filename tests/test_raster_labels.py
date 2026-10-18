@@ -144,3 +144,22 @@ def test_system_starts_from_print_elements():
     measures = [ET.fromstring(x) for x in ("<measure/>", "<measure/>", '<measure><print new-system="yes"/></measure>',
                                            '<measure><print new-page="yes"/></measure>')]
     assert su.system_starts(measures) == [0, 2, 3]
+
+
+def test_a_slanted_wavy_line_is_one_box():
+    pieces = [sym("wiggleTrill", (10 + 4 * k, 100 + 3 * k, 15 + 4 * k, 103 + 3 * k)) for k in range(4)]
+    labels, _, _ = rl.page_labels(page(pieces, staves=()))
+    assert [(l.cls, l.box, l.tighten) for l in labels] == [("trillLine", (10, 100, 27, 112), True)]
+
+
+def test_a_brace_box_is_grown_upright_to_be_tightened():
+    labels, _, _ = rl.page_labels(page([sym("brace", (5, 100, 9, 140))]))
+    assert [(l.cls, l.box, l.tighten) for l in labels] == [("brace", (5, 87.5, 9, 152.5), True)]
+
+
+def test_turned_glyph_boxes_turn_with_the_glyph():
+    from omr.pdf import symbols
+
+    ink = SimpleNamespace(left=0.0, top=-1.0, width=4.0, height=1.0)   # a level wiggle above its baseline
+    assert symbols._placed_box(ink, (10, 50), 1.0, (1.0, 0.0)) == (10, 49, 14, 50)
+    assert symbols._placed_box(ink, (10, 50), 1.0, (0.0, -1.0)) == (9, 46, 10, 50)   # drawn upward

@@ -54,7 +54,8 @@ class SystemParts:
 def staff_groups(system, symbols, text=()):
     """Staves of a system grouped into instruments: staves joined by a brace
     are one part unless each has its own instrument name (a brace can also
-    group two instruments), and two staves with one name centred in the gap
+    group two instruments, and a brace round other braces groups instruments
+    only), and two staves with one name centred in the gap
     between them and no name of their own are one part (engravers that draw
     no brace). Every other staff is a part of its own."""
     staves = system.staves
@@ -69,7 +70,12 @@ def staff_groups(system, symbols, text=()):
                 on_staff.add(k)
             elif k + 1 < len(staves) and staff.bottom + staff.space < middle < staves[k + 1].top - staff.space:
                 in_gap.add(k)
-    for brace in (s for s in symbols if s.name in lay.BRACE_NAMES):
+    braces = [s for s in symbols if s.name in lay.BRACE_NAMES]
+    for brace in braces:
+        slack = 0.5 * staves[0].space if staves else 0
+        if any(b is not brace and brace.box[1] - slack <= b.box[1] and b.box[3] <= brace.box[3] + slack
+               and b.box[3] - b.box[1] < brace.box[3] - brace.box[1] for b in braces):
+            continue   # a brace round other braces groups instruments (MuseJazz draws one)
         for k in range(len(staves) - 1):
             space = staves[k].space
             if not staves[k].x0 - 5 * space <= brace.box[2] <= staves[k].x0 + space:

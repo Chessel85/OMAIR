@@ -132,8 +132,9 @@ def _union(boxes):
 
 def _rows(symbols, space, along):
     """Group symbols that follow each other: side by side on one line
-    (along="x") or stacked in one column (along="y")."""
-    if along == "x":
+    (along="x"), stacked in one column (along="y"), or end to end along a
+    line at any slant (along="path", the pieces of a wavy line)."""
+    if along in ("x", "path"):
         ordered = sorted(symbols, key=lambda s: s.box[0])
     else:
         ordered = sorted(symbols, key=lambda s: s.box[1])
@@ -145,6 +146,9 @@ def _rows(symbols, space, along):
                 # on one baseline; letters overlap where the font kerns them (m and f)
                 near = abs(last.y - s.y) <= 0.3 * space \
                     and -1.0 * space <= s.box[0] - last.box[2] <= 0.6 * space
+            elif along == "path":
+                near = -1.0 * space <= s.box[0] - last.box[2] <= 0.6 * space \
+                    and max(s.box[1] - last.box[3], last.box[1] - s.box[3]) <= 0.3 * space
             else:
                 near = abs(last.box[0] - s.box[0]) <= 0.4 * space and -1.5 * space <= s.box[1] - last.box[3] <= 0.6 * space
             if near:
@@ -221,16 +225,18 @@ def page_labels(page_symbols, text_chars=()):
         labels.append(Label(dynamic_class(value), _union([s.box for s in g]), [s.name for s in g]))
         used.update(id(s) for s in g)
 
-    # arpeggios (drawn turned, so the font's box is not the ink: tightened later)
+    # arpeggios: the column of wiggles, tightened later to the ink
     wiggles = [s for s in symbols if s.name.startswith(("wiggleArpeggiato", "arpeggiato"))]
     for g in _rows(wiggles, space, "y"):
-        x0 = min(s.box[0] for s in g)
-        y0, y1 = min(s.box[1] for s in g) - space, max(s.box[3] for s in g) + space
-        labels.append(Label(ARPEGGIO, (x0 - 0.2 * space, y0, x0 + 1.2 * space, y1), [s.name for s in g], tighten=True))
+        x0, y0, x1, y1 = _union([s.box for s in g])
+        pad = 0.2 * space
+        labels.append(Label(ARPEGGIO, (x0 - pad, y0 - pad, x1 + pad, y1 + pad), [s.name for s in g], tighten=True))
         used.update(id(s) for s in g)
+    # trill and glissando lines, which may slant; the pieces are drawn
+    # turned, so their font boxes are larger than the ink: tightened later
     for name, cls in ROW_JOINS.items():
-        for g in _rows([s for s in symbols if s.name.startswith(name)], space, "x"):
-            labels.append(Label(cls, _union([s.box for s in g]), [s.name for s in g]))
+        for g in _rows([s for s in symbols if s.name.startswith(name)], space, "path"):
+            labels.append(Label(cls, _union([s.box for s in g]), [s.name for s in g], tighten=True))
             used.update(id(s) for s in g)
 
     # pedal marks: Ped. as one glyph, or as letters and a dot
@@ -261,6 +267,11 @@ def page_labels(page_symbols, text_chars=()):
             ignored.append(s.box)
             continue
         box = s.box
+        if cls == "brace" and s.source != "outline":
+            # MuseScore 4 stretches its brace upright, which the font's box
+            # does not follow: grown upright here and tightened later
+            labels.append(Label(cls, (box[0], box[1] - 2.5 * space, box[2], box[3] + 2.5 * space), [s.name], tighten=True))
+            continue
         if s.name in ("restWholeLegerLine", "restHalfLegerLine"):
             centre = (box[0] + box[2]) / 2
             box = (centre - 0.65 * space, box[1], centre + 0.65 * space, box[3])
@@ -405,7 +416,8 @@ def to_pixels(labels, zoom, space_px, shape):
 
 def tighten(labels, ink, space_px):
     """Shrink the labels marked for it to the ink inside them (text, tuplet
-    digits, octave text, arpeggios), keeping the minimum size."""
+    digits, octave text, arpeggios, wavy lines, braces), keeping the minimum
+    size."""
     for lab in labels:
         if not lab.tighten:
             continue

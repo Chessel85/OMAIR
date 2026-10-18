@@ -15,6 +15,10 @@ from pathlib import Path
 
 STANDARD_END = 0xF3FF   # the last code point of SMuFL's recommended ranges
 
+# Optional glyphs of fonts Verovio does not install, as found in the corpus:
+# MuseJazz's large brace, which MuseScore 4 draws for a tall group of staves.
+OTHER_OPTIONAL = {"musejazz": {0xF401: "brace"}}
+
 # Glyphs Verovio does not draw, by SMuFL name, with their code points
 # (SMuFL 1.4 glyph names). The corpus and the legacy font tables use them.
 SUPPLEMENT = {
@@ -133,7 +137,11 @@ def name_of(code, font_name=""):
     if code <= STANDARD_END:
         return standard_names().get(code)
     family = family_of(font_name)
-    glyph = font_glyphs(family).get(code) if family else None
+    if family is None:
+        squashed = re.sub(r"[^a-z]", "", font_name.lower())
+        return next((names[code] for font, names in OTHER_OPTIONAL.items() if squashed.startswith(font)
+                     and code in names), None)
+    glyph = font_glyphs(family).get(code)
     if glyph is None:
         return None
     for suffix in STYLE_SUFFIXES:

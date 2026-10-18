@@ -145,6 +145,11 @@ def make_units(doc, pages, rendered, truth, score_id, job, out, split):
             ih, iw = image.shape
             crop = image[max(0, int(y0)):min(ih, int(y1)), max(0, int(x0)):min(iw, int(x1))]
             symbols = h["strip_naturals"](tokens[p])
+            try:
+                text = h["to_text"](symbols)
+            except KeyError:
+                counts["units dropped: a duration homr has no token for"] += 1
+                continue
             length = len(symbols) + 2   # with the start and end tokens
             stem = f"{score_id}-{job}-s{pl.page}-{system.index}-p{p}"
             image_path = out / "images" / split / f"{stem}.png"
@@ -152,7 +157,7 @@ def make_units(doc, pages, rendered, truth, score_id, job, out, split):
             image_path.parent.mkdir(parents=True, exist_ok=True)
             token_path.parent.mkdir(parents=True, exist_ok=True)
             image_path.write_bytes(_png(_fit(crop)))
-            token_path.write_text(h["to_text"](symbols), encoding="utf-8")
+            token_path.write_text(text, encoding="utf-8")
             lines.append(f"{image_path},{token_path},{length}\n")
             counts["units"] += 1
             if length > SHORT_TOKENS:
