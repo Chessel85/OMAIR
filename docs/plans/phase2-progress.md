@@ -1,6 +1,6 @@
 # Phase 2 progress log
 
-Last updated 17 October 2026. This file records what has been done against `phase2.md`, so that work can resume in a new session. Update it at the end of each working session. Repository facts, the corpus location and shell notes are in `phase0-progress.md`.
+Last updated 18 October 2026. This file records what has been done against `phase2.md`, so that work can resume in a new session. Update it at the end of each working session. Repository facts, the corpus location and shell notes are in `phase0-progress.md`.
 
 ## Stage status
 
