@@ -21,9 +21,11 @@ The rules are in docs/notes/raster-lines-spec.md. In short:
    spaces long, joined along the page into straight bands of even
    thickness, which must sit on stems (or be solid, for hidden stems and
    tremolos).
-4. What is left is traced: straight pieces are thin lines (hairpins,
-   brackets), bowed ones curves (ties, slurs). Evenly spaced short dashes
-   on one row make a dashed line.
+4. What is left is traced, with staff lines put back where a curve crosses
+   them at a slant: straight pieces are thin lines (hairpins, brackets),
+   bowed ones curves (ties, slurs). Curve pieces that carry on from each
+   other are joined, and each curve is followed out through its paler
+   tapering ends. Evenly spaced short dashes on one row make a dashed line.
 """
 
 from dataclasses import dataclass, field
@@ -43,6 +45,7 @@ BEAM_THICK = (0.3, 0.95)
 BEAM_MIN_LENGTH = 0.6
 TRACE_MIN_WIDTH = 0.8    # staff spaces: the narrowest curve the reader takes
 TRACE_MAX_THICK = 0.4
+CURVE_END_INK = 230     # grey level: the thin tapering end of a curve is paler than ink
 STRAIGHT_WITHIN = 0.08   # staff spaces from a fitted line
 
 
@@ -208,6 +211,14 @@ def _slice(ink, top, bottom, x0, x1):
     return any(0 <= row < h and ink[row, x0:x1].mean() >= 0.9 for row in (top - 1, bottom + 1))
 
 
+def _tapers(ink, top, bottom, x0, x1):
+    """The rows of a short level line differ in length: one of them is ink
+    along less than 75 percent of the line. A ledger line's rows are all
+    full; the thick middle of a tie, whose rows grow shorter towards its
+    outer edge, is not a line."""
+    return any(ink[row, x0:x1].mean() < 0.75 for row in range(top, bottom + 1))
+
+
 def level_lines(ink, dark, space, mask):
     """(level lines, their pixels as (top row, bottom row, x0, x1))."""
     rows, starts, ends = runs(ink)
@@ -219,6 +230,8 @@ def level_lines(ink, dark, space, mask):
         if thick > max(LEVEL_MAX_THICK * space, 2):
             continue
         if _stair_step(ink, top, bottom, x0, x1, x1 - x0 >= 3 * space) or _slice(ink, top, bottom, x0, x1):
+            continue
+        if x1 - x0 < 4 * space and _tapers(ink, top, bottom, x0, x1):
             continue
         y = (top + bottom) // 2
         xs = np.arange(x0, x1)
@@ -467,16 +480,22 @@ def one_each(found, space):
     return out
 
 
-def _stem_at(x, top, bottom, vertical_pixels, space):
-    """The vertical line (left, right, top, bottom) at x that reaches the
-    beam edge from top to bottom and ends within 2.5 staff spaces of it: a
-    stem, which ends at its outermost beam (a slur crossing the middle of a
-    stem or a barline is not a beam). None if there is none."""
+def _stem_at(x, top, bottom, vertical_pixels, space, outward):
+    """The vertical line (left, right, top, bottom) at the beam end x that
+    reaches the beam edge from top to bottom and ends within 2.5 staff
+    spaces of it: a stem, which ends at its outermost beam (a slur crossing
+    the middle of a stem or a barline is not a beam). `outward` is -1 at the
+    left end, 1 at the right. The stem was taken away, so the beam found
+    stops at its near edge, give or take the pixel erased beside it; a stem
+    further out belongs to the next note (a partial beam stops short of it).
+    A stem up to a staff space inside the end is the beam's too. None if
+    there is none."""
     best = None
     for v in vertical_pixels:
         left, right, v_top, v_bottom = v
         d = abs((left + right + 1) / 2 - x)
-        if d > 1.0 * space:
+        beyond = (left - x) if outward > 0 else (x - right - 1)
+        if beyond > max(3, 0.2 * space) or d > 1.0 * space:
             continue
         if v_top > bottom + 0.2 * space or v_bottom < top - 0.2 * space:
             continue
@@ -493,8 +512,8 @@ def on_stems(beam, vertical_pixels, space, ink):
     finds those from the noteheads). The stems were taken away, so the beam
     found stops short of them."""
     x0, x1, t0, b0, t1, b1 = beam
-    first = _stem_at(x0, t0, b0, vertical_pixels, space)
-    last = _stem_at(x1, t1, b1, vertical_pixels, space)
+    first = _stem_at(x0, t0, b0, vertical_pixels, space, -1)
+    last = _stem_at(x1, t1, b1, vertical_pixels, space, 1)
     one = bool(first) != bool(last)
     if not ((first and last) or (one and (x1 - x0 <= 1.6 * space or _solid(beam, ink)))):
         return None
@@ -562,6 +581,104 @@ def _fit(xs, ys):
         return 0.0, float(ys.mean()), float(np.abs(ys - ys.mean()).max())
     slope, intercept = np.polyfit(xs, ys, 1)
     return float(slope), float(intercept), float(np.abs(np.polyval((slope, intercept), xs) - ys).max())
+
+
+def bridge_crossings(left, ink, level_pixels, space):
+    """The leftover ink with the staff line put back where a curve or a thin
+    line crosses it at a slant: its ink is just above the line and, a little
+    along, just below (or the other way), with nothing between. Staff lines
+    are kept only under ink both just above and just below the same column,
+    so such a crossing was cut. Only the columns between the two sides are
+    put back, within half a staff space."""
+    out = left.copy()
+    h = left.shape[0]
+    reach = max(2, round(0.5 * space))
+    for top, bottom, a, b in level_pixels:
+        if b - a < 4 * space or top < 1 or bottom >= h - 1:
+            continue
+        above, below = left[top - 1, a:b], left[bottom + 1, a:b]
+        last = None     # (column, side) of the last ink seen along the line
+        for c in np.nonzero(above | below)[0]:
+            side = 0 if above[c] and below[c] else (1 if above[c] else 2)
+            if last and side and last[1] and side != last[1] and 0 < c - last[0] <= reach:
+                out[top:bottom + 1, a + last[0]:a + c + 1] |= ink[top:bottom + 1, a + last[0]:a + c + 1]
+            last = (c, side)
+    return out
+
+
+def _end_slope(trace, side, space):
+    """The slope of a trace's middle over its last half staff space at one
+    end: side 1 is the right end, -1 the left."""
+    n = max(3, round(0.5 * space))
+    points = trace[-n:] if side > 0 else trace[:n]
+    xs = np.array([p[0] for p in points])
+    mids = np.array([(p[1] + p[2]) / 2 for p in points])
+    return float(np.polyfit(xs, mids, 1)[0]) if len(set(xs.tolist())) > 1 else 0.0
+
+
+def extend_curve(trace, pale, space):
+    """The curve carried on at each end through paler ink (pale), as far as
+    a staff space: the thin tapering ends of ties and slurs are lighter than
+    the ink level, so a trace stops short. Each step follows the direction
+    of the last half staff space, and a gap of 0.4 staff spaces (a staff
+    line, stem or barline taken away, with the pixels beside it) is
+    crossed."""
+    h, w = pale.shape
+    near = max(2, round(0.1 * space))
+    gap = max(3, round(0.4 * space))
+    for end in (1, -1):
+        slope = _end_slope(trace, end, space)
+        last = trace[-1] if end > 0 else trace[0]
+        start = int(last[0])
+        y, at = (last[1] + last[2]) / 2, 0     # the last middle found, and its step
+        added, missed = [], 0
+        for step in range(1, int(space) + 1):
+            c = start + end * step
+            want = y + slope * end * (step - at)
+            if not 0 <= c < w:
+                break
+            a, b = max(int(want) - near, 0), min(int(want) + near + 1, h)
+            rows = np.nonzero(pale[a:b, c])[0]
+            if not len(rows):
+                missed += 1
+                if missed > gap:
+                    break
+                continue
+            missed = 0
+            top, bottom = float(a + rows[0]), float(a + rows[-1] + 1)
+            added.append((c + 0.5, top, bottom))
+            y, at = (top + bottom) / 2, step
+        trace = (trace + added) if end == 1 else (added[::-1] + trace)
+    return trace
+
+
+def join_curves(curves, space):
+    """Curves that carry on from each other made one: the second starts
+    within half a staff space of the first's end (or overlaps it a little),
+    at the height the first's end leads to, in much the same direction. A
+    long slur crossing staff lines and stems can be cut in pieces."""
+    out = sorted(curves, key=lambda t: t[0][0])
+    joined = True
+    while joined:
+        joined = False
+        for i, a in enumerate(out):
+            ax, ay = a[-1][0], (a[-1][1] + a[-1][2]) / 2
+            sa = _end_slope(a, 1, space)
+            for j, b in enumerate(out):
+                if j == i:
+                    continue
+                bx, by = b[0][0], (b[0][1] + b[0][2]) / 2
+                if not -0.3 * space <= bx - ax <= 0.5 * space or b[-1][0] <= ax:
+                    continue
+                if abs(by - (ay + sa * (bx - ax))) > 0.3 * space or abs(_end_slope(b, -1, space) - sa) > 0.5:
+                    continue
+                out[i] = [p for p in a if p[0] < bx] + b
+                del out[j]
+                joined = True
+                break
+            if joined:
+                break
+    return out
 
 
 def traces(left, space):
@@ -732,7 +849,12 @@ def find_lines(grey, symbol_boxes=(), flag_boxes=()):
             on.append(b)     # a beam of a two-note tremolo floats between the notes
     found.beams = [refine_beam(b, dark) for b in one_each(on, space)]
     left = erase_level(erase_beams(rest, found.beams), level_pixels, space)
+    left = bridge_crossings(left, ink, level_pixels, space)
     found.thin, found.curves = traces(left, space)
+    # pale pixels at the edge of other ink (a staff line, a stem) are not a curve's end
+    other = cv2.dilate((ink & ~left).view(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+    pale = ((grey < CURVE_END_INK) & ~ink & ~other) | left
+    found.curves = [extend_curve(c, pale, space) for c in join_curves(found.curves, space)]
     found.thin = [t for t in found.thin if not _on_staff_line(t, found.level, space)]
     found.dashed = dashed_lines(clean & ~mask if mask is not None else clean, space)
     found.level = [l for l in found.level if not _in_dashed(l, found.dashed, space)]

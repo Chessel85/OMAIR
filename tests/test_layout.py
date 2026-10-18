@@ -35,6 +35,14 @@ def test_pieces_of_one_line_are_joined_across_small_gaps():
     assert len(lines) == 1 and lines[0].x0 == 50.0 and lines[0].x1 == 400.0
 
 
+def test_ledger_lines_of_neighbouring_notes_do_not_make_a_false_staff():
+    # five ledger lines on each of three high notes, their ends 1.2 points apart
+    pieces = [(60.0 - 5.0 * k, x0, x0 + 10.0, 0.8) for k in range(5) for x0 in (185.0, 196.2, 207.4)]
+    lines = layout.horizontal_lines(pieces)
+    assert len(lines) == 15
+    assert layout.find_staves(lines, 1) == []
+
+
 def _staff_lines(top, space=5.0, x0=50.0, x1=550.0):
     return [(top + k * space, x0, x1, 0.5) for k in range(5)]
 

@@ -87,11 +87,24 @@ Last updated 18 October 2026. This file records what has been done against `phas
     - Largest staff, barline and stem position errors: 0.05 to 0.07 staff spaces at 300 and 200 dpi, 0.11 at 150.
   - **Run `s22-run3`** (later the same day): at low resolution level lines are found with a lighter ink level. 300 dpi unchanged; 200 dpi notes 96.71 percent (staves, barlines and stems as before); 150 dpi staves 99.73 percent (2 pairs miss a staff, a small staff at 7.7 pixels a space), barlines 99.44, stems 98.66, notes 95.08 percent (2,541 lost).
   - **What the runs found** (each is in the spec): staff line positions must be measured to a fraction of a pixel, or the reader's 10 percent staff test fails; slurs, sloping beams and hairpins leave stair-step runs that look like short level lines; a stem's edge columns can form a second line, which split chords; flags hold the end of a stem inside their box; beams must sit on stems, or the thick middle of a slur becomes a beam, with exceptions for hidden stems and tremolos; a level beam on a staff line is also a level line to the reader, so its centre must be exact; octave lines need a dashed-line finder.
-  - **Sessions so far:** 1 (design, code and four regression runs in one long session).
   - **Tests:** 13 new in `tests/test_raster_lines.py`; all 391 pass.
-  - **Not done yet:** tie ends (traced ties are up to a staff space short; ties do not count in note accuracy), long slurs in pieces, a false staff on one pair (pdmx-5zrh8nmuVjih, MuseScore 3 variant: ledger lines of neighbouring notes joined by the reader's fixed 2-point join, a reader fix to be measured on both paths), pair Gpyq556zefWD losing about 34 notes in each version (not yet looked at), and the development-set comparison (for the report, to be re-estimated: about 3,600 pairs-versions at 300 and 200 dpi, roughly 1.5 to 2 hours on 3 workers from the regression speed).
+  - **Runs `s22-run4` and `s22-run5`, the tidy-up (18 October 2026):**
+    - **Partial beams carried to the next stem** (pair Gpyq556zefWD, a strathspey, lost 32 to 34 notes in each version). A stem up to a staff space beyond a beam's end counted as its stem, so a partial beam was carried out to the next note's stem and became a whole beam. The stem must now lie at the end. The pair now reads all 124 notes in its MuseScore 4 version.
+    - **The false staff** (pdmx-5zrh8nmuVjih, MuseScore 3 variant): fixed in the reader. Two level pieces both under 15 points must now touch to be joined (`layout.horizontal_lines`). On the vector regression set every file's note counts, structure and markings are unchanged; one LilyPond file flags one more wrong note (ACC-4 over all pairs 1,081 to 1,082 of 1,177; `evaluations/s22-ledger-vector-check`).
+    - **Curves:** staff lines put back where a curve crosses them at a slant, curve pieces that carry on from each other joined, pale tapering ends followed, and the thick middle of a short tie no longer taken for a ledger line.
+    - Run 5, against run 3: at 300 dpi barlines 99.80 to 99.97 percent, curves 72.8 to 82.5, notes 96.78 to 97.06 percent (1,077 lost of 73,762), no extra staves; at 200 dpi barlines 99.91, curves 64.4 to 76.6, notes 96.71 to 97.08; at 150 dpi curves 55.5 to 68.8, notes 95.08 to 95.50 (staves still 99.73 percent, 2 pairs short). Stems unchanged.
+    - Speed: 7.5 minutes at 300 dpi, 5.4 at 200 and 4.8 at 150 for the regression set's 448 pages on 3 workers.
+    - Tests: 5 new; all 396 pass.
+  - **Sessions so far:** 2.
+  - **Not done yet:** the development-set comparison (for the report), then the write-up.
+  - **Development-set comparison: agreed by the owner (18 October 2026), to run straight away, in the afternoon, with light use of the laptop alongside (it may run a little slow).**
+    - Estimate: about 3 hours at 300 dpi and 2.2 at 200, about 5 to 6 hours in all, longer with other use. 3 CPU workers, no GPU, well under 1 GB. The development set has 10,927 pages a version, 24 times the regression set.
+    - Command, from the repository folder, started in the background so the session can watch it: `.venv/Scripts/python scripts/check_raster_lines.py development g300 g200 --name s22-dev`. A trial on 2 pairs worked (its output was deleted).
+    - Output: `evaluations/s22-dev-development-g300` and `-g200` (`results.jsonl`, `summary.txt`), progress in `evaluations/s22-dev.log`, about one line every 25 pairs of 1,778 in each version.
+    - It cannot be resumed: if stopped, it starts again from the beginning (each version's folder is rewritten). The laptop must not sleep while it runs.
+    - When it finishes: read both summaries; compare with the regression figures (run `s22-run5`) and the vector ceiling, by engraver; look at the pairs losing the most notes; then write up Stage 2.2 and mark it done.
 
 ## Next steps
 
-1. Stage 2.2: the remaining items above (tie ends, long slurs, the false staff, pair Gpyq556zefWD), then the development-set comparison, after the owner agrees its time (about 1.5 to 2 hours on 3 workers). Then write up the stage and mark it done.
+1. Stage 2.2: the development-set comparison, agreed by the owner; start it as written above, if it is not already running (check `evaluations/s22-dev.log`). Then write up the stage and mark it done.
 2. Stage 2.3 (the symbol detector) can start; its training data is ready, and the line finder takes its boxes.

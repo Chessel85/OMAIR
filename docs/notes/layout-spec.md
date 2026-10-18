@@ -8,7 +8,7 @@ How the structure of a score is read from a vector PDF: staves, systems, bars, p
 
 ## Staff lines and staves
 
-- Horizontal lines are stroked lines and thin filled rectangles (at least 30 times as wide as tall). Hairlines stacked less than 0.25 points apart along the same span are one thick line: some printer drivers draw a staff line as five hairlines. Pieces at the same height that touch or are less than 2 points apart are one line.
+- Horizontal lines are stroked lines and thin filled rectangles (at least 30 times as wide as tall). Hairlines stacked less than 0.25 points apart along the same span are one thick line: some printer drivers draw a staff line as five hairlines. Pieces at the same height that touch or are less than 2 points apart are one line. Two pieces both shorter than 15 points must touch (less than 0.25 points apart): the ledger lines of neighbouring notes can lie under 2 points apart, and five of them joined make a false staff (in page images, whose lines reach past the PDF's drawn ends by their caps).
 - A staff is five lines that are:
   - equally spaced, within 10 percent;
   - no thicker than a third of the gap;

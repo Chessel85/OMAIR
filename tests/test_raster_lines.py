@@ -89,6 +89,19 @@ def test_a_beam_between_two_stems():
     assert abs((b0 - t0) - 10) <= 1
 
 
+def test_a_partial_beam_is_not_carried_out_to_the_next_stem():
+    grey = staff(blank())
+    for x in (300, 340, 380):                               # three stems below the staff
+        grey[TOP + 5 * SPACE:TOP + 8 * SPACE, x:x + 2] = 0
+    beam = TOP + 8 * SPACE - 8
+    grey[beam:beam + 8, 300:382] = 0                        # a beam over all three
+    grey[beam - 14:beam - 6, 300:322] = 0                   # a partial beam on the first, short of the second
+    found = rl.find_lines(grey)
+    partial = [b for b in found.beams if b[2] < beam - 4]
+    assert len(partial) == 1
+    assert partial[0][0] <= 301 and 318 <= partial[0][1] <= 324
+
+
 def test_a_short_band_with_no_stems_is_not_a_beam():
     grey = staff(blank())
     grey[300:310, 300:325] = 0
@@ -113,6 +126,47 @@ def test_a_curve_is_traced():
     assert len(found.curves) == 1
     trace = found.curves[0]
     assert trace[0][0] < 202 and trace[-1][0] > 398
+
+
+def test_a_slur_crossing_staff_lines_at_a_slant_is_one_curve():
+    grey = staff(blank())
+    xs = np.arange(150, 650)
+    ys = TOP + 6 * SPACE - (xs - 150) * 0.35 + ((xs - 400) / 250) ** 2 * 40   # up through the staff
+    for x, y in zip(xs, ys):
+        grey[int(y):int(y) + 3, x] = 0
+    found = rl.find_lines(grey)
+    long = [t for t in found.curves if t[-1][0] - t[0][0] > 100]
+    assert len(long) == 1
+    assert long[0][0][0] < 160 and long[0][-1][0] > 640
+
+
+def test_the_pale_ends_of_a_tie_are_followed():
+    grey = staff(blank())
+    for x in range(200, 400):
+        t = abs(x - 300) / 100                              # 0 in the middle, 1 at the ends
+        y = 300 + int(t * t * 15)
+        grey[y:y + 3, x] = 0 if t < 0.8 else 210            # the ends are pale grey
+    trace = rl.find_lines(grey).curves[0]
+    assert trace[0][0] < 210 and trace[-1][0] > 390
+
+
+# a short tie from a Verovio page at 300 dpi (staff space 30 pixels): (row, start, end) of its ink
+SHORT_TIE = [(0, 3, 5), (0, 76, 79), (1, 4, 7), (1, 75, 78), (2, 4, 8), (2, 74, 78), (3, 5, 9), (3, 72, 77),
+             (4, 6, 11), (4, 71, 76), (5, 7, 13), (5, 69, 75), (6, 8, 14), (6, 67, 74), (7, 9, 16), (7, 65, 73),
+             (8, 10, 19), (8, 63, 72), (9, 11, 21), (9, 60, 71), (10, 12, 24), (10, 57, 70), (11, 13, 28),
+             (11, 53, 69), (12, 14, 34), (12, 47, 67), (13, 16, 66), (14, 17, 64), (15, 19, 63), (16, 21, 61),
+             (17, 23, 58), (18, 26, 55), (19, 30, 52), (20, 36, 46)]
+
+
+def test_a_short_tie_is_not_a_ledger_line():
+    grey = blank()
+    for k in range(5):                                      # a staff with a 30-pixel staff space
+        grey[60 + 30 * k:63 + 30 * k, 50:750] = 0
+    for row, a, b in SHORT_TIE:
+        grey[300 + row, 300 + a:300 + b] = 0
+    found = rl.find_lines(grey)
+    assert not [l for l in found.level if l[0] > 250]
+    assert len(found.curves) == 1 and found.curves[0][0][0] < 306 and found.curves[0][-1][0] > 374
 
 
 def test_a_tilted_page_is_turned_level():

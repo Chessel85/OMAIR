@@ -158,11 +158,17 @@ class _Line:
         return self.x1 - self.x0
 
 
+SHORT_PIECE = 15.0   # points: a ledger line is shorter; so is a staff line too short to count (find_staves)
+
+
 def horizontal_lines(candidates):
     """Join horizontal pieces into lines. `candidates` are (y, x0, x1,
     thickness) from evidence.read_drawings. Hairlines stacked less than 0.25
     points apart along the same span are one thick line; pieces at the same
-    height that touch or nearly touch (2 points) are one line."""
+    height that touch or nearly touch (2 points) are one line. Two short
+    pieces (both under SHORT_PIECE) must touch: the ledger lines of two
+    neighbouring notes can lie under 2 points apart, and five of them
+    joined make a false staff."""
     stacked = []
     for y, x0, x1, t in sorted(candidates, key=lambda c: (round(c[1]), round(c[2]), c[0])):
         last = stacked[-1] if stacked else None
@@ -176,7 +182,8 @@ def horizontal_lines(candidates):
     lines = []
     for piece in pieces:
         for line in reversed(lines[-80:]):
-            if abs(line.y - piece.y) <= 0.3 and piece.x0 <= line.x1 + 2.0 and piece.x1 >= line.x0 - 2.0:
+            join = 0.25 if max(line.length, piece.length) < SHORT_PIECE else 2.0
+            if abs(line.y - piece.y) <= 0.3 and piece.x0 <= line.x1 + join and piece.x1 >= line.x0 - join:
                 if piece.length > line.length:
                     line.thickness = piece.thickness
                 line.x0, line.x1 = min(line.x0, piece.x0), max(line.x1, piece.x1)
