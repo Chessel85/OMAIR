@@ -17,3 +17,6 @@ __pycache__/
 # Logs
 logs/
 *.log
+
+# Pauses detector training unless it says yes (scripts/train_detector.py)
+/continue.txt

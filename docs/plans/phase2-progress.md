@@ -105,6 +105,29 @@ Last updated 18 October 2026. This file records what has been done against `phas
     - Time: 4 hours 45 minutes for both versions on 3 workers, within the 5 to 6 hour estimate.
   - **Actual:** 3 sessions, against the estimate of 4 to 6. Regression runs about 6 to 7 minutes a version; 5 full runs and 4 trials. Disk well under 1 GB.
 
+- **Stage 2.3, symbol detector: under way (19 October 2026).** The render-scale test's two runs are trained; they are not yet scored.
+  - **Code:** `scripts/train_detector.py` (the tile lists for the render-scale test, and training: YOLO11 nano at 640 pixels, batch 8, FP16, 2 data-loading workers; weights kept every epoch, `--resume` carries on a stopped run; a log line an epoch in `logs/train-detector-<name>.log`). `scripts/check_detector.py` labels raster pages from their vector PDFs by the label rule, reads each whole page with the detector (`src/omr/raster/detect.py`: the training tiles, boxes cut by an inner tile edge dropped, boxes of one class over one symbol merged) and reports recall and precision by class, by group and by engraver; `--space` scales each page to a chosen staff space first. `scripts/run_scale_test.sh` runs the two test runs one after the other. Tests: 4 new in `tests/test_raster_detect.py`; all 400 pass.
+  - **Augmentation:** no flips (a flipped clef or flat is another symbol), no colour change beyond brightness, and for the render-scale test no random scaling, so it compares only the scales the tiles were rendered at.
+  - **Pausing:** training looks at `continue.txt` in the repository's folder about once a minute. While it says "yes" training goes on; otherwise it waits, with the model kept on the GPU, and carries on from the same batch when it says "yes" again. To stop altogether, end the run and carry it on with `--resume` from the last finished epoch. Asked for by the owner for the full run; tried on a short trial (paused, then carried on).
+  - **Render-scale test:** scale-narrow has the 4,288 training tiles rendered at 14 to 20 pixels a staff space; scale-wide has 4,288 drawn at random from all of them (1,777 of which are in the narrow range). Both validate on all 1,325 validation tiles. A third comparison is added: the narrow model with each page scaled to 17 pixels a staff space first, since the line finder measures each page's staff space.
+  - **Trial:** one epoch on a tenth of the tiles ran; training goes at about 2.6 tiles a second (the benchmark's 3 was used in the plan). The check ran on 3 development pairs at 300 and 150 dpi, under a second a page to detect on the GPU.
+  - **Estimate (agreed by the owner, 18 October 2026):**
+    - Claude sessions: 3 or 4 in all (this one, reading the render-scale test, then 1 or 2 for the full run, the ONNX export and the CPU timing).
+    - Render-scale test: two runs of 15 epochs on 4,288 tiles, about 7 to 7.5 hours each, about 15 hours in all, overnight. GPU, 2 data-loading workers.
+    - Scoring the test: a fixed draw of 120 development pairs at 300, 200 and 150 dpi for each model, and the narrow model at 17 pixels a staff space: 2 to 3 hours. 3 CPU workers for the labels, the GPU to detect.
+    - Full run: 10,292 tiles at about 68 minutes an epoch; 40 epochs about 45 hours, 50 about 56 hours (2 to 2.5 days, against the plan's 1.5 to 2). Pausable with `continue.txt`.
+    - Final scoring on the whole raster development set at 300, 200 and 150 dpi: 6 to 8 hours, overnight, re-estimated from the sample's speed first.
+    - Disk: under 1 GB on the corpus drive. Only one GPU job at a time; light CPU work can overlap training.
+  - **Render-scale training done (19 October 2026).** Both runs finished without errors or pauses (logs `logs/train-detector-scale-narrow.log` and `-scale-wide.log`; weights in `runs/detector/scale-narrow` and `scale-wide` on the corpus drive, `weights/best.pt` and `last.pt`).
+    - scale-narrow: 18 October 19:42 to 19 October 02:58, 7 hours 16 minutes; epochs 24 to 37 minutes, mostly about 28. Last epoch: validation precision 0.771, recall 0.405, mAP50 0.458, mAP50-95 0.378 (mAP50 0.452 to 0.458 over the last 3 epochs).
+    - scale-wide: 02:58 to 09:58, 7 hours; epochs 24 to 34 minutes, mostly about 28. Last epoch: precision 0.800, recall 0.415, mAP50 0.487, mAP50-95 0.413 (still rising about 0.01 an epoch until epoch 12).
+    - Both together 14 hours 16 minutes, against the 15 hour estimate. Epochs ran about 28 minutes with validation, not the 23 shown at the start; that is the speed the full run's estimate assumed (about 68 minutes an epoch for 10,292 tiles, 40 epochs in about 45 hours), so it stands.
+    - These validation figures are YOLO's own: averaged over the 104 classes, each counted equally, so the many rare classes pull them down, and the validation tiles cover the whole 10 to 24 pixel range, which favours scale-wide. They do not decide the scale. The whole-page check does (next steps).
+
 ## Next steps
 
-1. Stage 2.3, the symbol detector: give the owner an estimate (sessions, training time on the GPU, disk) and get agreement before training. Its training data is ready (Stage 2.1), and the line finder takes its boxes.
+1. Stage 2.3: score the two render-scale runs on whole pages (about 2 to 3 hours, GPU and 3 CPU workers; ask the owner before starting, as the GPU is then busy):
+   - `.venv/Scripts/python scripts/check_detector.py E:/OMAIRCorpus/runs/detector/scale-narrow/weights/best.pt development g300 g200 g150 --sample 120 --name s23-scale-narrow`
+   - the same for scale-wide (`--name s23-scale-wide`)
+   - the narrow model with `--space 17 --name s23-scale-narrow-17`
+   Compare recall on noteheads, accidentals, dots, rests and flags at each resolution, choose the training scale (the rule in phase2.md, Stage 2.3), confirm the full run's length with the owner, and start the full run with `scripts/train_detector.py train` (pausable with `continue.txt`).
