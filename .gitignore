@@ -20,3 +20,6 @@ logs/
 
 # Pauses detector training unless it says yes (scripts/train_detector.py)
 /continue.txt
+
+# Last Claude message, written by the Stop hook (.claude/hooks/write_last_response.py)
+taskInfo.txt
