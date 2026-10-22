@@ -9,6 +9,10 @@ depends on, and the same by engraver. Writes one JSON line per pair and
 version to results.jsonl and the totals to summary.txt in
 <corpus>/evaluations/<name>, with a progress log beside them.
 
+Pausing: before each pair is read, the check looks at continue.txt in the
+repository's folder, as training does (omr.pause). While it does not say
+"yes" the check waits, and carries on with the next pair when it does.
+
 usage: python scripts/check_detector.py WEIGHTS SET VERSION [VERSION ...] [--name NAME]
            [--sample N] [--space PIXELS] [--conf C] [--device cpu|0] [--workers N]
 
@@ -22,7 +26,7 @@ import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from omr import parallel, paths
+from omr import parallel, paths, pause
 from omr.corpus import raster_labels as rl
 from omr.evaluate import harness
 from omr.log import ProgressLog
@@ -177,6 +181,7 @@ def main():
         # a fixed draw, so every engraver and font is in it and runs compare
         pairs = sorted(pairs, key=lambda p: rl.page_seed("detector check", p.name))[:args.sample]
     model = YOLO(str(args.weights), task="detect")
+    pause.make_control()
     log.info(f"{args.weights}: {len(pairs)} pairs of {args.set}, versions {', '.join(args.versions)}, "
              f"staff space {args.space or 'as rendered'}, confidence {args.conf}.")
     results, seconds = [], Counter()
@@ -190,6 +195,7 @@ def main():
                 except Exception as error:
                     log.error(f"{pair.name} labels failed: {type(error).__name__}: {error}")
                     labels = {v: None for v in args.versions}
+                pause.wait_while_paused(log)
                 for version in args.versions:
                     row = {"pair": pair.name, "version": version, "engraver": pair.meta.get("engraver", "unknown")}
                     if labels[version] is None:

@@ -34,34 +34,13 @@ import sys
 import time
 from pathlib import Path
 
-from omr import paths
+from omr import paths, pause
 from omr.corpus import raster_labels as rl
 from omr.log import ProgressLog
 
 WEIGHTS = "benchmark/weights/yolo11n.pt"   # on the corpus drive
 NARROW = (14.0, 20.0)                      # staff space in pixels, the render-scale test's narrow range
-CONTROL = paths.REPO_ROOT / "continue.txt"   # training goes on while it says "yes", and waits otherwise
-CONTROL_BATCHES = 20                         # batches between looks at it (about a minute)
-CONTROL_WAIT = 30                            # seconds between looks while paused
-
-
-def may_continue():
-    try:
-        return CONTROL.read_text(encoding="utf-8").strip().lower() == "yes"
-    except OSError:
-        return False
-
-
-def wait_while_paused(log):
-    """Hold training while continue.txt does not say "yes". The model stays
-    on the GPU, and training carries on from the same batch."""
-    if may_continue():
-        return
-    log.info(f"paused: {CONTROL} does not say yes. Write yes in it to carry on.")
-    paused = time.time()
-    while not may_continue():
-        time.sleep(CONTROL_WAIT)
-    log.info(f"carrying on after {(time.time() - paused) / 60:.0f} minutes paused.")
+CONTROL_BATCHES = 20                       # batches between looks at continue.txt (about a minute)
 
 
 def detector_dir():
@@ -124,10 +103,9 @@ def train(args, log):
     def batch_end(trainer):
         started["batches"] = started.get("batches", 0) + 1
         if started["batches"] % CONTROL_BATCHES == 0:
-            wait_while_paused(log)
+            pause.wait_while_paused(log)
 
-    if not CONTROL.is_file():
-        CONTROL.write_text("yes\n", encoding="utf-8")
+    pause.make_control()
     if args.resume:
         if not last.is_file():
             log.error(f"there is no run to carry on at {last}")
