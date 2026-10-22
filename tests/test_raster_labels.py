@@ -60,6 +60,14 @@ def test_italic_digits_are_tuplet_numbers_by_digit():
     assert sorted(l.cls for l in labels) == ["text", "tuplet3"]
 
 
+def test_italic_digits_over_the_start_of_a_staff_are_a_bar_number():
+    bar = TextRun("13", 1, 96, (1, 91, 9, 96), "Times-Italic", 8)        # staff from x 0, top 100
+    tuplet = TextRun("3", 50, 96, (50, 91, 54, 96), "Times-Italic", 8)
+    chars = [("1", (1, 91, 5, 96)), ("3", (5, 91, 9, 96)), ("3", (50, 91, 54, 96))]
+    labels, _, _ = rl.page_labels(page([], text=[bar, tuplet]), text_chars=chars)
+    assert sorted((l.cls, l.box[0]) for l in labels) == [("text", 1), ("tuplet3", 50)]
+
+
 def test_outlined_text_row_takes_in_letters_matched_as_symbols():
     letters = [(100, 200, 103, 204), (104, 200, 107, 204)]
     wrong = sym("dynamicSforzando", (108, 200, 111, 204), source="outline")
@@ -155,6 +163,15 @@ def test_a_slanted_wavy_line_is_one_box():
 def test_a_brace_box_is_grown_upright_to_be_tightened():
     labels, _, _ = rl.page_labels(page([sym("brace", (5, 100, 9, 140))]))
     assert [(l.cls, l.box, l.tighten) for l in labels] == [("brace", (5, 87.5, 9, 152.5), True)]
+
+
+def test_an_outlined_dot_over_a_notehead_is_a_staccato():
+    head = sym("noteheadBlack", (20, 107.5, 26, 112.5), y=110, source="outline")
+    over = sym("augmentationDot", (22, 102, 24, 104), source="outline")         # 1.4 spaces above
+    after = sym("augmentationDot", (28, 106, 30, 108), source="outline")        # beside it: a rhythm dot
+    labels, _, _ = rl.page_labels(page([head, over, after]))
+    assert sorted((l.cls, l.box[0]) for l in labels if l.cls != "noteheadBlack") == [
+        ("augmentationDot", 28), ("staccato", 22)]
 
 
 def test_turned_glyph_boxes_turn_with_the_glyph():

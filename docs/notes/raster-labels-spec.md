@@ -46,7 +46,7 @@ Grace and cue noteheads are in the same classes as full-size ones. Stage 2.4 tel
 
 - `flag8th`, `flag16th`, `flag32nd`, and `flag64th` (64th and shorter). Up and down share a class.
 - `augmentationDot`: augmentationDot, repeatDot and metAugmentationDot. They look the same; the reader already places repeat dots by the barline beside them.
-- `staccato`: articStaccatoAbove and articStaccatoBelow.
+- `staccato`: articStaccatoAbove and articStaccatoBelow, and a dot named augmentationDot that stands over or under a notehead, clear of it (0.6 to 2.6 staff spaces from its centre, within its width), as `notation.staccato_dots` reads it. Outlined music (Verovio) names every dot augmentationDot, so without this its staccatos were labelled as dots.
 
 ### Accidentals and parentheses
 
@@ -67,7 +67,7 @@ Grace and cue noteheads are in the same classes as full-size ones. Stage 2.4 tel
 ### Tuplet numbers
 
 - `tuplet0` to `tuplet9`, one box for each digit.
-- Verovio draws them as tuplet glyphs. MuseScore and LilyPond write them as italic digits in the text layer, which the reader takes as tuplet numbers (`notation-spec.md`, "Duration"). Each such digit gets its own box from the character's ink, not from the text run.
+- Verovio draws them as tuplet glyphs. MuseScore and LilyPond write them as italic digits in the text layer, which the reader takes as tuplet numbers (`notation-spec.md`, "Duration"). Each such digit gets its own box from the character's ink, not from the text run. Digits over the start of a staff (left edge within 2 staff spaces of the staff's, bottom up to 4 staff spaces above its top line) are a bar number, as `text.py` reads them, and are labelled as text: MuseScore writes bar numbers in italic too.
 - A colon in "3:2" belongs to no class.
 
 ### Dynamics

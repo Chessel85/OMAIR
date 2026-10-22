@@ -258,6 +258,7 @@ def page_labels(page_symbols, text_chars=()):
         labels.append(Label(cls, _union([s.box for s in g]), [s.name for s in g]))
         used.update(id(s) for s in g)
 
+    heads = [s for s in symbols if class_of(s.name) in NOTEHEADS]
     for s in symbols:
         if id(s) in used:
             continue
@@ -274,6 +275,8 @@ def page_labels(page_symbols, text_chars=()):
             unlabelled[s.name] += 1
             ignored.append(s.box)
             continue
+        if s.name == "augmentationDot" and _staccato_dot(s, heads, space):
+            cls = "staccato"
         box = s.box
         if cls == "brace" and s.source != "outline":
             # MuseScore 4 stretches its brace upright, which the font's box
@@ -291,7 +294,8 @@ def page_labels(page_symbols, text_chars=()):
     for run in page_symbols.text:
         if id(run) in used or not run.text.strip():
             continue
-        if text.is_italic(run.font) and notation.TUPLET_TEXT.match(run.text):
+        if text.is_italic(run.font) and notation.TUPLET_TEXT.match(run.text) \
+                and not _bar_number(run, page_symbols.evidence.staves.boxes, space):
             digits = [(c, b) for c, b in text_chars if c.isdigit() and _inside_centre(b, run.box)]
             for c, b in digits:
                 labels.append(Label(f"tuplet{c}", b, [run.text], tighten=True))
@@ -332,6 +336,24 @@ def _box_rows(boxes, space):
 
 def lay_digit(name):
     return name.replace("timeSig", "")
+
+
+def _bar_number(run, staves, space):
+    """Digits over the start of a staff are a bar number, which MuseScore
+    writes in italic like a tuplet number (text.py's rule)."""
+    x0, _, x1, bottom = run.box
+    return re.fullmatch(r"\s*\d{1,4}\s*", run.text) is not None and any(
+        x0 <= sx0 + 2 * space and x1 > sx0 - space and top - 4 * space <= bottom <= top + 0.5 * space
+        for sx0, _, top, _ in staves)
+
+
+def _staccato_dot(dot, heads, space):
+    """A dot over or under a notehead, clear of it, is a staccato: outlined
+    music (Verovio) names every dot augmentationDot, as notation.staccato_dots
+    reads them."""
+    cx, cy = (dot.box[0] + dot.box[2]) / 2, (dot.box[1] + dot.box[3]) / 2
+    return any(h.box[0] - 0.1 * space <= cx <= h.box[2] + 0.1 * space and 0.6 * space <= abs(cy - h.y) <= 2.6 * space
+               for h in heads)
 
 
 def _inside_centre(box, outer):
