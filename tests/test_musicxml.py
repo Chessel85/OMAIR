@@ -285,9 +285,10 @@ def test_convert_failures(tmp_path, capsys):
     assert "Summary: 0 files converted, 2 failed" in out
 
 
-def test_convert_names_raster_input(tmp_path, capsys):
+def test_convert_reads_raster_input(tmp_path, capsys, monkeypatch):
     pymupdf = pytest.importorskip("pymupdf")
     pytest.importorskip("cv2")
+    monkeypatch.setenv("OMR_DETECTOR", str(tmp_path / "no-model.onnx"))
     src = pymupdf.open(str(DATA / "ms4_leland.pdf"))
     pix = src[0].get_pixmap(dpi=150, colorspace=pymupdf.csGRAY)
     png = tmp_path / "page.png"
@@ -296,7 +297,8 @@ def test_convert_names_raster_input(tmp_path, capsys):
     page = doc.new_page(width=src[0].rect.width, height=src[0].rect.height)
     page.insert_image(page.rect, filename=str(png))
     doc.save(str(tmp_path / "page.pdf"))
+    # both go to the symbol detector, whose model is missing here
     assert main(["convert", str(png), str(tmp_path / "page.pdf"), "--out", str(tmp_path / "out")]) == 1
     out = capsys.readouterr().out
-    assert "page.png is an image" in out
-    assert "holds images of music, not vector music (every page, Type C or D)" in out
+    assert out.count("the symbol detector's model") == 2
+    assert "Set OMR_DETECTOR to the model file" in out

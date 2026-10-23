@@ -23,7 +23,9 @@ class Symbol:
     """One music symbol. (x, y) is its origin as the page is shown, which is
     where SMuFL anchors the symbol (a notehead's centre line, a clef's line).
     `size` is the em in points: four staff spaces for a music font at its
-    design size. `box` is the ink (x0, y0, x1, y1)."""
+    design size. `box` is the ink (x0, y0, x1, y1). A symbol read from a
+    page image (omr.raster.names) has the detector's `confidence`, and a
+    `doubt` (rule, reason) when the detector was unsure of it."""
 
     name: str
     x: float
@@ -31,7 +33,9 @@ class Symbol:
     size: float
     box: tuple
     font: str
-    source: str     # "smufl", "emmentaler", "sonata", "sonata-special" or "outline"
+    source: str     # "smufl", "emmentaler", "sonata", "sonata-special", "outline" or "detector"
+    confidence: float | None = None
+    doubt: tuple | None = None
 
 
 @dataclass
@@ -65,6 +69,8 @@ class PageSymbols:
     unmapped: Counter = field(default_factory=Counter)   # (font, description) -> uses
     unnamed: list = field(default_factory=list)          # ink boxes of outlined shapes not matched
     fonts: dict = field(default_factory=dict)            # font name -> FontMapping
+    text_regions: list = field(default_factory=list)     # boxes of text found in a page image, not yet read
+    masked: list = field(default_factory=list)           # boxes of other ink in a page image the reader is not given
 
     @property
     def staff_space(self):

@@ -260,14 +260,17 @@ def bar_flags(flags, rules=None):
 
 # The rules whose flags go into the flag file (they point at note errors).
 FLAG_RULES = {"rhythm", "bar fullness", "staves disagree", "unprinted tuplet", "ties", "stray symbol",
-              "hidden staves", "octave sign"}
+              "hidden staves", "octave sign", "unsure symbol"}
 
 # The share of each rule's flagged bars that held a note error on the
 # exact pairs of the development set (docs/notes/confidence-spec.md).
+# The two "unsure" rules come from page images (Stage 2.4) and are
+# placeholders until measured on the raster sets.
 RULE_PRECISION = {
     "rhythm": 0.64, "bar fullness": 0.58, "staves disagree": 0.49, "unprinted tuplet": 0.26,
     "ties": 0.20, "octave sign": 0.17, "stray symbol": 0.13, "hidden staves": 0.03,
     "slurs": 0.08, "key and accidentals": 0.03, "instrument range": 0.0,
+    "unsure symbol": 0.5, "unsure marking": 0.05,
 }
 
 

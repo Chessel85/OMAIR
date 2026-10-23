@@ -122,7 +122,7 @@ def symbol_boxes(page_symbols):
     page points."""
     boxes = [s.box for s in page_symbols.symbols if not s.name.startswith("flag")]
     boxes += [run.box for run in page_symbols.text]
-    boxes += list(page_symbols.unnamed)
+    boxes += list(page_symbols.unnamed) + list(page_symbols.text_regions) + list(page_symbols.masked)
     return boxes, [s.box for s in page_symbols.symbols if s.name.startswith("flag")]
 
 

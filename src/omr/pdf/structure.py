@@ -678,21 +678,34 @@ def read_structure(layouts, assigned=None):
 
 
 def read_pdf(path, notes=False):
-    """(Score, [PageLayout]) for a vector PDF: the structure, and with
-    `notes` also the notes and rests (Stage 1.3, omr.pdf.notation) and the
-    markings and text (Stage 1.4, omr.pdf.markings and omr.pdf.text)."""
+    """(Score, [PageLayout]) for a PDF: the structure, and with `notes` also
+    the notes and rests (Stage 1.3, omr.pdf.notation) and the markings and
+    text (Stage 1.4, omr.pdf.markings and omr.pdf.text). Pages holding a
+    page image are read from it (Stage 2.4, omr.raster.reading)."""
+    from pathlib import Path
+
     import pymupdf
 
+    from omr.inspect import IMAGE_SUFFIXES
     from omr.pdf import notation, symbols
 
-    doc = pymupdf.open(str(path))
+    if Path(path).suffix.lower() in IMAGE_SUFFIXES:   # an image file is read as a one-page image PDF
+        image = pymupdf.open(str(path))
+        doc = pymupdf.open("pdf", image.convert_to_pdf())
+        image.close()
+    else:
+        doc = pymupdf.open(str(path))
     try:
         pages = symbols.read_document(doc)
-        layouts = lay.read_document(doc, pages)
+        use = doc
+        if any(not p.symbols for p in pages):
+            from omr.raster import reading
+            use, pages = reading.read_document(doc, pages)
+        layouts = lay.read_document(use, pages)
         assigned = assign_parts(layouts)
         score = read_structure(layouts, assigned)
         if notes:
-            notation.read_notes(score, assigned[0], doc, layouts)
+            notation.read_notes(score, assigned[0], use, layouts)
         return score, layouts
     finally:
         doc.close()

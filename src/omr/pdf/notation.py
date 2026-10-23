@@ -1368,6 +1368,10 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
                  and system.staves[0].top - 10 * space <= b.y0 <= system.staves[-1].bottom + 10 * space]
     stems += hidden_stems(heads, stems, beam_list, space, pl.verticals)
     attach_beams(stems, beam_list, space)
+    # symbols the detector was unsure of, on a page image (omr.raster.names)
+    for s in pl.symbols:
+        if s.doubt is not None:
+            doubt(pl.staff_of(s), float(s.x), *s.doubt)
     flags = [s for s in pl.symbols if s.name in FLAG_COUNT and id(pl.staff_of(s)) in members]
     for flag in attach_flags(stems, flags, space):
         doubt(pl.staff_of(flag), flag.x, "stray symbol", "a flag is on no stem")
