@@ -219,3 +219,28 @@ def test_a_detected_tuplet_is_taken_off_a_bar_that_adds_up_without_it():
     cost = notation.assign_onsets(triplets, SPACE, Fraction(1))
     notation.detected_tuplets(triplets, SPACE, Fraction(1), cost)
     assert all(e.tuplet == (3, 2) for e in triplets[:6])
+
+
+def test_a_notehead_just_above_the_staff_beside_tempo_text_is_a_metronome_note():
+    """A tempo mark can sit a staff space above the staff; a real note there
+    would stand on a ledger line."""
+    staff = [(100.0 + k * SPACE, 0.0, 400.0, 0.5) for k in range(5)]
+    ledger = [(100.0 - SPACE, 245.0, 260.0, 0.5)]
+    tempo = (50.0, 100.0 - 1.4 * SPACE, 55.0, 100.0 - 0.8 * SPACE)
+    high = (250.0, 100.0 - 1.3 * SPACE, 256.0, 100.0 - 0.7 * SPACE)
+    text = [(57.0, tempo[1], 80.0, tempo[3]), (258.0, high[1], 280.0, high[3])]
+    symbols, _, _ = names.to_symbols([(HEAD, tempo, 0.9), (HEAD, high, 0.9)], SPACE)
+    names.metronome_notes(symbols, text, staff + ledger, SPACE)
+    assert [s.name for s in sorted(symbols, key=lambda s: s.x)] == ["metNoteQuarterUp", "noteheadBlack"]
+
+
+def test_a_part_box_over_time_digits_found_is_dropped():
+    """Half a 2 inside a 2, and one box over the two digits of 11."""
+    two, one = rl.CLASSES.index("timeSig2"), rl.CLASSES.index("timeSig1")
+    found = [(two, (10.0, 20.0, 16.0, 30.0), 0.95), (two, (10.0, 20.0, 16.0, 25.0), 0.5),
+             (one, (40.0, 20.0, 44.0, 30.0), 0.98), (one, (45.0, 20.0, 49.0, 30.0), 0.97),
+             (one, (40.0, 20.0, 49.0, 30.0), 0.7)]
+    kept = names.settle(found)
+    assert sorted((cls, box) for cls, box, _, _ in kept) == [
+        ("timeSig1", (40.0, 20.0, 44.0, 30.0)), ("timeSig1", (45.0, 20.0, 49.0, 30.0)),
+        ("timeSig2", (10.0, 20.0, 16.0, 30.0))]

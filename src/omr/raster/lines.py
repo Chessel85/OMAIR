@@ -818,17 +818,22 @@ def level(grey):
     return cv2.warpAffine(grey, m, (w, h), flags=cv2.INTER_LINEAR, borderValue=255), angle
 
 
-def find_lines(grey, symbol_boxes=(), flag_boxes=()):
+def find_lines(grey, symbol_boxes=(), flag_boxes=(), rest_boxes=()):
     """The Lines of a greyscale page image (rows of 0 to 255). `symbol_boxes`
     are the ink boxes of the page's symbols and text, in pixels: lines
     almost wholly inside them are part of a symbol. `flag_boxes` are the
     boxes of flags, which hold the end of a stem: they are not used for that
-    test, but their ink is not a beam."""
+    test, but their ink is not a beam. `rest_boxes` are the boxes of half
+    and whole rests, taken as symbols except in the search for beams: the
+    detector can take a partial beam for one, and a real rest has no stem
+    at its end to make it a beam."""
     ink = ink_of(grey)
     space, _ = staff_space(ink)
     if space is None:
         return Lines(space=0.0)
-    mask = box_mask(ink.shape, symbol_boxes) if len(symbol_boxes) else None
+    boxes = list(symbol_boxes) + list(rest_boxes)
+    mask = box_mask(ink.shape, boxes) if boxes else None
+    beam_mask = box_mask(ink.shape, symbol_boxes) if len(rest_boxes) and len(symbol_boxes) else None
     found = Lines(space=space)
     dark = 255 - grey
     level_ink = grey < LEVEL_INK_BELOW if space < LOW_RESOLUTION_SPACE else ink
@@ -836,7 +841,10 @@ def find_lines(grey, symbol_boxes=(), flag_boxes=()):
     clean = remove_staff_lines(ink, level_pixels, space)
     found.vertical, vertical_pixels = vertical_lines(clean, dark, space, mask)
     rest = erase_verticals(clean, vertical_pixels)
-    if mask is not None:
+    if len(rest_boxes):
+        if beam_mask is not None:
+            rest &= ~beam_mask
+    elif mask is not None:
         rest &= ~mask
     if len(flag_boxes):
         rest &= ~box_mask(ink.shape, flag_boxes)
@@ -848,7 +856,10 @@ def find_lines(grey, symbol_boxes=(), flag_boxes=()):
         elif b[1] - b[0] >= 1.5 * space and (b[3] - b[2] + b[5] - b[4]) / 2 >= 0.4 * space and _solid(b, clean):
             on.append(b)     # a beam of a two-note tremolo floats between the notes
     found.beams = [refine_beam(b, dark) for b in one_each(on, space)]
-    left = erase_level(erase_beams(rest, found.beams), level_pixels, space)
+    left = erase_beams(rest, found.beams)
+    if len(rest_boxes):
+        left &= ~mask
+    left = erase_level(left, level_pixels, space)
     left = bridge_crossings(left, ink, level_pixels, space)
     found.thin, found.curves = traces(left, space)
     # pale pixels at the edge of other ink (a staff line, a stem) are not a curve's end

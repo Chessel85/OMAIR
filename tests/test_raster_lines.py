@@ -102,6 +102,21 @@ def test_a_partial_beam_is_not_carried_out_to_the_next_stem():
     assert partial[0][0] <= 301 and 318 <= partial[0][1] <= 324
 
 
+def test_a_partial_beam_the_detector_took_for_a_half_rest_is_found():
+    """A half or whole rest box is not masked in the search for beams: a
+    partial beam is short and thick, as a half rest is."""
+    grey = staff(blank())
+    for x in (300, 340):
+        grey[TOP + 5 * SPACE:TOP + 8 * SPACE, x:x + 2] = 0
+    beam = TOP + 8 * SPACE - 8
+    grey[beam:beam + 8, 300:342] = 0
+    grey[beam - 14:beam - 6, 318:342] = 0                   # a partial beam on the second stem
+    rest = [(316, beam - 16, 344, beam - 4)]
+    partial = lambda found: [b for b in found.beams if b[2] < beam - 4]
+    assert partial(rl.find_lines(grey, rest)) == []
+    assert len(partial(rl.find_lines(grey, [], [], rest))) == 1
+
+
 def test_a_short_band_with_no_stems_is_not_a_beam():
     grey = staff(blank())
     grey[300:310, 300:325] = 0

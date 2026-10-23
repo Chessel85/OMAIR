@@ -131,8 +131,16 @@ def read_page(page, number, detect=None):
     symbols, text, masked = names.to_symbols(found, space_pt)
     named = PageSymbols(number, None, symbols, text_regions=text, masked=masked)
     boxes, flags = rp.symbol_boxes(named)
-    lines = rl.find_lines(grey, [place.to_pixels(b) for b in boxes], [place.to_pixels(b) for b in flags])
+    rests = [s.box for s in symbols if s.name in names.BEAM_LIKE]
+    boxes = [b for b in boxes if b not in rests]
+    lines = rl.find_lines(grey, *([place.to_pixels(b) for b in part] for part in (boxes, flags, rests)))
     lines.tilt = angle
+    digits = [place.to_pixels(s.box) for s in symbols if s.name in names.TIME_DIGITS]
+    lines.vertical = [v for v in lines.vertical if not _in_digits(v, digits)]
+    beams = [(place.x0 + x0 * place.sx, place.x0 + x1 * place.sx,
+              place.y0 + min(t0, t1) * place.sy, place.y0 + max(b0, b1) * place.sy)
+             for x0, x1, t0, b0, t1, b1 in lines.beams]
+    symbols = named.symbols = names.without_beams(symbols, beams)
     verticals = [(place.x0 + x * place.sx, place.y0 + top * place.sy, place.y0 + bottom * place.sy, w * place.sx)
                  for x, top, bottom, w in lines.vertical]
     names.set_flag_directions(symbols, verticals, space_pt)
@@ -143,6 +151,18 @@ def read_page(page, number, detect=None):
     raster_page = rp.RasterPage(page, rp.drawings(lines, place))
     named.evidence = evidence.gather(raster_page, number)
     return named, raster_page
+
+
+DIGIT_SHARE = 0.4   # a vertical line this much inside time signature digits is part of them
+
+
+def _in_digits(vertical, digits):
+    """The vertical line (x, top, bottom, width) lies mostly in the boxes of
+    time signature digits: the strokes of a 1 over a 1 the detector missed
+    reach the height of the staff and would be a barline."""
+    x, top, bottom, _ = vertical
+    inside = sum(max(0.0, min(bottom, b[3]) - max(top, b[1])) for b in digits if b[0] <= x <= b[2])
+    return bottom > top and inside >= DIGIT_SHARE * (bottom - top)
 
 
 def detect_image(page, detect=None):

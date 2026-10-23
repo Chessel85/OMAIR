@@ -49,6 +49,7 @@ UNNAMED = {"text", "dynamicOther", "ornamentOther"}
 # drawn at any length: anchored at the box's bottom left, at full size
 STRETCHED = {"arpeggio", "trillLine", "wavyGlissando", "brace", "bracketEnd"}
 # the classes that change notes: their doubts go into the flag file
+TIME_DIGITS = set(rl.TIME[:10])
 NOTE_CLASSES = set(rl.NOTEHEADS + rl.RESTS + rl.FLAGS + rl.ACCIDENTALS[:5] + rl.CLEFS + rl.TIME + rl.TUPLETS
                    + ["augmentationDot"])
 
@@ -93,6 +94,23 @@ def words(cls):
     return re.sub(r"(?<=[a-z0-9])(?=[A-Z0-9])", " ", cls).lower()
 
 
+def _overlap(a, b):
+    return max(0.0, min(a[2], b[2]) - max(a[0], b[0])) * max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+
+
+def _covered_digit(k, kept):
+    """A time signature digit at least half covered by more confident ones:
+    the detector can add a part box over a digit it found (half a 2, one
+    box over the two digits of 11, a small box across a 2 and the 4 below
+    it), and a digit too many changes the time."""
+    cls, box, conf = k[0], k[1], k[2]
+    if cls not in TIME_DIGITS:
+        return False
+    area = (box[2] - box[0]) * (box[3] - box[1])
+    cover = sum(_overlap(box, o[1]) for o in kept if o is not k and o[0] in TIME_DIGITS and o[2] > conf)
+    return area > 0 and cover >= 0.5 * area
+
+
 def _a(text):
     return ("an " if text[0] in "aeiou8" else "a ") + text
 
@@ -111,6 +129,7 @@ def settle(detections, limit=SAME_SYMBOL):
                 rival[3], rival[4] = conf, cls
             continue
         kept.append([cls, tuple(box), conf, None, None])
+    kept = [k for k in kept if not _covered_digit(k, kept)]
     out = []
     for cls, box, conf, other, other_cls in kept:
         doubt = None
@@ -272,23 +291,46 @@ def snap_clefs(symbols, level, space):
             s.y = min(near, key=lambda y: abs(y - s.y))
 
 
+BEAM_LIKE = {"restHalf", "restWhole"}   # the detector can take a partial beam for one
+
+
+def without_beams(symbols, beams):
+    """The symbols less the half and whole rests whose middle lies inside
+    a beam found (x0, x1, top, bottom, in page points): a partial beam,
+    short and thick, which the detector took for a rest."""
+    def on_beam(s):
+        cx, cy = _centre(s.box)
+        return any(x0 <= cx <= x1 and top <= cy <= bottom for x0, x1, top, bottom in beams)
+
+    return [s for s in symbols if not (s.source == SOURCE and s.name in BEAM_LIKE and on_beam(s))]
+
+
 MET_NOTES = {"noteheadBlack": "metNoteQuarterUp", "noteheadHalf": "metNoteHalfUp", "noteheadWhole": "metNoteWhole"}
 
 
 def metronome_notes(symbols, text, level, space):
     """Name the notes of metronome marks, which the detector finds as
-    noteheads: a notehead at least two staff spaces from every staff line
-    (a level line at least four staff spaces long) with a text region
-    starting within 2.5 staff spaces of its right edge, at its height. The
-    reader then leaves them out of the music, and its text stage reads the
-    mark (omr.pdf.text, which takes the same distance)."""
+    noteheads: a notehead away from the staff with a text region starting
+    within 2.5 staff spaces of its right edge, at its height. Away from the
+    staff is at least two staff spaces from every staff line (a level line
+    at least four staff spaces long), or outside the staff by at least
+    three quarters of a staff space with no ledger line (a shorter level
+    line) within 0.6 staff spaces of its middle, which a note there would
+    need: a tempo mark can sit just above the staff. The reader then leaves
+    them out of the music, and its text stage reads the mark (omr.pdf.text,
+    which takes the same distance)."""
     lines = [l for l in level if l[2] - l[1] >= 4 * space]
+    ledgers = [l for l in level if l[2] - l[1] < 4 * space]
     for s in symbols:
         if s.source != SOURCE or s.name not in MET_NOTES:
             continue
         cx, cy = _centre(s.box)
-        if any(l[1] <= cx <= l[2] and abs(l[0] - cy) < 2 * space for l in lines):
-            continue
+        across = [l[0] for l in lines if l[1] <= cx <= l[2]]
+        if any(abs(y - cy) < 2 * space for y in across):
+            outside = across and (cy < min(across) - 0.75 * space or cy > max(across) + 0.75 * space)
+            ledger = any(l[1] <= s.box[2] and s.box[0] <= l[2] and abs(l[0] - cy) <= 0.6 * space for l in ledgers)
+            if not outside or ledger:
+                continue
         if any(abs(t[0] - s.box[2]) < 2.5 * space and s.box[1] - space <= (t[1] + t[3]) / 2 <= s.box[3] + space
                for t in text):
             s.name = MET_NOTES[s.name]
