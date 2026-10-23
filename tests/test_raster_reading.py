@@ -139,3 +139,83 @@ def test_an_image_page_reads_as_its_vector_page(tmp_path, monkeypatch):
     pitches = lambda notes: sorted((n.part, n.bar, str(n.pitch)) for n in notes)
     same = len(set(pitches(vector_notes)) & set(pitches(image_score.notes)))
     assert same >= 0.95 * len(set(pitches(vector_notes)))
+
+
+def test_saved_detections_are_read_back_for_the_same_image_scale_and_model(tmp_path):
+    np = pytest.importorskip("numpy")
+    from omr.raster import reading
+
+    model, other = tmp_path / "a.onnx", tmp_path / "b.onnx"
+    model.write_bytes(b"model a")
+    other.write_bytes(b"model b")
+    calls = []
+
+    def run(grey, factor):
+        calls.append(factor)
+        return [(HEAD, (1.5, 2.25, 7.125, 8.0), 0.875)]
+
+    folder = tmp_path / "saved"
+    grey = np.full((40, 30), 255, dtype=np.uint8)
+    first = reading.saving(run, folder, model)(grey, 0.5)
+    again = reading.saving(run, folder, model)(grey, 0.5)
+    assert again == first == [(HEAD, (1.5, 2.25, 7.125, 8.0), 0.875)] and len(calls) == 1
+    changed = grey.copy()
+    changed[3, 4] = 0
+    reading.saving(run, folder, model)(changed, 0.5)
+    reading.saving(run, folder, model)(grey, 0.6)
+    reading.saving(run, folder, other)(grey, 0.5)
+    assert len(calls) == 4 and len(list(folder.rglob("*.json"))) == 4
+    assert not list(folder.rglob("*.part"))
+
+
+def test_the_detector_saves_only_when_a_folder_is_set(tmp_path, monkeypatch):
+    from omr.raster import reading
+
+    model = tmp_path / "a.onnx"
+    model.write_bytes(b"model a")
+    monkeypatch.delenv(reading.DETECTIONS_ENV, raising=False)
+    assert reading.detector(model).__name__ == "run"
+    monkeypatch.setenv(reading.DETECTIONS_ENV, str(tmp_path / "saved"))
+    assert reading.detector(model).__name__ == "cached"
+
+
+def test_a_grace_note_is_small_against_the_pages_usual_notehead():
+    """The detector's boxes are padded, so a grace notehead is measured
+    against the page's usual notehead height, not the font's."""
+    full = [(HEAD, (10.0 * k, 50.0, 10.0 * k + 6.5, 50.0 + 1.3 * SPACE), 0.9) for k in range(1, 7)]
+    grace = (HEAD, (100.0, 50.0, 104.5, 50.0 + 0.94 * SPACE), 0.9)
+    symbols, _, _ = names.to_symbols(full + [grace], SPACE)
+    small = max(symbols, key=lambda s: s.x)
+    assert small.size == pytest.approx(4 * SPACE * 0.94 / 1.3, rel=0.01)
+    assert all(s.size == pytest.approx(4 * SPACE) for s in symbols if s is not small)
+
+
+def test_a_notehead_beside_tempo_text_away_from_the_staff_is_a_metronome_note():
+    staff = [(100.0 + k * SPACE, 0.0, 400.0, 0.5) for k in range(5)]
+    tempo = (50.0, 70.0, 55.0, 75.0)
+    in_staff = (150.0, 110.0, 156.0, 115.0)
+    text = [(57.0, 68.0, 80.0, 77.0), (158.0, 109.0, 170.0, 116.0)]
+    symbols, _, _ = names.to_symbols([(HEAD, tempo, 0.9), (HEAD, in_staff, 0.9)], SPACE)
+    names.metronome_notes(symbols, text, staff, SPACE)
+    assert sorted(s.name for s in symbols) == ["metNoteQuarterUp", "noteheadBlack"]
+
+
+def test_a_detected_tuplet_is_taken_off_a_bar_that_adds_up_without_it():
+    from fractions import Fraction
+
+    from omr.pdf import notation
+
+    def bar(n, base, tuplet):
+        return [notation.Event(None, 10.0 * k, 10.0 * k + 5, base=base, tuplet=tuplet, tuplet_detected=True)
+                for k in range(n)]
+
+    fingering = bar(4, Fraction(1, 4), (3, 2))   # four quarters in 4/4, with a 3 that is not a tuplet
+    cost = notation.assign_onsets(fingering, SPACE, Fraction(1))
+    assert notation.detected_tuplets(fingering, SPACE, Fraction(1), cost) == 0
+    assert all(e.tuplet is None for e in fingering)
+    triplets = bar(6, Fraction(1, 8), (3, 2)) + bar(1, Fraction(1, 2), None)   # 2 triplets of eighths and a half
+    for e in triplets[-1:]:
+        e.x, e.right, e.tuplet_detected = 60.0, 65.0, False
+    cost = notation.assign_onsets(triplets, SPACE, Fraction(1))
+    notation.detected_tuplets(triplets, SPACE, Fraction(1), cost)
+    assert all(e.tuplet == (3, 2) for e in triplets[:6])

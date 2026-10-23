@@ -138,6 +138,7 @@ class Event:
     base: Fraction = Fraction(1)   # notated value before dots and tuplets
     dots: int = 0
     tuplet: tuple | None = None    # (actual, normal)
+    tuplet_detected: bool = False  # the tuplet's number was found by the detector (a page image)
     small: bool = False
     grace: bool = False
     whole_bar: bool = False
@@ -631,6 +632,7 @@ class TupletMark:
     x: float
     y: float
     box: tuple
+    detected: bool = False   # found by the detector in a page image
 
 
 def tuplet_marks(page_layout):
@@ -638,7 +640,7 @@ def tuplet_marks(page_layout):
     for s in page_layout.symbols:
         if s.name in TUPLET_GLYPHS:
             out.append(TupletMark(int(TUPLET_GLYPHS[s.name]), None, (s.box[0] + s.box[2]) / 2,
-                                  (s.box[1] + s.box[3]) / 2, s.box))
+                                  (s.box[1] + s.box[3]) / 2, s.box, s.source == "detector"))
     # adjacent tuplet digits are one number
     out.sort(key=lambda m: m.x)
     merged = []
@@ -646,7 +648,8 @@ def tuplet_marks(page_layout):
         if merged and abs(m.y - merged[-1].y) < 2 and 0 <= m.box[0] - merged[-1].box[2] < 2:
             last = merged[-1]
             merged[-1] = TupletMark(int(f"{last.actual}{m.actual}"), None, (last.box[0] + m.box[2]) / 2,
-                                    last.y, (last.box[0], last.box[1], m.box[2], m.box[3]))
+                                    last.y, (last.box[0], last.box[1], m.box[2], m.box[3]),
+                                    last.detected or m.detected)
         else:
             merged.append(m)
     for run in page_layout.text:
@@ -689,6 +692,7 @@ def apply_tuplets(marks, evs, stems, lines, verticals, space, compound):
         for e in members:
             if e.tuplet is None:
                 e.tuplet = (m.actual, normal)
+                e.tuplet_detected = m.detected
     return unused
 
 
@@ -839,6 +843,23 @@ def hidden_tuplets(evs, space, bar_length, cost, exclude=frozenset()):
     for g in groups:
         for e in g:
             e.tuplet = None
+    return assign_onsets(evs, space, bar_length)
+
+
+def detected_tuplets(evs, space, bar_length, cost):
+    """In a PDF, tuplet numbers are told from fingering and other digits by
+    their font; in a page image the detector can take a fingering 3 for a
+    tuplet 3. So when a bar does not add up, the tuplets whose numbers the
+    detector found are taken off, and left off if the bar then adds up
+    better. Returns the cost of the reading kept."""
+    found = [(e, e.tuplet) for e in evs if e.tuplet_detected]
+    for e, _ in found:
+        e.tuplet, e.tuplet_detected = None, False
+    new = assign_onsets(evs, space, bar_length)
+    if new < cost:
+        return new
+    for e, tuplet in found:
+        e.tuplet, e.tuplet_detected = tuplet, True
     return assign_onsets(evs, space, bar_length)
 
 
@@ -1428,6 +1449,8 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
             whole[0].whole_bar = True
             whole[0].base = bar_length
         costs[(staff_id, k)] = assign_onsets(main, space, bar_length)
+        if costs[(staff_id, k)] and any(e.tuplet_detected for e in main):
+            costs[(staff_id, k)] = detected_tuplets(main, space, bar_length, costs[(staff_id, k)])
         if costs[(staff_id, k)]:
             printed = {id(e) for e in main if e.tuplet}
             costs[(staff_id, k)] = hidden_tuplets(main, space, bar_length, costs[(staff_id, k)], cross)

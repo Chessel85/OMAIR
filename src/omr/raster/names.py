@@ -14,6 +14,7 @@ The rules are in docs/notes/raster-reading-spec.md.
 import functools
 import json
 import re
+import statistics
 from pathlib import Path
 
 from omr.corpus import raster_labels as rl
@@ -24,6 +25,7 @@ SAME_SYMBOL = 0.5     # IoU at which boxes of two classes are one symbol
 UNSURE = 0.5          # a detection less confident than this is a doubt
 CLOSE = 0.15          # a rival class this near in confidence is a doubt
 FULL_SIZE = 0.9       # a height this share of the reference's or more is full size
+TYPICAL_COUNT = 5     # detections of one name on a page that give its usual height there
 SOURCE = "detector"
 ANCHORS = Path(__file__).with_name("anchors.json")
 
@@ -153,20 +155,35 @@ def full_height(name):
     return ref.height if ref is not None else None
 
 
-def size_of(name, box, space):
+def size_of(name, box, space, typical=None):
     """The em in points: four staff spaces, less for a glyph clearly smaller
-    than full size (a grace note, a clef change)."""
+    than full size (a grace note, a clef change). Full size is the name's
+    usual box height on the page (`typical`, in points), where there are
+    enough of them and it is not itself small, since the detector's boxes
+    are padded and fonts differ; else the font table's height."""
     full = full_height(name)
     if not full or space <= 0:
         return 4 * space
-    share = (box[3] - box[1]) / space / full
+    full *= space
+    if typical and typical >= FULL_SIZE * full:
+        full = typical
+    share = (box[3] - box[1]) / full
     return 4 * space if share >= FULL_SIZE else 4 * space * share
 
 
-def make(cls, name, box, conf, doubt, space):
+def typical_heights(found):
+    """{name: median box height} for names with at least TYPICAL_COUNT
+    detections on the page."""
+    heights = {}
+    for name, box in found:
+        heights.setdefault(name, []).append(box[3] - box[1])
+    return {name: statistics.median(h) for name, h in heights.items() if len(h) >= TYPICAL_COUNT}
+
+
+def make(cls, name, box, conf, doubt, space, typical=None):
     """A Symbol for one detection, in page points."""
     x, y = (box[0], box[3]) if cls in STRETCHED else anchor(name, box, space)
-    size = 4 * space if cls in STRETCHED else size_of(name, box, space)
+    size = 4 * space if cls in STRETCHED else size_of(name, box, space, (typical or {}).get(name))
     rule = None
     if doubt:
         rule = ("unsure symbol" if cls in NOTE_CLASSES else "unsure marking", doubt)
@@ -197,6 +214,7 @@ def to_symbols(detections, space):
     heads = [box for cls, box, _, _ in found if cls in rl.NOTEHEADS]
     symbols, text, masked = [], [], []
     brackets = []
+    typical = typical_heights((NAMES.get(cls, cls), box) for cls, box, _, _ in found)
     for cls, box, conf, doubt in found:
         if cls == "text":
             text.append(box)
@@ -213,7 +231,7 @@ def to_symbols(detections, space):
             continue
         else:
             name = NAMES.get(cls, cls)
-        symbols.append(make(cls, name, box, conf, doubt, space))
+        symbols.append(make(cls, name, box, conf, doubt, space, typical))
     symbols += _bracket_ends(brackets, space)
     return symbols, text, masked
 
@@ -252,6 +270,28 @@ def snap_clefs(symbols, level, space):
         near = [l[0] for l in lines if l[1] - space <= s.x <= l[2] and abs(l[0] - s.y) <= 0.5 * space]
         if near:
             s.y = min(near, key=lambda y: abs(y - s.y))
+
+
+MET_NOTES = {"noteheadBlack": "metNoteQuarterUp", "noteheadHalf": "metNoteHalfUp", "noteheadWhole": "metNoteWhole"}
+
+
+def metronome_notes(symbols, text, level, space):
+    """Name the notes of metronome marks, which the detector finds as
+    noteheads: a notehead at least two staff spaces from every staff line
+    (a level line at least four staff spaces long) with a text region
+    starting within 2.5 staff spaces of its right edge, at its height. The
+    reader then leaves them out of the music, and its text stage reads the
+    mark (omr.pdf.text, which takes the same distance)."""
+    lines = [l for l in level if l[2] - l[1] >= 4 * space]
+    for s in symbols:
+        if s.source != SOURCE or s.name not in MET_NOTES:
+            continue
+        cx, cy = _centre(s.box)
+        if any(l[1] <= cx <= l[2] and abs(l[0] - cy) < 2 * space for l in lines):
+            continue
+        if any(abs(t[0] - s.box[2]) < 2.5 * space and s.box[1] - space <= (t[1] + t[3]) / 2 <= s.box[3] + space
+               for t in text):
+            s.name = MET_NOTES[s.name]
 
 
 def set_flag_directions(symbols, verticals, space):
