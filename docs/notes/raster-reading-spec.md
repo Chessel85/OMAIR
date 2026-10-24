@@ -75,4 +75,4 @@ How a clean page image (Type C) is turned into the page the vector reader expect
 
 ## Still to come
 
-- Text in images (Stage 2.5): the text regions are kept but not read, so titles, tempo, lyrics and other words are missing, and the structure and markings figures read low until then.
+- Text in images (Stage 2.5, `raster-text-spec.md`): the text regions are kept but not yet read, so titles, tempo, lyrics and other words are missing, and the structure and markings figures read low until then.

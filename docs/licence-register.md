@@ -797,10 +797,10 @@ These are pinned in `requirements.txt` or `requirements-torch.txt` and installed
 
 ### RapidOCR
 
-- Kind: dependency (planned, not yet installed)
-- Version: 3.10.0 (installs on Python 3.14), with the PP-OCR models it carries
+- Kind: dependency (installed in the development environment; not yet in `requirements.in`)
+- Version: 3.10.0 (installs on Python 3.14), with PP-OCRv5's Latin recognition model (`latin_PP-OCRv5_rec_mobile`), which the package fetches from ModelScope and the project keeps in `models/ocr/`. It brings Shapely (BSD-3-Clause), pyclipper (MIT), omegaconf (BSD-3-Clause), colorlog (MIT), tqdm (MPL-2.0 and MIT) and opencv-python-headless (Apache-2.0); their entries are added with the first code.
 - Licence: Apache-2.0 for the code. The models are converted from PaddleOCR's and are Apache-2.0 too, copyright Baidu and the PaddleOCR authors.
-- Use: Chosen in Stage 2.0 as the OCR engine for text in images (titles, tempo and expression text, lyrics, chord symbols), shipped. It runs on ONNX Runtime, which the project already uses, and needs neither PaddlePaddle (not available for Python 3.14) nor a separate program. homr uses it for the same job. The default models read Chinese and English; lyrics in other languages need PP-OCR's Latin recognition model, which Stage 2.5 measures. Tesseract (Apache-2.0, a separate program) is the fallback if the Latin model reads lyrics poorly.
+- Use: Chosen in Stage 2.0 as the OCR engine for text in images (titles, tempo and expression text, lyrics, chord symbols), shipped. It runs on ONNX Runtime, which the project already uses, and needs neither PaddlePaddle (not available for Python 3.14) nor a separate program. homr uses it for the same job. The Latin model reads the raster regression set's text better than the default Chinese and English one (93.2 against 92.0 percent of text boxes exact at 300 dpi; `docs/notes/raster-text-spec.md`). Tesseract (Apache-2.0, a separate program) is the fallback if the Latin model reads lyrics poorly.
 - Source: github.com/RapidAI/RapidOCR licence section, and the package metadata, checked 17 October 2026.
 - Status: ok
 
