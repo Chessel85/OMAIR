@@ -238,3 +238,15 @@ def test_a_brace_round_other_braces_joins_no_staves():
     assert structure.staff_groups(system, inner, ()) == [[0, 1], [2, 3]]
     assert structure.staff_groups(system, [*inner, brace(100, 270, 92)], ()) == [[0, 1], [2, 3]]
     assert structure.staff_groups(system, [brace(100, 270, 92)], ()) == [[0, 1, 2, 3]]
+
+
+def test_a_time_signature_with_a_zero_is_not_read(monkeypatch):
+    staff = SimpleNamespace(top=100.0, bottom=120.0, space=5.0)
+    system = SimpleNamespace(bars=[None])
+    digit = lambda name, top: SimpleNamespace(name=name, x=50.0, box=(48.0, top, 52.0, top + 9))
+    region = [digit("timeSig3", 100.0)]
+    monkeypatch.setattr(structure, "_signature_region", lambda *args: region)
+    region.append(digit("timeSig4", 111.0))
+    assert structure.staff_times(None, system, staff) == [(0, "3/4")]
+    region[:] = [digit("timeSig0", 100.0), digit("timeSig0", 111.0)]
+    assert structure.staff_times(None, system, staff) == []

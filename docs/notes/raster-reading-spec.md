@@ -46,10 +46,14 @@ How a clean page image (Type C) is turned into the page the vector reader expect
 ## Confidences as doubts
 
 - Each `Symbol` from a detection carries its confidence and, where there is one, a doubt (`Symbol.doubt`, the reason in words). A symbol has a doubt when:
-  - its confidence is under 0.5, or
-  - a box of another class over it (as above) was within 0.15 of its confidence: "a sharp or a natural".
-- The thresholds are a starting point, to be set on the raster regression set by the flags' precision and the note errors they catch (ACC-4).
-- `notation._read_system` turns the doubts of the symbols it reads into flags in their bar, as it does for its own: rule `"unsure symbol"` for the classes that change notes (noteheads, rests, accidentals, dots, flags, clefs, time signature digits, tuplet numbers), which goes into the flag file; rule `"unsure marking"` for the rest, which the confidence report lists as worth checking.
+  - its confidence is under 0.7, or
+  - a box of another class over it (as above) was within 0.1 of its confidence: "a sharp or a natural".
+- `notation._read_system` turns the doubts of the symbols it reads into flags in their bar, as it does for its own: rule `"unsure symbol"` for the classes that change notes (noteheads, rests, accidentals, dots, flags, clefs, tuplet numbers), which goes into the flag file; rule `"unsure marking"` for the rest, which the confidence report lists as worth checking. Time signature digits are markings here: a misread time signature puts its errors in many bars, not the one it stands in, and their doubts flagged bars without catching a single error more.
+- **How the thresholds were set** (`scripts/sweep_doubts.py`): every pair of the raster regression set at 300 and 200 dpi was read once with every detection made a doubt carrying its numbers, and the flag file scored for a grid of thresholds. On exact pairs:
+  - The symbols whose bar holds a note error: about half under 0.7 confidence, 30 percent from 0.7 to 0.8, and 14 to 16 percent above 0.8, which is the share for any symbol. So 0.7 is where a doubt stops meaning anything.
+  - A rival within 0.1 adds a few bars; wider margins add bars with fewer errors.
+  - At 300 dpi the rule lifts recall from 82.1 percent without it to 85.7, with 13.6 percent of bars flagged against 12.0 (the first thresholds, 0.5 and 0.15 with time digits: 83.8 and 13.1). At 200 dpi 80.2 to 84.1, with 14.6 percent of bars against 13.0. Its flagged bars hold an error 54 and 52 percent of the time, so `rules.RULE_PRECISION` gives it 0.53.
+  - No threshold reaches the ACC-4 target. At 0.8, recall is 86.8 percent with 15.6 percent of bars flagged; the detector is sure of most of the symbols behind the errors. The other rules are not too eager either (rhythm's flagged bars hold an error 85 percent of the time): bars are flagged because more bars are wrong, so ACC-4 on images follows note accuracy.
 
 ## Tuplet numbers
 

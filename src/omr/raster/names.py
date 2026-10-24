@@ -22,8 +22,8 @@ from omr.pdf import shapes
 from omr.pdf.symbols import Symbol
 
 SAME_SYMBOL = 0.5     # IoU at which boxes of two classes are one symbol
-UNSURE = 0.5          # a detection less confident than this is a doubt
-CLOSE = 0.15          # a rival class this near in confidence is a doubt
+UNSURE = 0.7          # a detection less confident than this is a doubt
+CLOSE = 0.1           # a rival class this near in confidence is a doubt
 FULL_SIZE = 0.9       # a height this share of the reference's or more is full size
 TYPICAL_COUNT = 5     # detections of one name on a page that give its usual height there
 SOURCE = "detector"
@@ -48,9 +48,11 @@ SIDED = {"staccato": "articStaccato", "staccatissimo": "articStaccatissimo", "ac
 UNNAMED = {"text", "dynamicOther", "ornamentOther"}
 # drawn at any length: anchored at the box's bottom left, at full size
 STRETCHED = {"arpeggio", "trillLine", "wavyGlissando", "brace", "bracketEnd"}
-# the classes that change notes: their doubts go into the flag file
+# the classes that change notes: their doubts go into the flag file. Time
+# signature digits are left out: their doubts flagged bars with no more
+# errors caught (scripts/sweep_doubts.py)
 TIME_DIGITS = set(rl.TIME[:10])
-NOTE_CLASSES = set(rl.NOTEHEADS + rl.RESTS + rl.FLAGS + rl.ACCIDENTALS[:5] + rl.CLEFS + rl.TIME + rl.TUPLETS
+NOTE_CLASSES = set(rl.NOTEHEADS + rl.RESTS + rl.FLAGS + rl.ACCIDENTALS[:5] + rl.CLEFS + rl.TUPLETS
                    + ["augmentationDot"])
 
 WORDS = {
@@ -130,15 +132,19 @@ def settle(detections, limit=SAME_SYMBOL):
             continue
         kept.append([cls, tuple(box), conf, None, None])
     kept = [k for k in kept if not _covered_digit(k, kept)]
-    out = []
-    for cls, box, conf, other, other_cls in kept:
-        doubt = None
-        if other is not None and conf - other <= CLOSE:
-            doubt = f"{_a(words(cls))} or {_a(words(other_cls))}"
-        elif conf < UNSURE:
-            doubt = f"perhaps {_a(words(cls))} ({round(100 * conf)} percent sure)"
-        out.append((cls, box, conf, doubt))
-    return out
+    return [(cls, box, conf, doubt_of(cls, conf, other, other_cls)) for cls, box, conf, other, other_cls in kept]
+
+
+def doubt_of(cls, conf, other, other_cls):
+    """The doubt in words for a detection of `cls` at confidence `conf`,
+    whose best rival over the same symbol is `other_cls` at `other` (None
+    when there is none), or None when the detection is sure enough.
+    scripts/sweep_doubts.py replaces it to measure the thresholds."""
+    if other is not None and conf - other <= CLOSE:
+        return f"{_a(words(cls))} or {_a(words(other_cls))}"
+    if conf < UNSURE:
+        return f"perhaps {_a(words(cls))} ({round(100 * conf)} percent sure)"
+    return None
 
 
 @functools.cache

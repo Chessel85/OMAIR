@@ -80,10 +80,12 @@ def test_text_and_unknown_marks_are_kept_apart():
 
 
 def test_doubts_name_their_rule():
-    found = [(HEAD, (0, 0, 6, 5), 0.3), (rl.CLASS_INDEX["accent"], (0, 20, 6, 25), 0.3)]
+    found = [(HEAD, (0, 0, 6, 5), 0.3), (rl.CLASS_INDEX["accent"], (0, 20, 6, 25), 0.3),
+             (rl.CLASS_INDEX["timeSig3"], (40, 0, 46, 9), 0.3)]
     symbols, _, _ = names.to_symbols(found, SPACE)
     rules = {s.name: s.doubt[0] for s in symbols}
-    assert rules == {"noteheadBlack": "unsure symbol", "articAccentBelow": "unsure marking"}
+    assert rules == {"noteheadBlack": "unsure symbol", "articAccentBelow": "unsure marking",
+                     "timeSig3": "unsure marking"}
 
 
 def test_a_flag_turns_down_when_it_hangs_below_its_notes():

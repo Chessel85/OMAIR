@@ -508,7 +508,8 @@ def staff_times(page_layout, system, staff):
         middle = (staff.top + staff.bottom) / 2
         upper = "".join(TIME_DIGITS[s.name] for s in group if (s.box[1] + s.box[3]) / 2 < middle)
         lower = "".join(TIME_DIGITS[s.name] for s in group if (s.box[1] + s.box[3]) / 2 > middle)
-        if upper and lower:
+        # a zero is a misread digit (a detected 0 in an image), not a metre
+        if upper and lower and int(upper) and int(lower):
             out.append((k, f"{int(upper)}/{int(lower)}"))
     return out
 
