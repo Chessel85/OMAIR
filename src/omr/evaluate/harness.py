@@ -20,7 +20,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
-from omr import parallel, paths
+from omr import parallel, paths, pause
 from omr.evaluate import events, metrics, report
 
 DEFAULT_TIMEOUT_S = 600
@@ -191,8 +191,10 @@ def musicdiff_figures(truth, output):
 
 
 def run(set_name, recogniser, log, out_dir=None, predictions=None, workers=parallel.DEFAULT_WORKERS,
-        timeout=DEFAULT_TIMEOUT_S, cpu_only=False, with_musicdiff=True, set_root=None, **filters):
-    """Evaluate a set. Returns (results, path of the text report)."""
+        timeout=DEFAULT_TIMEOUT_S, cpu_only=False, with_musicdiff=True, set_root=None, pausable=False, **filters):
+    """Evaluate a set. Returns (results, path of the text report). With
+    `pausable`, the run waits before each pair while continue.txt does not
+    say yes (omr.pause); pairs already started finish."""
     pairs, export_failures = read_pairs(set_name, set_root)
     pairs = select_pairs(pairs, **filters)
     label = "predictions" if predictions else recogniser
@@ -220,9 +222,15 @@ def run(set_name, recogniser, log, out_dir=None, predictions=None, workers=paral
                 else:
                     log.info(f"{number} of {len(pairs)}: {pair.name}: {report.one_line(result)}")
 
+        if pausable:
+            pause.make_control()
         for pair in pairs:
             while len(running) >= 2 * workers:
                 collect(block=True)
+            if pausable and not pause.may_continue():
+                while running:   # report the pairs already started before waiting
+                    collect(block=True)
+                pause.wait_while_paused(log)
             future = pool.submit(evaluate_pair, pair, recogniser, out_dir / pair.id / pair.job,
                                  timeout, cpu_only, predictions, with_musicdiff)
             running[future] = pair

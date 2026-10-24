@@ -80,6 +80,8 @@ def add_evaluate_arguments(p):
                    help="Read the set from FOLDER (with its index.txt) instead of the corpus folder, "
                         "for example the regression set in the repository.")
     p.add_argument("--out", metavar="FOLDER", help="Where the reports go (default: evaluations/ under the corpus folder).")
+    p.add_argument("--pausable", action="store_true",
+                   help="Before each file, wait while continue.txt in the repository's folder does not say yes.")
 
 
 def run_evaluate(args):
@@ -96,7 +98,7 @@ def run_evaluate(args):
         results, report = harness.run(
             args.set, args.recogniser, log, out_dir=args.out, predictions=args.predictions,
             workers=args.workers, timeout=args.timeout, cpu_only=args.cpu_only,
-            with_musicdiff=not args.no_musicdiff, set_root=args.set_root, **filters)
+            with_musicdiff=not args.no_musicdiff, set_root=args.set_root, pausable=args.pausable, **filters)
     except (ValueError, FileNotFoundError, paths.CorpusDirError) as error:
         log.error(str(error))
         return log.finish("evaluation stopped")

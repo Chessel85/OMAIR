@@ -1,8 +1,9 @@
 """Pausing long runs by hand: continue.txt in the repository's folder.
 
 While the file says "yes", a run goes on; otherwise it waits where it is and
-carries on when the file says "yes" again. Training (scripts/train_detector.py)
-and the detector check (scripts/check_detector.py) look at it.
+carries on when the file says "yes" again. Training (scripts/train_detector.py),
+the detector check (scripts/check_detector.py), the detection pass
+(scripts/detect_pages.py) and `omr evaluate --pausable` look at it.
 """
 
 import time

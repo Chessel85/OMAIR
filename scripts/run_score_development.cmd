@@ -10,9 +10,11 @@ rem readings are saved; about 6 to 6.5 hours a version the first time.
 rem Start it from Task Scheduler, so it does not depend on a terminal or a
 rem Claude Code session staying open.
 rem
-rem The scoring cannot pause or resume: end the task to stop it, and run
-rem this again to start over (detections and readings already saved are
-rem read back, not made again).
+rem Pausing: write no in continue.txt in the repository's folder; the run
+rem lets the pairs already started finish and waits, and carries on when
+rem the file says yes again (it looks every 30 seconds). Ending the task
+rem stops it; run this again to start over (detections and readings
+rem already saved are read back, not made again).
 
 if "%~1"=="" (
   echo Give the run a name, for example: run_score_development.cmd s25-dev
@@ -28,5 +30,5 @@ set OMR_DETECTIONS_DIR=E:\OMAIRCorpus\detections
 set YOLO_OFFLINE=true
 set YOLO_AUTOINSTALL=false
 for %%v in (%VERSIONS%) do (
-  ".venv\Scripts\omr.exe" evaluate --set development --set-root E:\OMAIRCorpus\generated\raster\development-%%v --recogniser omr --no-musicdiff --out E:\OMAIRCorpus\evaluations\%~1-%%v > "E:\OMAIRCorpus\evaluations\%~1-%%v.log" 2>&1
+  ".venv\Scripts\omr.exe" evaluate --set development --set-root E:\OMAIRCorpus\generated\raster\development-%%v --recogniser omr --no-musicdiff --pausable --out E:\OMAIRCorpus\evaluations\%~1-%%v > "E:\OMAIRCorpus\evaluations\%~1-%%v.log" 2>&1
 )

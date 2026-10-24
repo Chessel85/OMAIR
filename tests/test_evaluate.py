@@ -548,6 +548,31 @@ def test_unreadable_prediction_is_a_failed_file(tmp_path):
     assert "could not be read" in results[0]["failed"]
 
 
+def test_a_pausable_run_waits_while_continue_txt_does_not_say_yes(tmp_path, monkeypatch):
+    from omr import pause
+
+    root = corpus_set(tmp_path, [score(("Flute", [four_quarters()]))])
+    predictions = tmp_path / "pred" / "s0" / "musescore4-base"
+    predictions.mkdir(parents=True)
+    (predictions / "score.musicxml").write_text("not xml", encoding="utf-8")
+    tmp_path.joinpath("continue.txt").write_text("no", encoding="utf-8")
+    looks = []
+
+    def wait(log, control=None, wait=None):
+        looks.append(control)
+        tmp_path.joinpath("continue.txt").write_text("yes", encoding="utf-8")
+    monkeypatch.setattr(pause, "wait_while_paused", wait)
+    monkeypatch.setattr(pause, "may_continue", lambda control=None: tmp_path.joinpath("continue.txt").read_text().strip() == "yes")
+    monkeypatch.setattr(pause, "make_control", lambda control=None: None)
+    log = ProgressLog("t", stream=io.StringIO())
+    results, _ = harness.run("development", None, log, out_dir=tmp_path / "eval", predictions=tmp_path / "pred",
+                             workers=1, with_musicdiff=False, set_root=root, pausable=True)
+    assert len(looks) == 1 and len(results) == 1
+    results, _ = harness.run("development", None, log, out_dir=tmp_path / "eval2", predictions=tmp_path / "pred",
+                             workers=1, with_musicdiff=False, set_root=root)
+    assert len(looks) == 1    # not pausable: the file is not looked at
+
+
 def test_percent_never_rounds_a_shortfall_up_to_100():
     assert report.percent(9999, 10000) == "99.9 percent"
     assert report.percent(5, 5) == "100 percent"
