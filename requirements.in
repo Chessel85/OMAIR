@@ -6,6 +6,7 @@ pikepdf
 opencv-python
 scikit-image
 onnxruntime
+rapidocr
 ultralytics
 music21
 musicdiff

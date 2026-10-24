@@ -116,6 +116,7 @@ def test_an_image_page_reads_as_its_vector_page(tmp_path, monkeypatch):
     pytest.importorskip("cv2")
     from omr.pdf import structure, symbols
     from omr.raster import detect, page as rp, reading
+    from omr.raster import text as rt
 
     source = DATA / "ms4_leland.pdf"
     vector_doc = pymupdf.open(str(source))
@@ -134,6 +135,7 @@ def test_an_image_page_reads_as_its_vector_page(tmp_path, monkeypatch):
         return [(rl.CLASS_INDEX[lab.cls], lab.box, 0.9) for lab in truth]
 
     monkeypatch.setattr(reading, "detector", lambda path=None: fake)
+    monkeypatch.setattr(rt, "reader", lambda path=None: lambda crops: [("", 0.0)] * len(crops))
     vector_score, _ = structure.read_pdf(source, notes=True)
     image_score, layouts = structure.read_pdf(image_pdf, notes=True)
     vector_notes = [n for n in vector_score.notes if n.bar < len(image_score.bars)]

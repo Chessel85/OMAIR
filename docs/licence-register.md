@@ -141,6 +141,15 @@ These were settled by a default rule so that work is not blocked. Change any you
 - Source: github.com/liebharc/homr README and LICENSE_FAQ.md, and the release asset list, checked 17 October 2026. Sizes measured from the installed ONNX files.
 - Status: owner to resolve before a release. The weights are AGPL like the project, but one training dataset may be non-commercial. homr itself calls the question open. The project is never commercial, but the AGPL lets others use it commercially. Default: use the weights, and settle this before anything trained from them is released. SMT is the fallback.
 
+### PP-OCRv5 Latin recognition model
+
+- Kind: model
+- Version: `latin_PP-OCRv5_rec_mobile.onnx` (8 MB), as RapidOCR 3.10.0 publishes it on ModelScope (RapidAI/RapidOCR, v3.10.0), converted from PaddleOCR's model.
+- Licence: Apache-2.0 (PaddleOCR's models; RapidOCR's conversions are under the same licence)
+- Use: Reads the text in page images (Stage 2.5), shipped. Kept in `models/ocr/` and named to RapidOCR by its path, so nothing is downloaded at run time.
+- Source: RapidOCR's model list (`default_models.yaml` in the package) and github.com/RapidAI/RapidOCR licence section, checked 24 October 2026.
+- Status: ok
+
 ### SMT (Sheet Music Transformer)
 
 - Kind: model
@@ -391,6 +400,15 @@ These are pinned in `requirements.txt` or `requirements-torch.txt` and installed
 - Version: 0.4.6
 - Licence: BSD-3-Clause
 - Use: shipped (installed as a dependency)
+- Source: package metadata in the installed environment
+- Status: ok
+
+### colorlog
+
+- Kind: dependency
+- Version: 6.12.0
+- Licence: MIT
+- Use: shipped (installed as a dependency of RapidOCR)
 - Source: package metadata in the installed environment
 - Status: ok
 
@@ -647,6 +665,15 @@ These are pinned in `requirements.txt` or `requirements-torch.txt` and installed
 - Source: package metadata in the installed environment
 - Status: ok
 
+### omegaconf
+
+- Kind: dependency
+- Version: 2.4.0
+- Licence: BSD-3-Clause
+- Use: shipped (installed as a dependency of RapidOCR)
+- Source: the package's repository (github.com/omry/omegaconf, LICENSE); its metadata gives none, checked 24 October 2026
+- Status: ok
+
 ### onnxruntime
 
 - Kind: dependency
@@ -665,6 +692,16 @@ These are pinned in `requirements.txt` or `requirements-torch.txt` and installed
 - Source: package metadata in the installed environment
 - Status: ok
 - Note: The wheels also bundle FFmpeg under LGPL. We do not use video, but note it if wheels are ever redistributed.
+
+### opencv-python-headless
+
+- Kind: dependency
+- Version: 5.0.0.93
+- Licence: Apache-2.0
+- Use: shipped (installed as a dependency of RapidOCR)
+- Source: package metadata in the installed environment
+- Status: ok
+- Note: Installed beside opencv-python of the same version; both provide `cv2`, and the one installed last is used. They are the same library built with and without its window functions, which the project does not use.
 
 ### packaging
 
@@ -739,6 +776,15 @@ These are pinned in `requirements.txt` or `requirements-torch.txt` and installed
 - Source: package metadata in the installed environment
 - Status: ok
 
+### pyclipper
+
+- Kind: dependency
+- Version: 1.4.0
+- Licence: MIT
+- Use: shipped (installed as a dependency of RapidOCR)
+- Source: package metadata in the installed environment
+- Status: ok
+
 ### Pygments
 
 - Kind: dependency
@@ -797,8 +843,8 @@ These are pinned in `requirements.txt` or `requirements-torch.txt` and installed
 
 ### RapidOCR
 
-- Kind: dependency (installed in the development environment; not yet in `requirements.in`)
-- Version: 3.10.0 (installs on Python 3.14), with PP-OCRv5's Latin recognition model (`latin_PP-OCRv5_rec_mobile`), which the package fetches from ModelScope and the project keeps in `models/ocr/`. It brings Shapely (BSD-3-Clause), pyclipper (MIT), omegaconf (BSD-3-Clause), colorlog (MIT), tqdm (MPL-2.0 and MIT) and opencv-python-headless (Apache-2.0); their entries are added with the first code.
+- Kind: dependency
+- Version: 3.10.0 (installs on Python 3.14), with PP-OCRv5's Latin recognition model (`latin_PP-OCRv5_rec_mobile`), which the package fetches from ModelScope and the project keeps in `models/ocr/`. Its dependencies have their own entries (colorlog, omegaconf, opencv-python-headless, pyclipper, shapely, tqdm).
 - Licence: Apache-2.0 for the code. The models are converted from PaddleOCR's and are Apache-2.0 too, copyright Baidu and the PaddleOCR authors.
 - Use: Chosen in Stage 2.0 as the OCR engine for text in images (titles, tempo and expression text, lyrics, chord symbols), shipped. It runs on ONNX Runtime, which the project already uses, and needs neither PaddlePaddle (not available for Python 3.14) nor a separate program. homr uses it for the same job. The Latin model reads the raster regression set's text better than the default Chinese and English one (93.2 against 92.0 percent of text boxes exact at 300 dpi; `docs/notes/raster-text-spec.md`). Tesseract (Apache-2.0, a separate program) is the fallback if the Latin model reads lyrics poorly.
 - Source: github.com/RapidAI/RapidOCR licence section, and the package metadata, checked 17 October 2026.
@@ -837,6 +883,15 @@ These are pinned in `requirements.txt` or `requirements-torch.txt` and installed
 - Version: 78.1.0
 - Licence: MIT
 - Use: shipped (installed as a dependency)
+- Source: package metadata in the installed environment
+- Status: ok
+
+### shapely
+
+- Kind: dependency
+- Version: 2.2.0
+- Licence: BSD-3-Clause
+- Use: shipped (installed as a dependency of RapidOCR)
 - Source: package metadata in the installed environment
 - Status: ok
 
@@ -884,6 +939,16 @@ These are pinned in `requirements.txt` or `requirements-torch.txt` and installed
 - Use: shipped (installed as a dependency)
 - Source: package metadata in the installed environment
 - Status: ok
+
+### tqdm
+
+- Kind: dependency
+- Version: 4.70.1
+- Licence: MPL-2.0 and MIT
+- Use: shipped (installed as a dependency of RapidOCR)
+- Source: package metadata in the installed environment
+- Status: ok
+- Note: MPL is file-level copyleft. MPL-2.0 section 3.3 allows combining with AGPL.
 
 ### typing_extensions
 

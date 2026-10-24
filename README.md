@@ -2,7 +2,7 @@
 
 A free, offline optical music recognition tool. It converts sheet music PDFs and images into accurate MusicXML and braille music, and reports in plain text where it is unsure. Licensed under AGPL-3.0.
 
-Phase 1 (vector PDFs) is closed, and the project is in Phase 2 (clean page images). For vector PDFs it names the symbols of a vector PDF and reads its structure, its notes (pitch, rhythm, voices, ties, grace notes) and its text and markings (title and composer, lyrics, chord symbols, tempo and expression text, dynamics, hairpins, articulations, slurs, fingering), and flags the bars that may be wrong, but does not yet write MusicXML. `scripts/check_notes.py`, `scripts/check_markings.py` and `scripts/check_flags.py` measure what it reads and flags against the ground truth. For page images, so far, it finds the staff lines, barlines, stems, beams and curves (`src/omr/raster`), checked against the vector reading by `scripts/check_raster_lines.py`; the symbol detector comes next. The `omr` command has these subcommands:
+Phase 1 (vector PDFs) is closed, and the project is in Phase 2 (clean page images). For vector PDFs it names the symbols of a vector PDF and reads its structure, its notes (pitch, rhythm, voices, ties, grace notes) and its text and markings (title and composer, lyrics, chord symbols, tempo and expression text, dynamics, hairpins, articulations, slurs, fingering), and flags the bars that may be wrong, but does not yet write MusicXML. `scripts/check_notes.py`, `scripts/check_markings.py` and `scripts/check_flags.py` measure what it reads and flags against the ground truth. For page images (`src/omr/raster`) it finds the staff lines, barlines, stems, beams and curves, finds the symbols with a detector, reads the text with OCR, and hands them to the same reader; `scripts/check_raster_lines.py`, `scripts/check_detector.py` and `scripts/check_ocr.py` check each part against the vector reading. The `omr` command has these subcommands:
 
 - `omr inspect FILE`: says what kind of PDF each page is (vector music with font glyphs or outlines, a clean image, or a photo or scan) and which music font it uses.
 - `omr symbols FILE`: names every music symbol in a vector PDF (from its music font, or by shape where the symbols are outlines) and counts any that cannot be named.
@@ -44,7 +44,7 @@ Every new terminal window needs step 2 again before you run `python`, `pytest` o
 - `scripts`: development scripts.
 - `docs`: requirements, design, plans and notes.
 - `corpus`: the default location of generated and collected test scores. Not in Git. See the next section for putting it on another drive.
-- `models`: model weights. Not in Git; released separately.
+- `models`: model weights. Not in Git; released separately. The OCR model for page images goes in `models/ocr/latin_PP-OCRv5_rec_mobile.onnx` (from RapidOCR's model list on ModelScope, RapidAI/RapidOCR v3.10.0, `onnx/PP-OCRv5/rec/`), or set `OMR_OCR_MODEL` to its file. The symbol detector's weights are named by `OMR_DETECTOR`.
 
 ## Where the corpus lives
 

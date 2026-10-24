@@ -214,3 +214,32 @@ def test_a_raster_page_gives_its_own_drawings_and_passes_the_rest_on():
     assert raster.get_drawings() == [{"type": "s"}]
     assert raster.rotation == 0
     assert raster.rect == page.rect
+
+
+def hairpin(grey, x0, x1, y, opening, thick=3):
+    """A crescendo from (x0, y) opening to `opening` pixels at x1."""
+    for dy in (-opening / 2, opening / 2):
+        cv2.line(grey, (x0, y), (x1, int(round(y + dy))), 0, thick, cv2.LINE_AA)
+    return grey
+
+
+def test_the_arms_of_a_hairpin_reach_the_point_where_they_meet():
+    """Where the arms run together at the closed end, each arm is carried on
+    to the point, and the joined ink there is not given as level lines."""
+    grey = hairpin(staff(blank()), 150, 600, 300, 45)
+    found = rl.find_lines(grey)
+    arms = [t for t in found.thin if t[2] - t[0] > 200]
+    assert len(arms) == 2
+    for x0, y0, x1, y1, _ in arms:
+        assert abs(x0 - 150) <= 0.4 * SPACE and abs(y0 - 300) <= 0.25 * SPACE
+        assert abs(x1 - 600) <= 0.4 * SPACE
+    assert not [l for l in found.level if 250 < l[0] < 350]
+
+
+def test_two_arms_found_apart_are_carried_on_to_where_they_meet():
+    arms = [(206.0, 299.2, 600.0, 277.5, 3.0), (206.0, 300.8, 600.0, 322.5, 3.0)]
+    met = rl.meet_arms(arms, SPACE)
+    assert all(abs(a[0] - 191.5) < 1 and abs(a[1] - 300) < 0.5 for a in met)
+    # lines that close in too far away, or are not open at one end, are left alone
+    far = [(300.0, 290.0, 600.0, 280.0, 3.0), (300.0, 310.0, 600.0, 320.0, 3.0)]
+    assert rl.meet_arms(far, SPACE) == far

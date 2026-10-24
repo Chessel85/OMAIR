@@ -116,12 +116,14 @@ def is_image_page(page_symbols):
     return not page_symbols.symbols and page_symbols.evidence.image_coverage >= classify.BIG_IMAGE
 
 
-def read_page(page, number, detect=None):
+def read_page(page, number, detect=None, read_text=None):
     """(PageSymbols, RasterPage) for a PDF page holding a page image.
-    `detect` is a function as `detector` gives (the default model if None)."""
+    `detect` is a function as `detector` gives (the default model if None),
+    `read_text` one as `omr.raster.text.reader` gives."""
     from omr.pdf import evidence
     from omr.pdf.symbols import PageSymbols
     from omr.raster import lines as rl
+    from omr.raster import text as rt
 
     seen = detect_image(page, detect)
     if seen is None:
@@ -148,6 +150,7 @@ def read_page(page, number, detect=None):
              for y, x0, x1, t in lines.level]
     names.snap_clefs(symbols, level, space_pt)
     names.metronome_notes(symbols, text, level, space_pt)
+    named.text = rt.read_regions(grey, place, text, space_px, read_text or rt.reader())
     raster_page = rp.RasterPage(page, rp.drawings(lines, place))
     named.evidence = evidence.gather(raster_page, number)
     return named, raster_page
@@ -197,7 +200,7 @@ def _empty(page, number):
     return PageSymbols(number, evidence.gather(raster_page, number)), raster_page
 
 
-def read_document(doc, pages, detect=None):
+def read_document(doc, pages, detect=None, read_text=None):
     """(pages to read, PageSymbols) for a document whose PageSymbols the
     vector reader gave: each image page is read from its image, and its
     RasterPage stands for it; vector pages are left as they are."""
@@ -207,7 +210,10 @@ def read_document(doc, pages, detect=None):
         if is_image_page(ps):
             if detect is None:
                 detect = detector()
-            ps, page = read_page(page, ps.page, detect)
+            if read_text is None:
+                from omr.raster import text as rt
+                read_text = rt.reader()
+            ps, page = read_page(page, ps.page, detect, read_text)
         use.append(page)
         out.append(ps)
     return use, out

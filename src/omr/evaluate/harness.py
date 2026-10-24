@@ -10,6 +10,7 @@ import contextlib
 import datetime
 import io
 import json
+import multiprocessing
 import os
 import shlex
 import subprocess
@@ -113,6 +114,8 @@ def evaluate_pair(pair, recogniser, out, timeout, cpu_only, predictions, with_mu
         env = dict(os.environ)
         if cpu_only:
             env["CUDA_VISIBLE_DEVICES"] = ""
+        if multiprocessing.parent_process() is not None:
+            env.setdefault("OMR_OCR_THREADS", "1")   # one converter a core: OCR in one thread
         started = time.time()
         try:
             done = subprocess.run(command_for(recogniser, pair, out), capture_output=True, text=True,

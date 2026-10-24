@@ -707,16 +707,8 @@ def traces(left, space):
             continue
         mids = (starts + ends) / 2
         if (per_col >= 2).mean() > 0.3:
-            # two arms: the first and last run in each column
-            first = np.unique(cols, return_index=True)[1]
-            last = np.r_[first[1:] - 1, len(cols) - 1]
-            for pick in (first, last):
-                xs, ys = cols[pick].astype(float), mids[pick]
-                slope, b, off = _fit(xs, ys)
-                if off <= within and abs(slope) <= 1:
-                    thick = float(np.median(lengths[pick]))
-                    thin.append((x + xs.min(), y + slope * xs.min() + b, x + xs.max() + 1,
-                                 y + slope * (xs.max() + 1) + b, thick))
+            thin += [(x + x0, y + y0, x + x1, y + y1, thick)
+                     for x0, y0, x1, y1, thick in _arms(cols, mids, lengths, per_col, within, space)]
             continue
         single = per_col[cols] == 1
         xs, ys = cols[single].astype(float), mids[single]
@@ -733,6 +725,89 @@ def traces(left, space):
         bottoms = ends[single].astype(float)
         curves.append([(x + c + 0.5, y + t, y + e) for c, t, e in zip(xs, tops, bottoms)])
     return thin, curves
+
+
+HAIRPIN_REACH = 4.0   # staff spaces: how far a hairpin's arms are carried on to where they meet
+
+
+def _arms(cols, mids, lengths, per_col, within, space):
+    """The two arms of a hairpin, (x0, y0, x1, y1, thickness) in the piece's
+    pixels: the first and the last run in each column where they are apart.
+    Where the arms run together at the closed end, a column holds one run;
+    so each arm is carried on along its own line to the point where the two
+    meet, within the piece's ink (and half a staff space beyond it)."""
+    apart = per_col[cols] >= 2
+    cs, ms, ls = cols[apart], mids[apart], lengths[apart]
+    first = np.unique(cs, return_index=True)[1]
+    last = np.r_[first[1:] - 1, len(cs) - 1]
+    fits = []
+    for pick in (first, last):
+        xs, ys = cs[pick].astype(float), ms[pick]
+        slope, b, off = _fit(xs, ys)
+        if off > within or abs(slope) > 1:
+            return []
+        fits.append((slope, b, float(xs.min()), float(xs.max()) + 1, float(np.median(ls[pick]))))
+    (s0, b0, lo, hi, t0), (s1, b1, _, _, t1) = fits
+    if abs(s0 - s1) > 1e-9:
+        meet = (b1 - b0) / (s0 - s1)
+        # the joined ink at the closed end belongs to the piece
+        if float(cols.min()) - 0.5 * space <= meet < lo:
+            lo = meet
+        elif hi < meet <= float(cols.max()) + 1 + 0.5 * space:
+            hi = meet
+    return [(lo, s * lo + b, hi, s * hi + b, t) for s, b, _, _, t in ((s0, b0, lo, hi, t0), (s1, b1, lo, hi, t1))]
+
+
+def meet_arms(thin, space):
+    """Thin lines (x0, y0, x1, y1, thickness) with the arms of hairpins
+    found as two lines carried on to where they meet. Two lines are arms
+    when one pair of their ends lies within 0.5 staff spaces across and
+    1.5 apart, and they close in on each other towards the other end and
+    meet within HAIRPIN_REACH staff spaces beyond it (the closed end was
+    taken as level lines, so each arm starts late)."""
+    out = list(thin)
+    for i, a in enumerate(out):
+        for j in range(i + 1, len(out)):
+            b = out[j]
+            sa, sb = _slope(a), _slope(b)
+            if sa is None or sb is None or abs(sa - sb) < 0.01:
+                continue
+            for open_end, near in ((2, 0), (0, 2)):   # open at the right (meet at the left), or the other way
+                if abs(a[open_end] - b[open_end]) > 0.5 * space:
+                    continue
+                ya, yb = a[open_end + 1], b[open_end + 1]
+                if not 0.4 * space <= abs(ya - yb) <= 3 * space:
+                    continue
+                meet = (b[1] - sb * b[0] - a[1] + sa * a[0]) / (sa - sb)
+                start = min(a[near], b[near]) if near == 0 else max(a[near], b[near])
+                beyond = start - meet if near == 0 else meet - start
+                if not 0 < beyond <= HAIRPIN_REACH * space:
+                    continue
+                ym = a[1] + sa * (meet - a[0])
+                if near == 0:
+                    out[i], out[j] = (meet, ym, a[2], a[3], a[4]), (meet, ym, b[2], b[3], b[4])
+                else:
+                    out[i], out[j] = (a[0], a[1], meet, ym, a[4]), (b[0], b[1], meet, ym, b[4])
+                a = out[i]
+                break
+    return out
+
+
+def _slope(t):
+    return (t[3] - t[1]) / (t[2] - t[0]) if t[2] - t[0] > 0 else None
+
+
+def _along_thin(line, thin, space):
+    """The level line (y, x0, x1, thickness) lies along a sloping thin
+    line at both its ends: a piece of that line taken as level."""
+    y, x0, x1, _ = line
+    for tx0, ty0, tx1, ty1, _ in thin:
+        if tx1 - tx0 <= 0 or x0 < tx0 - 0.5 * space or x1 > tx1 + 0.5 * space:
+            continue
+        at = lambda x: ty0 + (ty1 - ty0) * (min(max(x, tx0), tx1) - tx0) / (tx1 - tx0)
+        if abs(at(x0) - y) <= 0.25 * space and abs(at(x1) - y) <= 0.25 * space:
+            return True
+    return False
 
 
 def dashed_lines(ink, space):
@@ -867,6 +942,8 @@ def find_lines(grey, symbol_boxes=(), flag_boxes=(), rest_boxes=()):
     pale = ((grey < CURVE_END_INK) & ~ink & ~other) | left
     found.curves = [extend_curve(c, pale, space) for c in join_curves(found.curves, space)]
     found.thin = [t for t in found.thin if not _on_staff_line(t, found.level, space)]
+    found.thin = meet_arms(found.thin, space)
+    found.level = [l for l in found.level if not _along_thin(l, found.thin, space)]
     found.dashed = dashed_lines(clean & ~mask if mask is not None else clean, space)
     found.level = [l for l in found.level if not _in_dashed(l, found.dashed, space)]
     return found
