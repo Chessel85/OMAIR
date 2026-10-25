@@ -203,6 +203,31 @@ def test_two_endings_drawn_with_one_joined_line():
     assert structure.system_endings(page, system, [line]) == [(1, 1, "1", True), (2, 2, "1", True)]
 
 
+def test_a_boxed_rehearsal_mark_is_not_an_ending():
+    # the frame round a rehearsal mark "2" has a hook down at each end, just
+    # past the number
+    from types import SimpleNamespace
+
+    staff = SimpleNamespace(top=100.0, space=5.0)
+    bars = [SimpleNamespace(x0=x0, x1=x1, end=object()) for x0, x1 in ((50, 100), (100, 200))]
+    system = SimpleNamespace(staves=[staff], bars=bars, x0=50.0, x1=200.0)
+    page = SimpleNamespace(text=[SimpleNamespace(text="2", box=(103.0, 85.0, 110.0, 97.0))],
+                           verticals=[(100.0, 83.0, 98.0, 1.0), (113.0, 83.0, 98.0, 1.0)])
+    line = layout._Line(83.0, 100.0, 113.0, 1.0)
+    assert structure.system_endings(page, system, [line]) == []
+
+
+def test_text_read_from_an_image_is_not_a_clef_octave_mark():
+    # an "8" just above a treble clef: from a PDF it is the clef's octave
+    # mark; read from a page image it may be the end of a bar number
+    from types import SimpleNamespace
+
+    clef = SimpleNamespace(name="gClef", box=(46.7, 571.3, 60.1, 607.7), size=20.0)
+    run = lambda font: SimpleNamespace(text="8", box=(48.2, 561.6, 54.0, 571.7), font=font)
+    assert structure._octave_digits(SimpleNamespace(symbols=[], text=[run("Edwin")]), clef) == 1
+    assert structure._octave_digits(SimpleNamespace(symbols=[], text=[run("image")]), clef) == 0
+
+
 def test_a_one_line_percussion_staff():
     # a five-line staff, then a single line with a percussion clef on it
     from types import SimpleNamespace

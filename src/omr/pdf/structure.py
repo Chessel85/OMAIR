@@ -365,10 +365,13 @@ def _clef_digits(page_layout, clef):
 def _octave_digits(page_layout, clef):
     """The octave change shown by a small 8 or 15 at a clef (LilyPond writes
     an octave clef this way), drawn as music digits or as text: -1 for an 8
-    below, +2 for a 15 above; 0 if none."""
+    below, +2 for a 15 above; 0 if none. Text read from a page image is
+    not used: the detector reads an octave clef whole, and a bar number
+    above the clef, cut short by its text box, can read as an 8."""
     marks = [(TIME_DIGITS[d.name], d.box) for d in _clef_digits(page_layout, clef)]
     marks += [(run.text.strip(), run.box) for run in page_layout.text
-              if run.text.strip() in ("8", "15", "22") and _at_clef(clef, run.box)]
+              if run.text.strip() in ("8", "15", "22") and not run.font.startswith("image")
+              and _at_clef(clef, run.box)]
     if not marks:
         return 0
     marks.sort(key=lambda m: m[1][0])
@@ -558,6 +561,9 @@ def system_endings(page_layout, system, horizontals):
                        if line.x0 + space <= x <= line.x1 + 0.6 and t <= line.y + 0.5 and b >= line.y + space)
         stop_x = hooks[0] if hooks else line.x1
         closed = bool(hooks)
+        # A box round a rehearsal mark ends at its number; a volta runs on.
+        if stop_x - run.box[2] < space:
+            continue
         start = _bar_of(system, line.x0 + 0.5 * space)
         end = _bar_of(system, stop_x - 0.5 * space)
         if start is None:
