@@ -249,6 +249,48 @@ def test_verovio_svg_fix_adds_stroke_and_unwraps_inner_svg():
     assert fixed.count("<svg") == 1 and fixed.count("</svg>") == 1
 
 
+def keyed_score(tmp_path, second_part_keys):
+    """Two parts of three bars; the first changes key to 1 sharp in bar 3."""
+    def part(pid, keys):
+        bars = ""
+        for m in (1, 2, 3):
+            key = f"<attributes><key><fifths>{keys[m]}</fifths></key></attributes>" if m in keys else ""
+            bars += f'<measure number="{m}">{key}<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration></note></measure>'
+        return f'<part id="{pid}">{bars}</part>'
+    xml = ('<score-partwise><part-list><score-part id="P1"><part-name>A</part-name></score-part>'
+           '<score-part id="P2"><part-name>B</part-name></score-part></part-list>'
+           + part("P1", {1: 0, 3: 1}) + part("P2", second_part_keys) + "</score-partwise>")
+    path = tmp_path / "score.musicxml"
+    path.write_text(xml, encoding="utf-8")
+    return path
+
+
+def verovio_mei(measures):
+    """Verovio's MEI as it comes from a MusicXML file: one key for every staff at bar 3."""
+    bars = "".join(f'<measure n="{m}"/>' for m in range(1, measures + 1))
+    bars = bars.replace('<measure n="3"/>', '<scoreDef xml:id="k"><keySig sig="1s"/></scoreDef><measure n="3"/>')
+    return (f'<mei xmlns="http://www.music-encoding.org/ns/mei"><music><body><mdiv><score>'
+            f'<scoreDef><staffGrp><staffDef n="1"/><staffDef n="2"/></staffGrp></scoreDef>'
+            f'<section>{bars}</section></score></mdiv></body></music></mei>')
+
+
+def test_verovio_keys_are_given_to_each_staff(tmp_path):
+    source = keyed_score(tmp_path, {1: 2, 3: -1})
+    fixed = engravers.fix_verovio_keys(verovio_mei(3), source)
+    assert 'xml:id="k"' not in fixed
+    assert '<staffDef n="1"><keySig sig="1s" /></staffDef><staffDef n="2"><keySig sig="1f" /></staffDef>' in fixed
+    assert fixed.index("<staffGrp><staffDef n=\"1\"><keySig") < fixed.index('<measure n="3"')
+
+
+def test_verovio_keys_left_alone_when_staves_change_alike(tmp_path):
+    assert engravers.fix_verovio_keys(verovio_mei(3), keyed_score(tmp_path, {1: 0, 3: 1})) is None
+
+
+def test_verovio_keys_refused_when_bars_do_not_line_up(tmp_path):
+    with pytest.raises(engravers.ExportError):
+        engravers.fix_verovio_keys(verovio_mei(4), keyed_score(tmp_path, {1: 0}))
+
+
 def test_all_expected_font_names_have_a_pdf_name():
     for font in list(engravers.MUSESCORE4_FONTS) + list(engravers.MUSESCORE3_FONTS):
         assert font in engravers.PDF_FONT_NAMES

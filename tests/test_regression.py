@@ -18,7 +18,7 @@ spec.loader.exec_module(check)
 
 def test_repository_set_and_baseline_agree():
     pairs, failures = harness.read_pairs("regression", check.SET_ROOT)
-    assert len(pairs) == 256 and failures == 2
+    assert len(pairs) == 254 and failures == 4
     assert all(p.pdf.is_file() and p.truth.is_file() for p in pairs)
     baseline = check.read_baseline(check.BASELINE)
     assert set(baseline) == {"perfect", "damaged"}

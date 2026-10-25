@@ -58,6 +58,8 @@ Verovio writes SVG, not PDF. The corpus converts the SVG to PDF with PyMuPDF, wh
 - Then `pymupdf.open(stream=svg_bytes, filetype="svg").convert_to_pdf()` gives a one-page PDF. Join the pages with `insert_pdf`.
 - Set the PDF creator to the Verovio version, because the converted file has no metadata.
 
+Verovio's MusicXML import takes key changes after the first bar from the top part only and gives that key to every staff (Verovio issue 3877, open, with no plan to fix it). Where parts change key differently (transposing instruments, or a key change in some parts only), the page shows wrong keys, and notes without a written accidental then read as other pitches. So when the staves' key changes differ, the exporter (`fix_verovio_keys`) takes Verovio's MEI, removes the keys Verovio placed after the start, puts a key for each changing staff before the bar where it changes, and loads the MEI again before drawing. Verovio draws the naturals that cancel the old key only when the whole score changes to no sharps or flats, not when one staff does; without them a change to no sharps or flats inside a system shows nothing at all. So at a bar where any staff changes to no sharps or flats, the inserted change sets the whole score to none and gives every staff whose key is not none its key again. If Verovio's bar count differs from the MusicXML's, the keys cannot be placed and the export fails, so no pair is made.
+
 The music symbols in the result are filled outlines, not font characters, so these are Type B pages. Text (titles, lyrics) stays as real text in Times.
 
 ## Running several exports at once

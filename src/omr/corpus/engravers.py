@@ -13,6 +13,7 @@ import shutil
 import struct
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -300,6 +301,91 @@ def fix_verovio_svg(svg):
     return re.sub(r'(<[^>]*?)(\sstroke-width="[^"]*")', r'\1 stroke="black"\2', svg)
 
 
+MEI_NS = "{http://www.music-encoding.org/ns/mei}"
+
+
+def staff_key_changes(source):
+    """Key changes after the first bar, as {staff number: {bar index: fifths}}, with
+    staves numbered down the score as Verovio numbers them; also each staff's
+    first key, {staff number: fifths}, and the bar count."""
+    from omr.corpus.labels import read_musicxml
+
+    changes, start, first, bars = {}, {}, 1, 0
+    for part in read_musicxml(source).findall("part"):
+        measures = part.findall("measure")
+        bars = bars or len(measures)
+        staves = max([int(s.text) for s in part.iter("staves")] or [1])
+        changes.update({first + s: {} for s in range(staves)})
+        current = {}
+        for i, measure in enumerate(measures):
+            for key in measure.iter("key"):
+                if key.findtext("fifths") is None:
+                    continue
+                fifths = int(key.findtext("fifths"))
+                local = [int(key.get("number"))] if key.get("number") else range(1, staves + 1)
+                for s in local:
+                    n = first + s - 1
+                    if current.get(n) != fifths:
+                        current[n] = fifths
+                        if i > 0:
+                            changes[n][i] = fifths
+                        else:
+                            start[n] = fifths
+        first += staves
+    return changes, start, bars
+
+
+def fix_verovio_keys(mei, source):
+    """Give each staff its own key changes (see tool-commands.md).
+
+    Verovio applies the top part's key changes to every staff, so where parts change
+    key differently (transposing instruments, a change in some parts only) the page
+    shows the wrong keys. Returns None when every staff changes key alike.
+
+    Verovio draws the naturals that cancel the old key only for a change to no
+    sharps or flats made for the whole score, not for one staff. So at a bar where
+    a staff changes to no sharps or flats, the whole score changes to none, and
+    every staff whose key is not none is given its key again."""
+    changes, start, bars = staff_key_changes(source)
+    if len({tuple(sorted(c.items())) for c in changes.values()}) <= 1:
+        return None
+    ET.register_namespace("", MEI_NS[1:-1])
+    root = ET.fromstring(mei)
+    score = root.find(f".//{MEI_NS}score")
+    measures = list(score.iter(f"{MEI_NS}measure"))
+    if len(measures) != bars:
+        raise ExportError(f"parts change key differently, and Verovio has {len(measures)} bars "
+                          f"where the MusicXML has {bars}, so the keys cannot be placed")
+    parents = {child: parent for parent in score.iter() for child in parent}
+    first = score.find(f"{MEI_NS}scoreDef")
+    for score_def in list(score.iter(f"{MEI_NS}scoreDef")):
+        if score_def is first:
+            continue
+        for key in list(score_def.iter(f"{MEI_NS}keySig")):
+            parents[key].remove(key)
+        if len(score_def) == 0 and set(score_def.attrib) <= {"{http://www.w3.org/XML/1998/namespace}id"}:
+            parents[score_def].remove(score_def)
+    by_bar = {}
+    for n, staff_changes in changes.items():
+        for i, fifths in staff_changes.items():
+            by_bar.setdefault(i, {})[n] = fifths
+    current = {n: start.get(n, 0) for n in changes}
+    for i, staves in sorted(by_bar.items()):
+        current.update(staves)
+        score_def = ET.Element(f"{MEI_NS}scoreDef")
+        if 0 in staves.values():
+            ET.SubElement(score_def, f"{MEI_NS}keySig", {"sig": "0"})
+            staves = {n: fifths for n, fifths in current.items() if fifths != 0}
+        group = ET.SubElement(score_def, f"{MEI_NS}staffGrp") if staves else None
+        for n, fifths in sorted(staves.items()):
+            staff_def = ET.SubElement(group, f"{MEI_NS}staffDef", {"n": str(n)})
+            sig = "0" if fifths == 0 else f"{abs(fifths)}{'s' if fifths > 0 else 'f'}"
+            ET.SubElement(staff_def, f"{MEI_NS}keySig", {"sig": sig})
+        parent = parents[measures[i]]
+        parent.insert(list(parent).index(measures[i]), score_def)
+    return ET.tostring(root, encoding="unicode")
+
+
 def export_verovio(source, out_dir):
     """Render with Verovio to SVG, then convert each page to PDF with PyMuPDF."""
     import pymupdf
@@ -311,6 +397,9 @@ def export_verovio(source, out_dir):
     tk.setOptions({"svgViewBox": True, "svgRemoveXlink": True, "scale": 40})
     if not tk.loadFile(str(source)):
         raise ExportError("Verovio could not load the MusicXML file")
+    fixed = fix_verovio_keys(tk.getMEI(), source)
+    if fixed and not tk.loadData(fixed):
+        raise ExportError("Verovio could not load the MEI with the keys fixed")
     version = tk.getVersion()
     doc = pymupdf.open()
     for page in range(1, tk.getPageCount() + 1):
