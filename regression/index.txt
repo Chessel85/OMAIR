@@ -59,7 +59,7 @@ pair | os-lc6159296 | musescore3-variant | Bravura | os-lc6159296/musescore3-var
 pair | os-lc6159296 | musescore4-base | Leland | os-lc6159296/musescore4-base/score.pdf | os-lc6159296/musescore4-base/score.musicxml
 pair | os-lc6159296 | musescore4-variant | Gonville | os-lc6159296/musescore4-variant/score.pdf | os-lc6159296/musescore4-variant/score.musicxml
 pair | os-lc6159296 | verovio | Verovio | os-lc6159296/verovio/score.pdf | os-lc6159296/reference.musicxml
-pair | pdmx-uw8HyodcyZJ9 | lilypond | Emmentaler | pdmx-uw8HyodcyZJ9/lilypond/score.pdf | pdmx-uw8HyodcyZJ9/reference.musicxml
+failure | pdmx-uw8HyodcyZJ9 | lilypond |  |  | musicxml2ly changed the music: 88.6 percent of the reference's notes are in LilyPond's MIDI within their bar, at least 99 needed
 pair | pdmx-uw8HyodcyZJ9 | musescore3-base | Emmentaler | pdmx-uw8HyodcyZJ9/musescore3-base/score.pdf | pdmx-uw8HyodcyZJ9/reference.musicxml
 pair | pdmx-uw8HyodcyZJ9 | musescore3-variant | Gonville | pdmx-uw8HyodcyZJ9/musescore3-variant/score.pdf | pdmx-uw8HyodcyZJ9/reference.musicxml
 pair | pdmx-uw8HyodcyZJ9 | musescore4-base | Leland | pdmx-uw8HyodcyZJ9/musescore4-base/score.pdf | pdmx-uw8HyodcyZJ9/musescore4-base/score.musicxml
@@ -239,7 +239,7 @@ pair | pdmx-NWcJLsfh4JTK | musescore3-variant | Bravura | pdmx-NWcJLsfh4JTK/muse
 pair | pdmx-NWcJLsfh4JTK | musescore4-base | Leland | pdmx-NWcJLsfh4JTK/musescore4-base/score.pdf | pdmx-NWcJLsfh4JTK/musescore4-base/score.musicxml
 pair | pdmx-NWcJLsfh4JTK | musescore4-variant | Finale Maestro | pdmx-NWcJLsfh4JTK/musescore4-variant/score.pdf | pdmx-NWcJLsfh4JTK/musescore4-variant/score.musicxml
 pair | pdmx-NWcJLsfh4JTK | verovio | Verovio | pdmx-NWcJLsfh4JTK/verovio/score.pdf | pdmx-NWcJLsfh4JTK/reference.musicxml
-pair | pdmx-AAaVWxuayxuK | lilypond | Emmentaler | pdmx-AAaVWxuayxuK/lilypond/score.pdf | pdmx-AAaVWxuayxuK/reference.musicxml
+failure | pdmx-AAaVWxuayxuK | lilypond |  |  | musicxml2ly changed the music: 89.4 percent of the reference's notes are in LilyPond's MIDI within their bar, at least 99 needed
 pair | pdmx-AAaVWxuayxuK | musescore3-base | Emmentaler | pdmx-AAaVWxuayxuK/musescore3-base/score.pdf | pdmx-AAaVWxuayxuK/reference.musicxml
 pair | pdmx-AAaVWxuayxuK | musescore3-variant | Gonville | pdmx-AAaVWxuayxuK/musescore3-variant/score.pdf | pdmx-AAaVWxuayxuK/reference.musicxml
 pair | pdmx-AAaVWxuayxuK | musescore4-base | Leland | pdmx-AAaVWxuayxuK/musescore4-base/score.pdf | pdmx-AAaVWxuayxuK/musescore4-base/score.musicxml

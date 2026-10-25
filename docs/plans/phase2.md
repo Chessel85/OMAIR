@@ -171,7 +171,7 @@ Done when: the gate (as agreed) is met and the report is signed off.
 7. Stage 2.7 needs 2.4 and 2.6. Stage 2.8 needs only 2.4 and can start early on the vector path.
 8. Stage 2.9, then Stage 2.10.
 
-Phase 3 (braille and reporting) overlaps Phase 2, as the design says. It is blocked on the owner's braille question (OI-1), not on this plan. The five open owner decisions on reference faults (`error-triage.md`, causes 14 to 17 and 19) change the figures for both paths and do not block Phase 2. Vector work can resume whenever the work loop is useful, because fixes to the shared assembly lift both paths.
+Phase 3 (braille and reporting) overlaps Phase 2, as the design says. It is blocked on the owner's braille question (OI-1), not on this plan. The four open owner decisions on reference faults (`error-triage.md`, causes 15 to 17 and 19) change the figures for both paths and do not block Phase 2. Vector work can resume whenever the work loop is useful, because fixes to the shared assembly lift both paths.
 
 ## Risks specific to Phase 2
 

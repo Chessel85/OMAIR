@@ -1,0 +1,1 @@
+musicxml2ly changed the music: 89.4 percent of the reference's notes are in LilyPond's MIDI within their bar, at least 99 needed

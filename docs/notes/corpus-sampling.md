@@ -148,6 +148,8 @@ That makes 6 exports per score: about 1,800 pairs for the development set and 30
 
 Every export is checked with the inspector's JSON output before it is accepted: the music font must be the one requested, and every page must be Type A (MuseScore and LilyPond) or Type B (Verovio). MuseScore uses Bravura without any error when a requested font is missing, so without this check a wrong font would go unnoticed.
 
+A LilyPond export is also checked for its music, because musicxml2ly sometimes moves or drops notes, so the PDF shows other music than the reference. LilyPond writes a MIDI file from the same score block it prints, and its note starts are compared with the reference's bar by bar (`src/omr/corpus/lilypond_check.py`). The export fails unless at least 99 percent of the reference's notes are found. `scripts/check_lilypond_pairs.py --reject` applies the same check to pairs already made.
+
 ## Metadata for each pair
 
 A small text file beside each pair, with one "name: value" line each: source (PDMX or OpenScore) and source path, work key, title, composer, set (development or regression), texture, genre, features, engraver, engraver version, font, staff size, ground truth file and ground truth (as above), the difference from the shared reference (MuseScore 4 only), seed, and the date of export.

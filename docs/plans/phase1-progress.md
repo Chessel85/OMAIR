@@ -81,5 +81,5 @@ Last updated 17 October 2026. **Phase 1 is closed:** the owner signed it off wit
 ## Next steps
 
 1. Phase 2 (clean raster input): draft `docs/plans/phase2.md` from the solution design, section 6, and the Phase 2 decisions in `docs/notes/training-benchmark.md`.
-2. The owner's decisions on the five proposals in `error-triage.md`. They change the figures, not the reader, and do not block Phase 2.
+2. The owner's decisions on the four proposals still open in `error-triage.md` (causes 15 to 17 and 19; the LilyPond pairs were decided on 25 October 2026). They change the figures, not the reader, and do not block Phase 2.
 3. Vector work, whenever it resumes: the work loop from the ranking in `error-triage.md`, and the confidence rules first, so ACC-4 recovers.

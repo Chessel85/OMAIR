@@ -27,6 +27,7 @@ Checked on 5 October 2026 on the development laptop (Windows 11). All commands r
 - Checked: it converted a one-bar MusicXML file to `.ly`. Rendering it with `lilypond.exe -o out in.ly` also worked and produced a PDF.
 
 - musicxml2ly can be very slow on large files. On a 610 KB MusicXML file (the Maple Leaf Rag as written by music21) it ran for more than 30 minutes before it was stopped. The corpus generator must run it with a time limit (5 minutes is suggested) and record a timeout as a failure.
+- musicxml2ly's `--midi` option is not used. Its MIDI block plays the parts one after another, not together, unfolds repeats and changes note lengths for playback. The export's music check instead copies the `.ly` file with its `\layout {}` replaced by a `\midi` block, so the MIDI comes from the same score block as the PDF.
 - LilyPond PDFs use the font Emmentaler-20 with no usable Unicode values: every music character comes out as U+FFFD, and only the glyph ID identifies the symbol.
 
 ## Music fonts and staff size in MuseScore

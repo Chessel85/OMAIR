@@ -2,8 +2,8 @@
 
 ## What it is
 
-- `regression/` in the repository holds the fixed regression set: 43 scores, 256 PDF and MusicXML pairs, 32.5 MB. It is a copy of `generated/regression` on the corpus drive, made by `scripts/make_regression_snapshot.py`, because CI cannot reach that drive. All the scores are by composers on the public-domain list (C-4). The size is far below GitHub's limits (100 MB for one file, and the repository should stay under 1 GB).
-- `regression/index.txt` lists every pair, with paths relative to the index, so `omr evaluate --set regression --set-root regression ...` works on any machine. Two LilyPond failures are listed as failures and skipped, as on the corpus drive.
+- `regression/` in the repository holds the fixed regression set: 43 scores, 254 PDF and MusicXML pairs, 32.5 MB. It is a copy of `generated/regression` on the corpus drive, made by `scripts/make_regression_snapshot.py`, because CI cannot reach that drive. All the scores are by composers on the public-domain list (C-4). The size is far below GitHub's limits (100 MB for one file, and the repository should stay under 1 GB).
+- `regression/index.txt` lists every pair, with paths relative to the index, so `omr evaluate --set regression --set-root regression ...` works on any machine. Four LilyPond exports are listed as failures and skipped, as on the corpus drive: two failed in LilyPond, and two were rejected on 25 October 2026 by the music check (`error-triage.md`, cause 14).
 - `regression/baseline.txt` is the recorded result, in plain text, one line per figure: `recogniser | figure | value`. Because it is plain text, a change in accuracy shows up in an ordinary `git diff`.
 
 ## What the check does

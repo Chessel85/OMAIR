@@ -67,13 +67,14 @@ Phase 1 is closed. The owner signed it off on 17 October 2026 with the shortfall
 
 ## Open owner decisions
 
-These change the figures, not the reader, and do not block Phase 2. Details and counts are in `docs/notes/error-triage.md`, causes 14 to 17 and 19.
+These change the figures, not the reader, and do not block Phase 2. Details and counts are in `docs/notes/error-triage.md`, causes 15 to 17 and 19.
 
-1. Drop or redraw the faulty LilyPond pairs, and reject new pairs with many musicxml2ly warnings at export.
-2. Treat Verovio files that print one key for parts in different keys as faulty pairs.
-3. Count a barline in the middle of a reference bar as a bar boundary.
-4. Read D.S., D.C., Fine, coda and segno stored as plain words in the reference as navigation.
-5. Compare a repeat's play count only where the page prints one.
+1. Treat Verovio files that print one key for parts in different keys as faulty pairs.
+2. Count a barline in the middle of a reference bar as a bar boundary.
+3. Read D.S., D.C., Fine, coda and segno stored as plain words in the reference as navigation.
+4. Compare a repeat's play count only where the page prints one.
+
+The faulty LilyPond pairs were decided on 25 October 2026: a music check at export rejects them, and was applied to the pairs already made (`error-triage.md`, cause 14).
 
 ## Where to resume vector work
 

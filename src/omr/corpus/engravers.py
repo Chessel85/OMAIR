@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -223,8 +224,47 @@ def run_musescore3_convert(source, target, timeout=300):
         raise ExportError("MuseScore 3 reported success but wrote no file")
 
 
+def lilypond_music_share(source, ly, lily, timeout=300):
+    """The share of the reference's notes found in the music musicxml2ly wrote
+    to `ly` (lilypond_check.py). ExportError if the check cannot run."""
+    from omr.corpus import lilypond_check
+
+    ly = Path(ly)
+    midi_ly = ly.with_name(ly.stem + "-midi.ly")
+    try:
+        midi_ly.write_text(lilypond_check.midi_version(ly.read_text(encoding="utf-8")), encoding="utf-8")
+    except lilypond_check.CheckError as error:
+        raise ExportError(f"the music check could not run: {error}")
+    _run([lily, "-o", str(midi_ly.with_suffix("")), str(midi_ly)], timeout, "LilyPond MIDI")
+    midis = sorted(midi_ly.parent.glob(midi_ly.stem + ".mid*"))
+    if not midis:
+        raise ExportError("LilyPond reported success but wrote no MIDI for the music check")
+    try:
+        return lilypond_check.share_found(source, midis[0])
+    except (ValueError, IndexError, struct.error) as error:   # CheckError, MusicXMLError, a cut-short file
+        raise ExportError(f"the music check could not read LilyPond's MIDI: {error}")
+
+
+def lilypond_music_failure(share):
+    """The failure reason for a share of notes found, or None if it is enough."""
+    from omr.corpus import lilypond_check
+
+    if share >= lilypond_check.MIN_NOTES_IN_BAR:
+        return None
+    return (f"musicxml2ly changed the music: {100 * share:.1f} percent of the reference's notes "
+            f"are in LilyPond's MIDI within their bar, at least {100 * lilypond_check.MIN_NOTES_IN_BAR:g} needed")
+
+
+def check_lilypond_music(source, ly, lily, timeout=300):
+    """Raise ExportError unless musicxml2ly kept the reference's music."""
+    failure = lilypond_music_failure(lilypond_music_share(source, ly, lily, timeout))
+    if failure:
+        raise ExportError(failure)
+
+
 def export_lilypond(source, out_dir, timeout=300):
-    """Export a PDF through musicxml2ly and LilyPond. A timeout is a failure."""
+    """Export a PDF through musicxml2ly and LilyPond. A timeout is a failure,
+    and so is music that musicxml2ly changed (check_lilypond_music)."""
     paths = lilypond_paths()
     if not paths:
         raise ExportError("LilyPond or musicxml2ly was not found")
@@ -235,6 +275,7 @@ def export_lilypond(source, out_dir, timeout=300):
         tmp = Path(tmp)
         ly = tmp / "score.ly"
         _run([*converter, "-o", str(ly), str(source)], timeout, "musicxml2ly")
+        check_lilypond_music(source, ly, lily, timeout)
         _run([lily, "-o", str(tmp / "score"), str(ly)], timeout, "LilyPond")
         made = tmp / "score.pdf"
         if not made.is_file():

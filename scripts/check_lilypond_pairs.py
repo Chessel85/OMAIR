@@ -1,20 +1,23 @@
-"""Find LilyPond pairs whose PDF may not show the music of their ground truth.
+"""Find LilyPond pairs whose PDF does not show the music of their ground truth.
 
 The LilyPond pairs are made by musicxml2ly and LilyPond from the reference
 MusicXML (corpus-sampling.md). Where musicxml2ly loses track of time in a bar
-it warns "Negative skip", and the notes it writes after that are moved or
-lost, so the PDF does not show the ground truth. This script converts each
-reference again (musicxml2ly only, no PDF) and counts those warnings. With a
-results.json of `omr evaluate` it adds the reader's note accuracy on the
-LilyPond pair and its best accuracy on another engraving of the same score:
-a pair with many warnings that reads far worse than the other engravings is
-a faulty pair, not a reader fault.
+it warns "Negative skip", and the notes it writes after that may be moved or
+lost. This script converts each reference again and runs the export's music
+check (src/omr/corpus/lilypond_check.py): LilyPond's MIDI of the same music,
+compared with the reference bar by bar. The warning count is listed beside it;
+it points at the faulty pairs but is not proof.
 
-(Comparing LilyPond's MIDI with the reference was tried and dropped: repeats
-and the split of parts into tracks made perfect pairs score low.)
+With a results.json of `omr evaluate` it adds the reader's note accuracy on the
+LilyPond pair and its best accuracy on another engraving of the same score.
+
+With --reject, each pair that fails the check is made a failure, as the export
+would have made it: failure.txt is written in its folder, its metadata.txt is
+removed, and its line in the set's index.txt and in the index.txt of each
+raster version of the set (generated/raster/SET-*) becomes a failure line.
 
 usage: python scripts/check_lilypond_pairs.py OUT.txt [IDS...] [--results RESULTS.json]
-                                              [--set development] [--workers N]
+                                              [--set development] [--workers N] [--reject]
 """
 
 import argparse
@@ -29,15 +32,22 @@ from omr import paths
 from omr.corpus import engravers
 
 
-def count_warnings(score_id, reference):
-    _, converter = engravers.lilypond_paths()
+def check_pair(score_id, reference):
+    """(score id, Negative skip warnings, share of notes found, failure reason or None)."""
+    lily, converter = engravers.lilypond_paths()
     with tempfile.TemporaryDirectory() as tmp:
+        ly = Path(tmp) / "score.ly"
         try:
-            made = subprocess.run([*converter, "-o", str(Path(tmp) / "score.ly"), str(reference)],
-                                  capture_output=True, text=True, timeout=300)
+            made = subprocess.run([*converter, "-o", str(ly), str(reference)],
+                                  capture_output=True, text=True, errors="replace", timeout=300)
         except subprocess.TimeoutExpired:
-            return score_id, None
-    return score_id, made.stderr.count("Negative skip")
+            return score_id, None, None, "musicxml2ly timed out after 300 seconds"
+        warnings = made.stderr.count("Negative skip")
+        try:
+            share = engravers.lilypond_music_share(reference, ly, lily)
+        except engravers.ExportError as error:
+            return score_id, warnings, None, str(error)
+    return score_id, warnings, share, engravers.lilypond_music_failure(share)
 
 
 def accuracies(results_path):
@@ -53,6 +63,24 @@ def accuracies(results_path):
     return out
 
 
+def reject(root, set_name, failed):
+    """Make each failed pair a failure in its folder and in every index of the set."""
+    for sid, reason in failed.items():
+        job = root / "generated" / set_name / sid / "lilypond"
+        (job / "failure.txt").write_text(reason + "\n", encoding="utf-8")
+        (job / "metadata.txt").unlink(missing_ok=True)
+    indexes = [root / "generated" / set_name / "index.txt"]
+    indexes += sorted((root / "generated" / "raster").glob(f"{set_name}-*/index.txt"))
+    for index in indexes:
+        lines = index.read_text(encoding="utf-8").splitlines()
+        for i, line in enumerate(lines):
+            fields = line.split(" | ")
+            if fields[0] == "pair" and fields[2] == "lilypond" and fields[1] in failed:
+                lines[i] = " | ".join(["failure", fields[1], "lilypond", "", "", failed[fields[1]]])
+        index.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return indexes
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("out")
@@ -60,8 +88,10 @@ def main():
     parser.add_argument("--results")
     parser.add_argument("--set", default="development")
     parser.add_argument("--workers", type=int, default=3)
+    parser.add_argument("--reject", action="store_true")
     args = parser.parse_args()
-    index = paths.require_corpus_dir() / "generated" / args.set / "index.txt"
+    root = paths.require_corpus_dir()
+    index = root / "generated" / args.set / "index.txt"
     pairs = []
     for line in index.read_text(encoding="utf-8").splitlines():
         fields = line.split(" | ")
@@ -69,23 +99,28 @@ def main():
             pairs.append((fields[1], fields[5]))
     found = {}
     with ProcessPoolExecutor(args.workers) as pool:
-        for future in as_completed([pool.submit(count_warnings, *p) for p in pairs]):
-            sid, n = future.result()
-            found[sid] = n
+        for future in as_completed([pool.submit(check_pair, *p) for p in pairs]):
+            sid, warnings, share, reason = future.result()
+            found[sid] = (warnings, share, reason)
     acc = accuracies(args.results) if args.results else {}
     rows = []
-    for sid, n in found.items():
+    for sid, (warnings, share, reason) in found.items():
         jobs = acc.get(sid, {})
-        lily = jobs.get("lilypond")
         others = [v for j, v in jobs.items() if j != "lilypond"]
-        rows.append((sid, n, lily, max(others) if others else None))
-    rows.sort(key=lambda r: (-(r[1] or 0), r[0]))
+        rows.append((sid, warnings, share, reason, jobs.get("lilypond"), max(others) if others else None))
+    rows.sort(key=lambda r: (r[3] is None, r[2] if r[2] is not None else -1, r[0]))
     fmt = lambda v: "none" if v is None else f"{100 * v:.1f}"
-    lines = ["# score id | Negative skip warnings | reader's LilyPond accuracy | best other engraving"]
-    lines += [f"{sid} | {'timeout' if n is None else n} | {fmt(lily)} | {fmt(best)}" for sid, n, lily, best in rows]
+    lines = ["# score id | kept or rejected | notes found within their bar | Negative skip warnings | "
+             "reader's LilyPond accuracy | best other engraving | reason"]
+    lines += [f"{sid} | {'rejected' if reason else 'kept'} | {fmt(share)} | "
+              f"{'none' if w is None else w} | {fmt(lily)} | {fmt(best)} | {reason or ''}"
+              for sid, w, share, reason, lily, best in rows]
     Path(args.out).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    flagged = [r for r in rows if r[1]]
-    print(f"{len(rows)} LilyPond pairs, {len(flagged)} with Negative skip warnings. Written to {args.out}.")
+    failed = {r[0]: r[3] for r in rows if r[3]}
+    print(f"{len(rows)} LilyPond pairs, {len(failed)} fail the music check. Written to {args.out}.")
+    if args.reject and failed:
+        for index in reject(root, args.set, failed):
+            print(f"Made failures in {index}.")
 
 
 if __name__ == "__main__":
