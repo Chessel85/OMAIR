@@ -199,6 +199,42 @@ def test_pickup_bar_and_split_bar_are_bars(tmp_path):
     assert accuracy(fig) == 1 and fig["structure"]["correct"]
 
 
+def test_middle_barline_is_a_bar_boundary(tmp_path):
+    middle = '<barline location="middle"><bar-style>regular</bar-style></barline>'
+    chant = (attributes() + note("C4") + note("D4") + middle + note("E4") + backup(12)
+             + note("G3", voice=2) + dynamic("p"))
+    truth = score(("Voice", [chant, four_quarters("G4 A4 B4 C5", first=" ")]))
+    s = events.read(write(tmp_path, "m.musicxml", truth))
+    assert [(b.number, b.length) for b in s.bars] == [("1", 2), ("1 after its middle barline", 1), ("2", 4)]
+    assert sorted((n.bar, n.onset, n.voice) for n in s.notes)[:4] == [(0, 0, "1"), (0, 1, "1"), (1, 0, "1"), (1, 0, "2")]
+    assert [(m.bar, m.onset) for m in s.markings] == [(1, 1)]
+    output = score(("Voice", [attributes() + note("C4") + note("D4"), note("E4") + backup(12) + note("G3", voice=2)
+                              + dynamic("p"), four_quarters("G4 A4 B4 C5", first=" ")]))
+    fig = compare(tmp_path, truth, output)
+    assert accuracy(fig) == 1 and fig["structure"]["correct"]
+
+
+def words(text, sound=""):
+    return f"<direction><direction-type><words>{text}</words></direction-type>{sound}</direction>"
+
+
+def test_navigation_stored_as_words_is_navigation(tmp_path):
+    truth = score(("Flute", [four_quarters() + words(""),
+                             four_quarters(first=" ") + words("Fine"),
+                             four_quarters(first=" ") + words("D.S. al Fine", '<sound dalsegno="segno"/>'),
+                             four_quarters(first=" ") + words('&lt;font size="17"&gt;&lt;/font&gt;To Coda')
+                             + words("Fine e basta")]))
+    s = events.read(write(tmp_path, "w.musicxml", truth))
+    assert sorted((e.bar, e.value) for e in s.structure if e.kind == "navigation") == [
+        (0, "segno"), (1, "fine"), (2, "dalsegno"), (3, "tocoda")]
+    sign = '<direction><direction-type><segno/></direction-type></direction>'
+    output = score(("Flute", [four_quarters() + sign, four_quarters(first=" ") + words("Fine", '<sound fine="yes"/>'),
+                              four_quarters(first=" ") + words("D.S. al Fine", '<sound dalsegno="segno"/>'),
+                              four_quarters(first=" ") + words("To Coda", '<sound tocoda="coda"/>')]))
+    fig = compare(tmp_path, truth, output)
+    assert fig["structure"]["correct"], fig["structure"]["mismatches"]
+
+
 def test_multi_bar_rest_with_and_without_the_count(tmp_path):
     counted = attributes(extra="<measure-style><multiple-rest>3</multiple-rest></measure-style>") + rest(48, whole_bar=True)
     plain = attributes() + rest(48, whole_bar=True)

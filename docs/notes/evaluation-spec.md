@@ -1,6 +1,6 @@
 # Evaluation harness specification (`omr evaluate`)
 
-Version 1.2, 9 October 2026, for Stage 6 of `docs/plans/phase0.md`. It covers DEV-1 and the metrics for ACC-1 to ACC-6 in `requirements.md`. The owner accepted the decisions listed at the end on 6 October 2026, decision 10 (clef errors) on 7 October 2026, and decision 11 (restated signatures) on 9 October 2026. This is the specification the harness implements and the code review checks against.
+Version 1.3, 25 October 2026, for Stage 6 of `docs/plans/phase0.md`. It covers DEV-1 and the metrics for ACC-1 to ACC-6 in `requirements.md`. The owner accepted the decisions listed at the end on 6 October 2026, decision 10 (clef errors) on 7 October 2026, decision 11 (restated signatures) on 9 October 2026, and decisions 12 (middle barlines) and 13 (navigation as words) on 25 October 2026. This is the specification the harness implements and the code review checks against.
 
 ## Purpose and principles
 
@@ -25,6 +25,7 @@ The harness reads both files with its own reader, built on the standard XML libr
 ### Bars
 
 - A **bar** is one `measure` element of a part, in written order. A pickup bar (`implicit="yes"`, often numbered 0) is a bar. So is the second half of a bar split at a repeat or a system break. Repeats and endings are not expanded.
+- A **middle barline** (`barline` with `location="middle"`, strictly inside the bar's content) ends a bar, in both files (decision 12). The music after it is a new bar, its positions measured from the barline. Its number is the measure's number followed by "after its middle barline" (with a count when there are several).
 - A **multi-bar rest** counts as the bars it stands for. MusicXML always writes each of those bars as its own `measure` element (the `multiple-rest` count only tells an engraver to draw them as one), so they are counted as written.
 - **Bar length** is how far the bar's content reaches: the largest end position of any note, rest or `forward` in the bar. It is used to join two bars when a barline is missing.
 - The printed number (`number` attribute) and, in the ground truth, the page and system (from `print` elements with `new-page` and `new-system`) are kept for the report. MuseScore 4 ground truth writes these, because its MusicXML comes from the same layout as its PDF.
@@ -44,6 +45,7 @@ Each note element that is visible (`print-object` is not "no") becomes one **not
 
 - **Rests** become rest events with part, staff, voice, onset and duration. A whole-bar rest (`rest measure="yes"`, or a rest with no type that fills the bar) has duration "whole bar". Rests are not in note accuracy. They help align bars and are reported as their own figure.
 - **Structure events**: clefs, key signatures, time signatures, repeat barlines, endings and navigation marks (segno, coda, D.C., D.S., Fine, To Coda), each with its bar and onset.
+- **Navigation stored as words** is navigation, in both files (decision 13). Words that begin like D.S., D.C. or Da capo, or To Coda, or are exactly Fine (the PDF reader's own patterns, `events.NAVIGATION_TEXT`), and words that are only a segno or coda sign (Unicode, or the SMuFL font characters MuseScore writes), each give one navigation mark in their bar, once for each time they are written. Formatting tags left in the words are ignored. Words beside a mark of the same value from a `sound` attribute or a `segno` or `coda` element, in the same part and bar, add nothing.
 - **Performance markings**: dynamics (each child of `dynamics`, such as p, mf or sfz) and hairpins (`wedge` start and stop), each with part, staff if given, bar and onset (including `offset`).
 
 ## Matching
@@ -230,3 +232,5 @@ Accepted by the owner on 6 October 2026.
 9. **Merging two voices into chords is a voice error** (accepted after the Opus review). Splitting a chord into voices is not.
 10. **A misread clef is one error** (owner, 7 October 2026). The notes under it are scored as if the clef had been read right, and the clef counts as one error in note accuracy as well as a structural mismatch (see "Clef errors"). Other errors that move many notes, such as a missed triplet, are not corrected, because that would complicate the evaluation too much.
 11. **Restated clefs, keys and time signatures are ignored** (owner, 9 October 2026). A clef, key or time signature equal to the one in force is dropped from both files before the structure is compared (see "Structural correctness"). Note accuracy does not change.
+12. **A middle barline is a bar boundary** (owner, 25 October 2026). On the page a barline inside a bar looks exactly like a barline between two bars, so no recogniser can tell them apart. Chant scores use them as phrase marks in bars a line long. The harness splits the bar there in both files (see "Bars").
+13. **Navigation stored as words is navigation** (owner, 25 October 2026). Many uploaders type D.S., Fine or a segno as plain text: MuseScore does not play it as a jump, but it prints the same. The reader finds the printed mark; the ground truth would otherwise have none. The harness reads such words as the reader does (see "Rests and markings"), and the reader applies the same rule to the words it reads.

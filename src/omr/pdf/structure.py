@@ -29,12 +29,7 @@ SHARP, FLAT, NATURAL = "accidentalSharp", "accidentalFlat", "accidentalNatural"
 TIME_DIGITS = {f"timeSig{i}": str(i) for i in range(10)}
 TIME_SYMBOLS = {"timeSigCommon": "4/4", "timeSigCutCommon": "2/2"}
 NAVIGATION_GLYPHS = {"segno": "segno", "segnoSerpent1": "segno", "coda": "coda", "codaSquare": "coda"}
-NAVIGATION_TEXT = (
-    (re.compile(r"^\s*D\.?\s*S\.?", re.I), "dalsegno"),
-    (re.compile(r"^\s*D\.?\s*C\.?|^\s*da\s+capo", re.I), "dacapo"),
-    (re.compile(r"^\s*to\s+coda", re.I), "tocoda"),
-    (re.compile(r"^\s*fine\s*$", re.I), "fine"),
-)
+NAVIGATION_TEXT = events.NAVIGATION_TEXT   # the harness reads words in the ground truth the same way
 # "1.", "2", "1, 2.", "1.-3.": ending numbers
 ENDING_TEXT = re.compile(r"^\s*\d+\s*(?:[,.\-–]\s*\d+\s*)*\.?\s*$")
 
@@ -713,6 +708,8 @@ def read_pdf(path, notes=False):
         score = read_structure(layouts, assigned)
         if notes:
             notation.read_notes(score, assigned[0], use, layouts)
+            # Jump words read as text that system_navigation did not take are still jumps, as the harness reads them.
+            events.navigation_from_words(score)
         return score, layouts
     finally:
         doc.close()

@@ -5,7 +5,9 @@ events". Every position is an exact fraction of a quarter note, measured from
 the start of the bar. Bars are counted in written order, repeats not expanded.
 """
 
+import bisect
 import collections
+import re
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass, field
@@ -22,6 +24,19 @@ TYPE_LENGTH = {
 WHOLE_BAR = "whole bar"  # the duration of a whole-bar rest
 SIGNATURE_KINDS = ("clef", "key", "time")
 NAVIGATION_SOUNDS = ("dacapo", "dalsegno", "fine", "tocoda")
+# Jump words, as the PDF reader finds them (omr.pdf.structure uses this list).
+NAVIGATION_TEXT = (
+    (re.compile(r"^\s*D\.?\s*S\.?", re.I), "dalsegno"),
+    (re.compile(r"^\s*D\.?\s*C\.?|^\s*da\s+capo", re.I), "dacapo"),
+    (re.compile(r"^\s*to\s+coda", re.I), "tocoda"),
+    (re.compile(r"^\s*fine\s*$", re.I), "fine"),
+)
+# The sign typed as words: Unicode, and the music font's own characters (SMuFL),
+# which MuseScore writes.
+NAVIGATION_SIGNS = {"\U0001D10B": "segno", "\U0001D10C": "coda", "": "segno", "": "segno",
+                    "": "coda", "": "coda"}
+MARKUP = re.compile(r"<[^>]*>")   # formatting tags left in words, such as <font size="17">
+
 STEP_SEMITONES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 
 
@@ -168,7 +183,34 @@ def from_root(root):
         raise MusicXMLError("the file has no parts")
     for index, part in enumerate(parts):
         _read_part(score, index, names.get(part.get("id"), ""), part)
+    navigation_from_words(score)
     return score
+
+
+def _navigation_value(text):
+    """The navigation mark that words stand for, or None."""
+    text = MARKUP.sub("", text).strip()
+    if text in NAVIGATION_SIGNS:
+        return NAVIGATION_SIGNS[text]
+    return next((value for pattern, value in NAVIGATION_TEXT if pattern.match(text)), None)
+
+
+def navigation_from_words(score):
+    """Jump words and signs written only as words are navigation marks (cause 17
+    in docs/notes/error-triage.md), one for each time they are printed, as the
+    PDF reader reads them. Words beside a mark of the same value in the same
+    part and bar (D.C. with its sound) add nothing."""
+    marked = collections.Counter((e.part, e.bar, e.value) for e in score.structure if e.kind == "navigation")
+    for m in score.markings:
+        if m.kind != "words":
+            continue
+        value = _navigation_value(m.value)
+        if not value:
+            continue
+        if marked[(m.part, m.bar, value)]:
+            marked[(m.part, m.bar, value)] -= 1
+        else:
+            score.structure.append(Marking("navigation", value, m.part, None, m.bar, m.onset))
 
 
 def restated(score):
@@ -229,6 +271,27 @@ def _notated(note, divisions, duration):
     return duration / divisions if divisions else Fraction(0), ""
 
 
+def _middle_barlines(measure, divisions):
+    """The positions of the barlines drawn inside the bar (location "middle"),
+    in order. Only those strictly inside the bar's content count."""
+    found = []
+    position = reach = Fraction(0)
+    for element in measure:
+        tag = element.tag
+        if tag == "attributes":
+            divisions = _number(element.findtext("divisions"), divisions) or divisions
+        elif tag == "backup":
+            position -= _number(element.findtext("duration")) / divisions
+        elif tag == "forward":
+            position += _number(element.findtext("duration")) / divisions
+        elif tag == "note" and element.find("chord") is None and element.find("grace") is None:
+            position += _number(element.findtext("duration")) / divisions
+        elif tag == "barline" and element.get("location") == "middle":
+            found.append(position)
+        reach = max(reach, position)
+    return sorted({p for p in found if 0 < p < reach})
+
+
 def _read_part(score, part_index, name, part):
     divisions = 1
     staves = 1
@@ -236,10 +299,20 @@ def _read_part(score, part_index, name, part):
     first_part = part_index == 0
     bar_index = 0
     for measure in part.findall("measure"):
+        # A barline in the middle of the bar starts a new bar (cause 16 in
+        # docs/notes/error-triage.md): the page cannot tell it from a bar end.
+        cuts = _middle_barlines(measure, divisions)
+        starts = [Fraction(0)] + cuts
+
+        def place(at):
+            """(bar index, position from that bar's start) for a position in the measure."""
+            piece = bisect.bisect_right(cuts, at)
+            return bar_index + piece, at - starts[piece]
+
         grace_count = {}    # voice -> grace notes seen in this bar since its last main note
         position = Fraction(0)
         last_onset = Fraction(0)
-        reach = Fraction(0)
+        reach = [Fraction(0)] * len(starts)
         for element in measure:
             tag = element.tag
             if tag == "print" and first_part:
@@ -250,12 +323,13 @@ def _read_part(score, part_index, name, part):
             elif tag == "attributes":
                 divisions = _number(element.findtext("divisions"), divisions) or divisions
                 staves = max(staves, int(_number(element.findtext("staves"), 1)))
-                _read_attributes(score, part_index, bar_index, position, element)
+                _read_attributes(score, part_index, *place(position), element)
             elif tag == "backup":
                 position -= _number(element.findtext("duration")) / divisions
             elif tag == "forward":
+                piece = place(position)[0] - bar_index
                 position += _number(element.findtext("duration")) / divisions
-                reach = max(reach, position)
+                reach[piece] = max(reach[piece], position - starts[piece])
             elif tag == "note":
                 duration = _number(element.findtext("duration"))
                 is_chord = element.find("chord") is not None
@@ -264,20 +338,26 @@ def _read_part(score, part_index, name, part):
                     last_onset = position
                     if element.find("grace") is None:
                         position += duration / divisions
-                reach = max(reach, position)
+                bar, start = place(onset)
+                piece = bar - bar_index
+                reach[piece] = max(reach[piece], position - starts[piece])
                 if element.get("print-object") != "no":
-                    _read_note(score, part_index, bar_index, onset, divisions, duration, element, grace_count)
+                    _read_note(score, part_index, bar, start, divisions, duration, element, grace_count)
             elif tag == "direction":
-                _read_direction(score, part_index, bar_index, position, divisions, element)
+                _read_direction(score, part_index, *place(position), divisions, element)
             elif tag == "harmony":
-                _read_harmony(score, part_index, bar_index, position, divisions, element)
+                _read_harmony(score, part_index, *place(position), divisions, element)
             elif tag == "barline":
-                _read_barline(score, part_index, bar_index, position, element)
-        if first_part:
-            score.bars.append(Bar(measure.get("number", ""), page, system, reach))
-        elif bar_index < len(score.bars):
-            score.bars[bar_index].length = max(score.bars[bar_index].length, reach)
-        bar_index += 1
+                _read_barline(score, part_index, *place(position), element)
+        for piece, length in enumerate(reach):
+            if first_part:
+                number = measure.get("number", "")
+                if piece:
+                    number += " after its middle barline" + (f" {piece}" if len(cuts) > 1 else "")
+                score.bars.append(Bar(number, page, system, length))
+            elif bar_index < len(score.bars):
+                score.bars[bar_index].length = max(score.bars[bar_index].length, length)
+            bar_index += 1
     score.parts.append(Part(name, staves))
     score.bar_counts.append(bar_index)
 
