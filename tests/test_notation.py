@@ -62,8 +62,8 @@ class _Symbol:
         self.source = "smufl"
 
 
-def _chord(x, base, direction=1, step=4, dots=0):
-    staff = layout.Staff(1, 100.0, SPACE, 50.0, 550.0)
+def _chord(x, base, direction=1, step=4, dots=0, top=100.0):
+    staff = layout.Staff(1, top, SPACE, 50.0, 550.0)
     head = notation.Head(_Symbol(x, staff.bottom - step * SPACE / 2), staff, step, False)
     return notation.Event(staff, x, x + 6.5, heads=[head], base=Fraction(base), dots=dots, direction=direction)
 
@@ -112,6 +112,71 @@ def test_a_second_in_one_voice_is_two_columns():
     a = _chord(100, Fraction(1, 4), -1, 5)
     b = _chord(108.5, Fraction(3, 4), 1, 4)
     assert len(notation._columns([a, b], SPACE)) == 2
+
+
+def test_a_whole_bar_rest_beside_other_voices_starts_the_bar():
+    # 6/8: a whole rest in the middle of the bar, and six eighths of the other voice
+    rest = _chord(160, 3, 0, 4)
+    rest.heads, rest.rest, rest.whole_bar = [], _Symbol(160, 110, "restWhole"), True
+    notes = [_chord(100 + 25 * k, Fraction(1, 2), -1, 2) for k in range(6)]
+    assert notation.assign_onsets(notes + [rest], SPACE, Fraction(3)) == 0
+    assert rest.onset == 0
+    assert [e.onset for e in notes] == [Fraction(k, 2) for k in range(6)]
+
+
+def test_a_collision_is_between_voices_of_one_staff():
+    # two staves read together: a chord stem down below, a note stem up of the
+    # staff above at the same place, and a unison stem up set aside right of the chord
+    above = _chord(100, Fraction(1, 2), 1, 2, top=40.0)
+    chord = _chord(100, Fraction(1, 2), -1, 0)
+    aside = _chord(107, Fraction(1, 4), 1, 0)
+    assert len(notation._columns([above, chord, aside], SPACE)) == 1
+
+
+def test_a_note_in_line_with_a_unison_set_aside_starts_with_it():
+    # a chord stem down, a unison stem up set aside to its right, and a note
+    # of the staff above in line with the unison, not with the chord
+    chord = _chord(100, Fraction(1, 2), -1, 0)
+    aside = _chord(107, Fraction(1, 4), 1, 0)
+    above = _chord(107, Fraction(1, 2), 1, 2, top=40.0)
+    assert len(notation._columns([chord, above, aside], SPACE)) == 1
+
+
+def _heads_at(x, steps, name="noteheadBlack"):
+    staff = _STAFF
+    return [notation.Head(_Symbol(x, staff.bottom - s * SPACE / 2, name), staff, s, False) for s in steps]
+
+
+_STAFF = layout.Staff(1, 100.0, SPACE, 50.0, 550.0)
+
+
+def test_a_unison_drawn_twice_goes_to_both_stems_and_the_chord_keeps_its_middle():
+    # a chord stem down (C E G C, its stem from the top C) and a sixteenth stem
+    # up on the lower C, drawn twice; both stems run past every notehead
+    heads = _heads_at(100, [0, 0, 2, 4, 7])
+    up = notation.Stem(106.5, 80.0, heads[0].y, list(heads), up=True)
+    down = notation.Stem(100.0, heads[4].y, 140.0, list(heads), up=False)
+    notation._share_heads([up, down], SPACE)
+    assert sorted(h.step for h in up.heads) == [0]
+    assert sorted(h.step for h in down.heads) == [0, 2, 4, 7]
+
+
+def test_an_open_and_a_black_unison_go_to_the_half_and_the_beamed_note():
+    # a half note stem up from E with G above, and a sixteenth stem down from
+    # the G: the G is drawn open and black on one spot
+    e = _heads_at(100, [2], "noteheadHalf")
+    g_open = _heads_at(100, [4], "noteheadHalf")
+    g_black = _heads_at(100.2, [4])
+    heads = e + g_open + g_black
+    up = notation.Stem(106.5, 80.0, e[0].y, list(heads), up=True)
+    down = notation.Stem(100.0, g_open[0].y, 140.0, g_open + g_black, up=False, flags=2)
+    notation._share_heads([up, down], SPACE)
+    for stem in (up, down):
+        for h in stem.heads:
+            h.stem = stem
+    half, sixteenth = notation.make_chords(heads, [up, down], SPACE)
+    assert half.base == 2 and sorted(h.step for h in half.heads) == [2, 4]
+    assert sixteenth.base == Fraction(1, 4) and [h.symbol.name for h in sixteenth.heads] == ["noteheadBlack"]
 
 
 def test_other_staves_place_a_voice_that_starts_late():

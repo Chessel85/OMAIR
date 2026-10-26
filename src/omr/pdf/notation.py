@@ -383,10 +383,22 @@ def _share_heads(stems, space):
             touching[id(h)].append(stem)
     heads = {id(h): h for stem in stems for h in stem.heads}
     keep = collections.defaultdict(set)    # id(stem) -> ids of heads kept
+    middle = []
     placed = collections.defaultdict(list)
     for h in heads.values():
         placed[(h.symbol.name, round(h.x, 1), round(h.y, 1))].append(h)
+    # an open and a black notehead drawn on one spot (a half note and a
+    # shorter note of the other voice in unison) are one unison drawn twice
+    groups = []
     for same in placed.values():
+        for g in groups:
+            h, o = same[0], g[0]
+            if h.step == o.step and h.staff is o.staff and abs(h.x - o.x) <= 0.3 * space:
+                g += same
+                break
+        else:
+            groups.append(list(same))
+    for same in groups:
         candidates = []
         for stem in touching[id(same[0])]:
             if stem not in candidates:
@@ -398,10 +410,28 @@ def _share_heads(stems, space):
         ends = [s for s in candidates if abs(same[0].y - (s.bottom if s.up else s.top)) <= 0.6 * space]
         # on the usual side: left of a stem up, right of a stem down
         usual = [s for s in ends if _usual_side(same[0], s, space)]
+        # a unison drawn twice at the end of one stem, with the other
+        # voice's stem running on through it to its flag: a copy for each
+        through = [s for s in candidates if s not in ends and _usual_side(same[0], s, space)
+                   and any(s.up != e.up for e in ends)]
+        if len({head_kind(h.symbol.name) for h in same}) > 1 and (len(ends) > 1 or (ends and through)):
+            # open and black: each stem gets both, and the beams and flags
+            # settle which is whose (_split_mixed_unisons)
+            for s in ends + through:
+                keep[id(s)].update(id(h) for h in same)
+            continue
         if len(same) > 1 and len(ends) > 1:
             order = usual + [s for s in ends if s not in usual]
             for k, h in enumerate(same):
                 keep[id(order[min(k, len(order) - 1)])].add(id(h))
+            continue
+        if len(same) > 1 and len(ends) == 1 and through:
+            order = ends + through
+            for k, h in enumerate(same):
+                keep[id(order[min(k, len(order) - 1)])].add(id(h))
+            continue
+        if not ends and len(candidates) > 1:
+            middle.append(same)
             continue
         for h in same:
             if len(usual) > 1 and {s.up for s in usual} == {True, False}:
@@ -410,6 +440,18 @@ def _share_heads(stems, space):
             else:
                 chosen = min(usual or ends or candidates, key=lambda s: abs(h.y - (s.bottom if s.up else s.top)))
                 keep[id(chosen)].add(id(h))
+    # a notehead at the end of no stem it touches goes to the stem whose
+    # chord holds noteheads above and below it; otherwise to the stem whose
+    # notehead end is nearest
+    for same in middle:
+        candidates = list({id(s): s for h in same for s in touching[id(h)]}.values())
+        y = same[0].y
+        around = [s for s in candidates
+                  if any(heads[i].y < y for i in keep[id(s)]) and any(heads[i].y > y for i in keep[id(s)])]
+        for h in same:
+            chosen = around[0] if len(around) == 1 else min(
+                candidates, key=lambda s: abs(h.y - (s.bottom if s.up else s.top)))
+            keep[id(chosen)].add(id(h))
     for stem in stems:
         stem.heads = [h for h in stem.heads if id(h) in keep[id(stem)]]
 
@@ -508,8 +550,36 @@ def attach_flags(stems, flags, space):
     return left
 
 
+def _split_mixed_unisons(stems, space):
+    """An open and a black notehead drawn on one spot (a half note and a
+    shorter note of the other voice in unison), each touching a stem up and
+    a stem down: the stem with beams or flags takes the black notehead, the
+    stem with neither the open one."""
+    for a in stems:
+        for b in stems:
+            if a.up == b.up or not (_beam_levels(a, space) or a.flags) or _beam_levels(b, space) or b.flags:
+                continue
+            shared = [h for h in a.heads if any(h is g for g in b.heads)]
+            spots = []
+            for h in shared:
+                for spot in spots:
+                    if spot[0].step == h.step and abs(spot[0].x - h.x) <= 0.3 * space:
+                        spot.append(h)
+                        break
+                else:
+                    spots.append([h])
+            for same in spots:
+                kinds = {head_kind(h.symbol.name) for h in same}
+                if len(kinds) < 2:
+                    continue
+                black, open_ = min(kinds), max(kinds)
+                a.heads = [h for h in a.heads if not (any(h is g for g in same) and head_kind(h.symbol.name) != black)]
+                b.heads = [h for h in b.heads if not (any(h is g for g in same) and head_kind(h.symbol.name) != open_)]
+
+
 def make_chords(heads, stems, space):
     """Events for the stems and for stemless noteheads."""
+    _split_mixed_unisons(stems, space)
     out = []
     for stem in stems:
         normal = [h for h in stem.heads if (h.box[2] <= stem.x + 0.35 * space) == stem.up] or stem.heads
@@ -874,7 +944,16 @@ def _columns(staff_events, space):
             columns[-1].append(e)
         else:
             columns.append([e])
-    return columns
+    # a column holding a note set aside by a collision with the column
+    # before starts with it (on two staves read together, a note of the
+    # other staff can stand in line with the note set aside)
+    merged = []
+    for col in columns:
+        if merged and any(_same_column(merged[-1], e, space) for e in col[1:]):
+            merged[-1] += col
+        else:
+            merged.append(col)
+    return merged
 
 
 def _same_column(col, e, space):
@@ -884,7 +963,11 @@ def _same_column(col, e, space):
     gap = e.x - col[0].x
     if gap <= 0.6 * space:
         return True
-    opposite = e.direction and all(o.direction != e.direction for o in col) and any(o.direction for o in col)
+    # collisions are between voices of one staff (two staves are read
+    # together for a beam across them)
+    same = [o for o in col if o.staff == e.staff]
+    opposite = (e.direction and same and all(o.direction != e.direction for o in same)
+                and any(o.direction for o in same))
     if not opposite:
         return False
     if gap <= 1.4 * space:
@@ -893,15 +976,16 @@ def _same_column(col, e, space):
     # unison of two voices (either stem on the left: a dotted note keeps the
     # left side, and the other note then stands clear of its dot), or a second with the
     # upper note, stem up, on the right.
-    # the other voice must have nothing else in the column (a rest there
-    # means the note comes after it)
-    free = all(o.rest is None and o.direction and o.direction != e.direction for o in col)
+    # the other voice must have nothing else in the column (a rest there,
+    # on either staff, means the note comes after it)
+    free = (all(o.rest is None for o in col)
+            and all(o.direction and o.direction != e.direction for o in same))
     return gap <= 2.8 * space and any(
         (h.step == g.step and free and e.direction
          and abs(h.box[0] - g.box[2]) <= (1.4 if o.dots else 0.45) * space)
         or (h.step == g.step + 1 and o.direction == -1 and e.direction == 1
             and gap <= 1.8 * space and abs(h.box[0] - g.box[2]) <= 0.45 * space)
-        for o in col for g in o.heads for h in e.heads)
+        for o in same for g in o.heads for h in e.heads)
 
 
 def assign_onsets(staff_events, space, bar_length=None, reference=()):
@@ -915,8 +999,12 @@ def assign_onsets(staff_events, space, bar_length=None, reference=()):
     earliest. `reference` holds (x, onset) of columns on other staves of
     the system, read without doubt: a column at the same place should start
     at the same time. Returns the cost of the choice (0: every event ends
-    where another starts or at the bar's end)."""
-    columns = _columns(staff_events, space)
+    where another starts or at the bar's end). A whole-bar rest starts the
+    bar wherever it stands."""
+    for e in staff_events:
+        if e.whole_bar:
+            e.onset = Fraction(0)
+    columns = _columns([e for e in staff_events if not e.whole_bar], space)
     if not columns:
         return 0
     starts = [min(e.x for e in col) for col in columns]
@@ -992,7 +1080,9 @@ def cross_staff_beams(evs, by_staff_bar, lengths_by, space):
     set for each staff on its own."""
     done = set()
     for group in beam_groups([e for e in evs if not e.grace and e.onset is not None]):
-        staff_ids = sorted({id(e.staff) for e in group})
+        # staves top to bottom (not by id, which would make the reading
+        # depend on where the objects happen to sit in memory)
+        staff_ids = [id(s) for s in sorted({id(e.staff): e.staff for e in group}.values(), key=lambda s: s.top)]
         if len(staff_ids) < 2 or len({e.bar for e in group}) != 1 or _in_line(group):
             continue
         k = group[0].bar
@@ -1448,6 +1538,13 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
         if len(main) == 1 and whole:
             whole[0].whole_bar = True
             whole[0].base = bar_length
+        else:
+            # beside other voices, a whole rest in a bar no longer than its
+            # value is that voice's whole-bar rest, set in the middle of the bar
+            for e in whole:
+                if bar_length <= (8 if e.rest.name == "restDoubleWhole" else 4):
+                    e.whole_bar = True
+                    e.base = bar_length
         costs[(staff_id, k)] = assign_onsets(main, space, bar_length)
         if costs[(staff_id, k)] and any(e.tuplet_detected for e in main):
             costs[(staff_id, k)] = detected_tuplets(main, space, bar_length, costs[(staff_id, k)])
