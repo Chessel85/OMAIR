@@ -158,6 +158,10 @@ def ties(score):
         bar_length = {}
         for n in notes:
             bar_length[n.bar] = max(bar_length.get(n.bar, 0), n.onset + n.duration)
+        at_bar_end = collections.defaultdict(set)   # bar -> pitches that end at the end of the bar
+        for (bar, t), pitches in ends.items():
+            if t >= bar_length.get(bar, t):
+                at_bar_end[bar] |= pitches
         for n in notes:
             pitch = n.pitch.sounding()
             if n.tie_start:
@@ -170,8 +174,7 @@ def ties(score):
                                                               f"of the same pitch", n.onset))
             if n.tie_stop:
                 ok = pitch in ends.get((n.bar, n.onset), ()) or (
-                    n.onset == 0 and any(pitch in pitches for (bar, t), pitches in ends.items()
-                                         if bar == n.bar - 1 and t >= bar_length.get(bar, t)))
+                    n.onset == 0 and pitch in at_bar_end.get(n.bar - 1, ()))
                 if not ok:
                     out.setdefault((part, staff, n.bar), Flag(part, staff, n.bar, "ties",
                                                               f"a tie to {n.pitch.words()} comes from no note "

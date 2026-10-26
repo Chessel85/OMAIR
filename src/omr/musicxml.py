@@ -126,6 +126,13 @@ class Writer:
         self.title = title
         # restated clefs, keys and times are left out (spec decision 11)
         self.changes = events.signature_changes(score)
+        self.changes_at = {}     # (part, bar) -> its changes, in order
+        for e in self.changes:
+            self.changes_at.setdefault((e.part, e.bar), []).append(e)
+        self.time_symbols = {}   # (part, bar) -> the first time symbol there
+        for m in score.markings:
+            if m.kind == "time symbol":
+                self.time_symbols.setdefault((m.part, m.bar), m.value)
         self.jumps = self._jump_words()
         self.merged = set()    # (part, bar, staff) whose voices were merged to MAX_VOICES
         self.left_out = []     # notes and rests not written, as no voice had room (_merge_voices)
@@ -213,7 +220,7 @@ class Writer:
                 _sub(measure, "print", new_page="yes")
             elif here.system != before.system:
                 _sub(measure, "print", new_system="yes")
-        structure = [e for e in self.changes if e.part == p and e.bar == b]
+        structure = list(self.changes_at.get((p, b), ()))
         self._left_barline(measure, structure)
         self._attributes(measure, p, b, structure)
         voices = content.get("voices", {})
@@ -257,8 +264,7 @@ class Writer:
             _sub(_sub(attributes, "key"), "fifths", int(e.value))
         for e in times[-1:]:
             beats, _, beat_type = e.value.partition("/")
-            symbol = next((m.value for m in self.score.markings if m.kind == "time symbol" and m.part == p
-                           and m.bar == b), None)
+            symbol = self.time_symbols.get((p, b))
             time = _sub(attributes, "time", **({"symbol": symbol} if symbol else {}))
             _sub(time, "beats", beats)
             _sub(time, "beat-type", beat_type)

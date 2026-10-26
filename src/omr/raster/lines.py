@@ -371,35 +371,60 @@ def _beam_fit(cs, ts, bs, space):
             float(m1 - thick / 2), float(m1 + thick / 2))
 
 
+def _join_pieces(out, join):
+    """Join pieces in place until none join: `join(a, b)` gives a and b made
+    one, or None. Each time, the first pair in order (a's index, then b's)
+    that joins is joined, the result taking a's place. After a join only the
+    new piece can pair with the pieces before it, so the search carries on
+    from there rather than starting the whole list again."""
+    start, fresh = 0, None    # rows before start join nothing, except perhaps the fresh piece
+    while True:
+        found = None
+        if fresh is not None:
+            for i in range(start):
+                joined = join(out[i], out[fresh])
+                if joined is not None:
+                    found = i, fresh, joined
+                    break
+        if found is None:
+            for i in range(start, len(out)):
+                for j in range(len(out)):
+                    if j == i:
+                        continue
+                    joined = join(out[i], out[j])
+                    if joined is not None:
+                        found = i, j, joined
+                        break
+                if found is not None:
+                    break
+        if found is None:
+            return out
+        i, j, joined = found
+        out[i] = joined
+        del out[j]
+        start = fresh = i - 1 if j < i else i
+
+
 def join_beams(found, space):
     """Join beams that carry on from each other: the second starts within
     0.35 staff spaces of the first's end, with its top and bottom where the
     first's edges lead and much the same slope (a beam can be cut where a
     note of another voice touches it)."""
     tol = max(2.0, 0.15 * space)
-    out = sorted(found)
-    joined = True
-    while joined:
-        joined = False
-        for i, a in enumerate(out):
-            ax0, ax1, at0, ab0, at1, ab1 = a
-            slope = (at1 - at0) / max(ax1 - ax0, 1)
-            for j, b in enumerate(out):
-                bx0, bx1, bt0, bb0, bt1, bb1 = b
-                if j == i or not 0 <= bx0 - ax1 <= 0.35 * space:
-                    continue
-                lead = bx0 - ax1
-                if abs(at1 + slope * lead - bt0) > tol or abs(ab1 + slope * lead - bb0) > tol:
-                    continue
-                if abs((bt1 - bt0) / max(bx1 - bx0, 1) - slope) > 0.08:
-                    continue
-                out[i] = (ax0, bx1, at0, ab0, bt1, bb1)
-                del out[j]
-                joined = True
-                break
-            if joined:
-                break
-    return out
+
+    def join(a, b):
+        ax0, ax1, at0, ab0, at1, ab1 = a
+        bx0, bx1, bt0, bb0, bt1, bb1 = b
+        if not 0 <= bx0 - ax1 <= 0.35 * space:
+            return None
+        slope = (at1 - at0) / max(ax1 - ax0, 1)
+        lead = bx0 - ax1
+        if abs(at1 + slope * lead - bt0) > tol or abs(ab1 + slope * lead - bb0) > tol:
+            return None
+        if abs((bt1 - bt0) / max(bx1 - bx0, 1) - slope) > 0.08:
+            return None
+        return (ax0, bx1, at0, ab0, bt1, bb1)
+    return _join_pieces(sorted(found), join)
 
 
 def refine_beam(beam, dark):
@@ -657,28 +682,16 @@ def join_curves(curves, space):
     within half a staff space of the first's end (or overlaps it a little),
     at the height the first's end leads to, in much the same direction. A
     long slur crossing staff lines and stems can be cut in pieces."""
-    out = sorted(curves, key=lambda t: t[0][0])
-    joined = True
-    while joined:
-        joined = False
-        for i, a in enumerate(out):
-            ax, ay = a[-1][0], (a[-1][1] + a[-1][2]) / 2
-            sa = _end_slope(a, 1, space)
-            for j, b in enumerate(out):
-                if j == i:
-                    continue
-                bx, by = b[0][0], (b[0][1] + b[0][2]) / 2
-                if not -0.3 * space <= bx - ax <= 0.5 * space or b[-1][0] <= ax:
-                    continue
-                if abs(by - (ay + sa * (bx - ax))) > 0.3 * space or abs(_end_slope(b, -1, space) - sa) > 0.5:
-                    continue
-                out[i] = [p for p in a if p[0] < bx] + b
-                del out[j]
-                joined = True
-                break
-            if joined:
-                break
-    return out
+    def join(a, b):
+        ax, ay = a[-1][0], (a[-1][1] + a[-1][2]) / 2
+        bx, by = b[0][0], (b[0][1] + b[0][2]) / 2
+        if not -0.3 * space <= bx - ax <= 0.5 * space or b[-1][0] <= ax:
+            return None
+        sa = _end_slope(a, 1, space)
+        if abs(by - (ay + sa * (bx - ax))) > 0.3 * space or abs(_end_slope(b, -1, space) - sa) > 0.5:
+            return None
+        return [p for p in a if p[0] < bx] + b
+    return _join_pieces(sorted(curves, key=lambda t: t[0][0]), join)
 
 
 def traces(left, space):

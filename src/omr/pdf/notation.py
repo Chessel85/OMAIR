@@ -24,6 +24,7 @@ The result fills the notes and rests of the Score from omr.pdf.structure,
 so the evaluation harness can compare it with a ground truth directly.
 """
 
+import bisect
 import collections
 import re
 import statistics
@@ -578,9 +579,19 @@ def _split_mixed_unisons(stems, space):
     shorter note of the other voice in unison), each touching a stem up and
     a stem down: the stem with beams or flags takes the black notehead, the
     stem with neither the open one."""
-    for a in stems:
-        for b in stems:
-            if a.up == b.up or not (_beam_levels(a, space) or a.flags) or _beam_levels(b, space) or b.flags:
+    marked = [bool(s.beams) or bool(s.flags) for s in stems]   # beams or flags on the stem
+    by_head = collections.defaultdict(set)    # id(notehead) -> indices of its stems
+    for k, s in enumerate(stems):
+        for h in s.heads:
+            by_head[id(h)].add(k)
+    for i, a in enumerate(stems):
+        if not marked[i]:
+            continue
+        # noteheads are only taken away here, so stems that share none now never will
+        sharing = sorted({k for h in a.heads for k in by_head[id(h)]})
+        for k in sharing:
+            b = stems[k]
+            if a.up == b.up or marked[k]:
                 continue
             shared = [h for h in a.heads if any(h is g for g in b.heads)]
             spots = []
@@ -1265,9 +1276,10 @@ def assign_graces(staff_events):
     """Grace notes take the onset of the next full-size event on their staff."""
     graces = sorted((e for e in staff_events if e.grace), key=lambda e: e.x)
     main = sorted((e for e in staff_events if not e.grace), key=lambda e: e.x)
+    xs = [e.x for e in main]
     for g in graces:
-        after = [e for e in main if e.x > g.x]
-        target = after[0] if after else (main[-1] if main else None)
+        k = bisect.bisect_right(xs, g.x)    # the first event to the right
+        target = main[k] if k < len(main) else (main[-1] if main else None)
         g.onset = target.onset if target is not None else Fraction(0)
         g.voice = target.voice if target is not None else 0
 
@@ -1487,6 +1499,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
         part, number = mapping.staves[members[id(staff)]]
         score.doubts.append(rules.Flag(part, number, bar_base + k, rule, reason, onset))
     heads = []
+    tempo_runs = [run for run in pl.text if run.text.lstrip().startswith("=")]
     for s in pl.symbols:
         if is_head(s.name):
             staff = pl.staff_of(s)
@@ -1496,7 +1509,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
                 # text (a metronome mark), not a note
                 if not -3 <= step <= 11 and not _ledgers_reach(s, staff, step, pl.horizontals):
                     continue
-                if _tempo_head(s, pl.text, staff.space):
+                if _tempo_head(s, tempo_runs, staff.space):
                     continue
                 if id(staff) in members:
                     heads.append(Head(s, staff, step, False))
@@ -1645,6 +1658,12 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
         current_bar = None
         staff_events = sorted((e for e in evs if e.staff is staff and e.onset is not None),
                               key=lambda e: (e.bar, e.x))
+        graces = {}    # (bar, onset, voice) -> the grace notes there, left to right
+        for g in staff_events:
+            if g.grace:
+                graces.setdefault((g.bar, g.onset, g.voice), []).append(g)
+        for same in graces.values():
+            same.sort(key=lambda g: g.x)
         for e in staff_events:
             global_bar = bar_base + e.bar
             if e.bar != current_bar:
@@ -1663,9 +1682,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
             value_name = TYPE_NAME.get(e.base, "quarter") + "." * e.dots
             grace_order = 0
             if e.grace:
-                same = sorted((g for g in staff_events if g.grace and g.bar == e.bar and g.onset == e.onset
-                               and g.voice == e.voice), key=lambda g: g.x)
-                grace_order = 1 + same.index(e)
+                grace_order = 1 + graces[(e.bar, e.onset, e.voice)].index(e)
             extra = extras.get(id(e))
             for n, h in enumerate(sorted(e.heads, key=lambda h: h.step)):
                 letter, octave = pitch_of(clef, h.step)
@@ -1746,11 +1763,12 @@ def ledger_staff(symbol, staff, staves, horizontals):
     return staff, step
 
 
-def _tempo_head(symbol, text, space):
+def _tempo_head(symbol, runs, space):
     """The notehead of a metronome mark: "= 100" follows it on its level,
     past its stem, flag or dot. LilyPond puts the mark low enough to touch
-    the staff."""
-    for run in text:
+    the staff. Only runs that start with "=" count; the caller can pass
+    just those, which it finds once for all the page's noteheads."""
+    for run in runs:
         if not run.text.lstrip().startswith("="):
             continue
         if 0 <= run.box[0] - symbol.box[2] <= 3 * space and run.box[1] < symbol.box[3] and run.box[3] > symbol.box[1]:
