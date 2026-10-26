@@ -18,3 +18,11 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+
+# Errors only: pyflakes (unused imports and names, undefined names) and syntax.
+# No formatter and no style rules, so the existing layout stays as it is.
+[tool.ruff.lint]
+select = ["F", "E9"]

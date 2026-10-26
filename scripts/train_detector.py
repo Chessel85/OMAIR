@@ -32,7 +32,6 @@ import json
 import random
 import sys
 import time
-from pathlib import Path
 
 from omr import paths, pause
 from omr.corpus import raster_labels as rl

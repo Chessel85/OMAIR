@@ -178,7 +178,8 @@ def musicdiff_figures(truth, output):
 
         figures = {}
         for name, level in (("notes and rests", DetailLevel.NotesAndRests), ("all objects", DetailLevel.AllObjects)):
-            with warnings.catch_warnings(), contextlib.redirect_stdout(io.StringIO()),                     contextlib.redirect_stderr(io.StringIO()):
+            with (warnings.catch_warnings(), contextlib.redirect_stdout(io.StringIO()),
+                  contextlib.redirect_stderr(io.StringIO())):
                 warnings.simplefilter("ignore")   # music21's import warnings would clutter the screen
                 m = _diff_omr_ned_metrics(str(output), str(truth), level)
             if m is None:

@@ -7,7 +7,6 @@ figures are micro-averages as the spec requires.
 
 import collections
 import json
-from fractions import Fraction
 from pathlib import Path
 
 from omr.evaluate import events, match as matching
@@ -167,11 +166,6 @@ def _voice_errors(result):
 # ------------------------------------------------------------------ structure
 
 
-def _mapped_part(result, part, staff):
-    target = result.staff_map.get((part, staff or 1))
-    return target
-
-
 def _structure(truth, output, result, say):
     mismatches, notes = [], []
     truth_staves = [p.staves for p in truth.parts]
@@ -207,7 +201,7 @@ def _structure(truth, output, result, say):
     for e in events.signature_changes(output):
         if e.kind not in STRUCTURE_KINDS:
             continue
-        target = _mapped_part(result, e.part, e.staff)
+        target = result.staff_map.get((e.part, e.staff or 1))
         position = matching.to_truth_position(result, e.bar, e.onset)
         if target is None or position is None:
             by_output_part[e.part][(e.kind, e.value, None, None, None, None)] += 1
@@ -235,7 +229,7 @@ def _structure(truth, output, result, say):
     output_symbols = set()
     for m in output.markings:
         if m.kind == "time symbol":
-            target = _mapped_part(result, m.part, None)
+            target = result.staff_map.get((m.part, 1))
             position = matching.to_truth_position(result, m.bar, m.onset)
             if target and position:
                 output_symbols.add((target[0], position[0], m.value))
@@ -304,7 +298,7 @@ def _markings(truth, output, result, say):
     for m in output.markings:
         if m.kind not in MARKING_KINDS:
             continue
-        target = _mapped_part(result, m.part, m.staff)
+        target = result.staff_map.get((m.part, m.staff or 1))
         position = matching.to_truth_position(result, m.bar, m.onset)
         if target is None or position is None:
             continue

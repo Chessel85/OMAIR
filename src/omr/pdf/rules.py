@@ -27,7 +27,6 @@ import re
 from dataclasses import dataclass
 from fractions import Fraction
 
-from omr.evaluate import events
 
 
 @dataclass(frozen=True)

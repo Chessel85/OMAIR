@@ -45,7 +45,6 @@ TYPE_NAME = {length: name for name, length in events.TYPE_LENGTH.items()}
 TUPLET_GLYPHS = {f"tuplet{i}": str(i) for i in range(10)}
 TUPLET_TEXT = re.compile(r"^\s*(\d{1,2})\s*(?::\s*(\d{1,2}))?\s*$")
 LETTERS = "CDEFGAB"
-BOTTOM_LINE = {"G": (2, 4), "F": (4, 2), "C": (0, 4)}    # sign: (letter of the bottom line on line 1 clef..., octave)
 
 
 def is_head(name):
@@ -260,9 +259,11 @@ def page_shapes(page, space):
             items = [(item[0], *(part * turn if hasattr(part, "transform") else part for part in item[1:]))
                      for item in items]
         rect = d["rect"] * turn if turn is not None else d["rect"]
-        if "s" in d["type"] and "f" not in d["type"] and 1.2 * space <= rect.width <= 10 * space                 and 1.2 * space <= rect.height <= 5 * space and len(items) <= 12:
+        if ("s" in d["type"] and "f" not in d["type"] and 1.2 * space <= rect.width <= 10 * space
+                and 1.2 * space <= rect.height <= 5 * space and len(items) <= 12):
             frames.append((rect.x0, rect.y0, rect.x1, rect.y1))
-        if rect.height <= 0.3 * space and 0.3 * space <= rect.width <= 40 * space and len(items) <= 4                 and not any(item[0] == "c" for item in items):
+        if (rect.height <= 0.3 * space and 0.3 * space <= rect.width <= 40 * space and len(items) <= 4
+                and not any(item[0] == "c" for item in items)):
             hyphens.append(((rect.y0 + rect.y1) / 2, rect.x0, rect.x1))
         if any(item[0] == "c" for item in items):
             curve = _curve(items, space)
@@ -649,7 +650,7 @@ def _beam_levels(stem, space):
     return levels
 
 
-def make_rests(symbols, layout, space):
+def make_rests(symbols, layout):
     out = []
     for s in symbols:
         if s.name not in REST_LENGTH:
@@ -765,7 +766,7 @@ def tuplet_marks(page_layout):
     return merged
 
 
-def apply_tuplets(marks, evs, stems, lines, verticals, space, compound):
+def apply_tuplets(marks, evs, lines, verticals, space):
     """Give each tuplet number's events their ratio. The events are those
     under its bracket (thin lines either side of the number at its height,
     with hooks at their outer ends), or else those of the beam group the
@@ -798,7 +799,7 @@ def apply_tuplets(marks, evs, stems, lines, verticals, space, compound):
         if len(members) < 2:
             unused.append(m)
             continue
-        normal = m.normal or _normal(m.actual, compound)
+        normal = m.normal or _normal(m.actual)
         for e in members:
             if e.tuplet is None:
                 e.tuplet = (m.actual, normal)
@@ -810,7 +811,7 @@ def _nearest_staff(staves, y):
     return min(staves, key=lambda st: 0 if st.top <= y <= st.bottom else min(abs(y - st.top), abs(y - st.bottom)))
 
 
-def _normal(actual, compound):
+def _normal(actual):
     """The usual number of notes a tuplet of `actual` notes stands for: the
     power of two below it (3 in the time of 2, 5 or 6 or 7 in the time of
     4), and for a power of two, three quarters of it (2 in the time of 3,
@@ -896,7 +897,8 @@ def _beam_group(m, evs, space):
 
 
 def _power_of_two(value):
-    return value > 0 and value.numerator & (value.numerator - 1) == 0 and         value.denominator & (value.denominator - 1) == 0
+    return (value > 0 and value.numerator & (value.numerator - 1) == 0
+            and value.denominator & (value.denominator - 1) == 0)
 
 
 def _tuplet_run(m, group):
@@ -1265,7 +1267,7 @@ def mark_graces(evs, space):
                 between += 1
 
 
-def assign_graces(staff_events, space):
+def assign_graces(staff_events):
     """Grace notes take the onset of the next full-size event on their staff."""
     graces = sorted((e for e in staff_events if e.grace), key=lambda e: e.x)
     main = sorted((e for e in staff_events if not e.grace), key=lambda e: e.x)
@@ -1552,22 +1554,21 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
         doubt(pl.staff_of(flag), flag.x, "stray symbol", "a flag is on no stem")
     chords = make_chords(heads, stems, space)
     two_note_tremolos(chords, beam_list, space)
-    rests = [r for r in make_rests(pl.symbols, pl, space) if id(r.staff) in members]
+    rests = [r for r in make_rests(pl.symbols, pl) if id(r.staff) in members]
     evs = chords + rests
     mark_graces(evs, space)
     repeat_zones = [(g.x0 - 1.6 * space, g.x1 + 1.6 * space) for g in system.barlines
                     if g.repeat_before or g.repeat_after]
     dots = [s for s in pl.symbols if s.name == "augmentationDot" and id(pl.staff_of(s)) in members]
     used_dots = attach_dots(evs, dots, space, repeat_zones)
-    time_length, compound = _time_in_force(score, bar_base)
     # a number between two systems belongs to the nearer one (the low notes
     # of a system can reach a number over the next system's top staff)
     page_staves = [st for sy in pl.systems for st in sy.staves]
     unused_marks = apply_tuplets([m for m in tuplet_marks(pl) if system.staves[0].top - 8 * space <= m.y
                    <= system.staves[-1].bottom + 8 * space and system.x0 <= m.x <= system.x1
                    and id(_nearest_staff(page_staves, m.y)) in members],
-                  evs, stems, thin + [(h.x0, h.y, h.x1, h.y) for h in pl.horizontals if h.thickness <= 0.25 * space],
-                  pl.verticals, space, compound)
+                  evs, thin + [(h.x0, h.y, h.x1, h.y) for h in pl.horizontals if h.thickness <= 0.25 * space],
+                  pl.verticals, space)
     # accidentals and key signatures
     signature = set()
     for staff in system.staves:
@@ -1636,7 +1637,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
             assign_onsets([e for e in group if not e.grace], space, lengths_by[(staff_id, k)], reference)
     cross_staff_beams(evs, by_staff_bar, lengths_by, space)
     for (staff_id, k), group in by_staff_bar.items():
-        assign_graces(group, space)
+        assign_graces(group)
         for reason, onset in _rhythm_doubts([e for e in group if not e.grace], lengths_by[(staff_id, k)]):
             doubt(group[0].staff, k, "rhythm", reason, onset)
     if not mapping.certain:

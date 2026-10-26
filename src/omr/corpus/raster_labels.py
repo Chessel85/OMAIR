@@ -7,7 +7,6 @@ The rules are in docs/notes/raster-labels-spec.md.
 """
 
 import hashlib
-import io
 import re
 from collections import Counter
 from types import SimpleNamespace
@@ -15,7 +14,6 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from omr.pdf import layout as lay
 from omr.pdf import markings, notation, text
 
 # ------------------------------------------------------------------ classes
@@ -417,7 +415,7 @@ def remove_staff_lines(ink, staff_boxes):
         if b - a < 10:
             continue
         rows = [y for y in range(y_lo, y_hi) if ink[y, a:b].mean() > 0.6]
-        bands, start = [], None
+        bands, start, prev = [], None, None
         for y in rows + [None]:
             if start is not None and (y is None or y != prev + 1):
                 bands.append((start, prev))

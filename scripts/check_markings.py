@@ -27,7 +27,6 @@ pairs checked is below that percentage, or if any pair could not be read.
 import argparse
 import collections
 import json
-import re
 import sys
 from pathlib import Path
 

@@ -445,7 +445,6 @@ def _solid(beam, ink):
     it fails one or the other."""
     x0, x1, t0, b0, t1, b1 = beam
     h = ink.shape[0]
-    inside = edge = 0
     count = in_ink = edge_count = edge_ink = 0
     for c in range(int(x0) + 1, int(x1) - 1):
         f = (c + 0.5 - x0) / max(x1 - x0, 1)
@@ -472,7 +471,8 @@ def one_each(found, space):
         same = False
         for c in out:
             overlap = min(x1, c[1]) - max(x0, c[0])
-            if overlap >= 0.8 * (x1 - x0) and abs((t0 + b0) / 2 - (c[2] + c[3]) / 2) <= 0.25 * space                     and abs((t1 + b1) / 2 - (c[4] + c[5]) / 2) <= 0.25 * space:
+            if (overlap >= 0.8 * (x1 - x0) and abs((t0 + b0) / 2 - (c[2] + c[3]) / 2) <= 0.25 * space
+                    and abs((t1 + b1) / 2 - (c[4] + c[5]) / 2) <= 0.25 * space):
                 same = True
                 break
         if not same:

@@ -9,7 +9,6 @@ in that folder; it is a development baseline only and is never shipped.
 import copy
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile

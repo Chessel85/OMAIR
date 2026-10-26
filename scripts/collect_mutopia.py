@@ -17,7 +17,6 @@ import re
 import sys
 import time
 import urllib.request
-from pathlib import Path
 
 from omr import paths
 from omr.log import ProgressLog

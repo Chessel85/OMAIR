@@ -25,7 +25,7 @@ usage: python scripts/choose_rare_pages.py [--set training] [--target 250] [--va
 import argparse
 import json
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 
 from omr import paths

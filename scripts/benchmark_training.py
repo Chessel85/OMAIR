@@ -19,7 +19,6 @@ import subprocess
 import sys
 import threading
 import time
-from pathlib import Path
 
 from omr import paths
 from omr.log import ProgressLog
@@ -217,8 +216,6 @@ def seq_step_stats(label, layers, width, length, batch, checkpointing, log):
 
 
 def run_seq(args, log):
-    import torch
-
     rows = []
     wanted = args.models.split(",") if args.models else None
     for label, layers, width, length in SEQ_MODELS:

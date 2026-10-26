@@ -45,11 +45,11 @@ def test_accidental_names():
 
 
 def test_tuplet_normal_numbers():
-    assert notation._normal(3, False) == 2
-    assert notation._normal(5, False) == 4
-    assert notation._normal(2, True) == 3      # a duplet in compound time
-    assert notation._normal(4, False) == 3     # a quadruplet: 4 in the time of 3
-    assert notation._normal(7, False) == 4
+    assert notation._normal(3) == 2
+    assert notation._normal(5) == 4
+    assert notation._normal(2) == 3      # a duplet in compound time
+    assert notation._normal(4) == 3     # a quadruplet: 4 in the time of 3
+    assert notation._normal(7) == 4
 
 
 # ------------------------------------------------------- columns and onsets

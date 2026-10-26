@@ -63,9 +63,6 @@ DYNAMIC_GLYPHS = {
     "dynamicSforzato": "sfz", "dynamicSforzatoPiano": "sfzp", "dynamicSforzatoFF": "sffz",
     "dynamicRinforzando1": "rf", "dynamicRinforzando2": "rfz",
 }
-# the dynamics MusicXML has an element for; others are <other-dynamics>
-DYNAMIC_ELEMENTS = {"p", "pp", "ppp", "pppp", "ppppp", "pppppp", "f", "ff", "fff", "ffff", "fffff", "ffffff",
-                    "mp", "mf", "sf", "sfp", "sfpp", "fp", "rf", "rfz", "sfz", "sffz", "fz", "n", "pf", "sfzp"}
 MET_NOTES = {"metNoteDoubleWhole": "breve", "metNoteWhole": "whole", "metNoteHalfUp": "half",
              "metNoteHalfDown": "half", "metNoteQuarterUp": "quarter", "metNoteQuarterDown": "quarter",
              "metNote8thUp": "eighth", "metNote8thDown": "eighth", "metNote16thUp": "16th",
@@ -279,11 +276,11 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
         if staff is None or id(staff) not in members:
             continue
         reach = 1.6 if base.startswith(("fermata", "ornament")) else 1.1
-        target = _marked_chord(s, chords, evs, space, reach, fermata=base.startswith("fermata"))
+        target = _marked_chord(s, evs, space, reach, fermata=base.startswith("fermata"))
         if target is not None:
             extras[id(target)].marks.update(marks)
     for dot in staccato_dots:
-        target = _marked_chord(dot, chords, evs, space, 0.8)
+        target = _marked_chord(dot, evs, space, 0.8)
         if target is not None:
             extras[id(target)].marks.add("articulation staccato")
     # ---- fingering and plucking letters
@@ -420,7 +417,7 @@ def hairpins(thin, system):
 
 # ------------------------------------------------------------- note marks
 
-def _marked_chord(symbol, chords, evs, space, reach, fermata=False):
+def _marked_chord(symbol, evs, space, reach, fermata=False):
     """The chord a mark above or below a note belongs to: centred over its
     noteheads (within `reach` staff spaces), the nearest vertically. None
     if the nearest such event is a rest (a fermata over a rest)."""

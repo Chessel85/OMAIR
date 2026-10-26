@@ -20,6 +20,7 @@ OPENSCORE_SHARE_LIMIT = 0.40  # of the voice-with-piano and chamber quotas
 
 TEXTURES = ("choir", "chamber", "small ensemble", "voice with piano", "single line", "piano")
 GENRES = ("classical", "popular", "jazz", "folk", "sacred", "choral", "educational")
+# the features the sets are balanced on: the keys of each set's feature_min
 FEATURES = (
     "lyrics", "chord symbols", "several voices on a staff", "tuplets",
     "grace notes", "repeats or endings", "key or time changes", "dynamics or hairpins",

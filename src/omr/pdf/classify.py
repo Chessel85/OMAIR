@@ -15,6 +15,7 @@ SMALL_IMAGE = 0.10
 UNEVEN_BACKGROUND = 40
 TILT_LIMIT = 0.3
 
+# what each type letter stands for, as the docs and reports name them
 TYPE_NAMES = {
     "A": "vector music with font glyphs",
     "B": "vector music with outlined glyphs",
@@ -45,7 +46,7 @@ def music_font_names(ev):
     return " and ".join(f.name for f in ev.music_fonts) or "no font"
 
 
-def split_raster(ev, measures, confidence="medium", base_reason=""):
+def split_raster(measures, confidence="medium", base_reason=""):
     """Type C or D from the raster measures. Never high confidence in Phase 0."""
     signs = []
     if measures["background_range"] > UNEVEN_BACKGROUND:
@@ -101,7 +102,7 @@ def classify(ev, raster_fn):
 
     # 1. raster
     if coverage >= BIG_IMAGE and glyphs < MIN_SYMBOLS and repeated < MIN_SYMBOLS:
-        kind, conf, reason, extra = split_raster(ev, _measure(ev, raster_fn))
+        kind, conf, reason, extra = split_raster(_measure(ev, raster_fn))
         notes.extend(extra)
         return finish(kind, conf, f"An image covers {coverage * 100:.0f} percent of the page and there are no music symbols in the vector content. {reason}")
     # 2. type A (a few glyphs are enough when staves are found, with medium confidence)
@@ -119,7 +120,7 @@ def classify(ev, raster_fn):
         return finish("B", "low", "Staves found but no music symbols identified.")
     # 5. raster, partial
     if coverage >= SMALL_IMAGE:
-        kind, conf, reason, extra = split_raster(ev, _measure(ev, raster_fn), "low")
+        kind, conf, reason, extra = split_raster(_measure(ev, raster_fn), "low")
         notes.extend(extra)
         return finish(kind, "low", f"Music may be in a smaller image ({coverage * 100:.0f} percent of the page). {reason}")
     # 6. no music

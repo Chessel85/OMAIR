@@ -235,7 +235,7 @@ def report_lines(result, brief=False):
     out.extend(summary_lines(result))
     if brief:
         return out
-    previous, first_page, run_start = None, None, None
+    previous, first_page = None, None
     pending = []  # pages that match the first page of their run
     for ev, decision in result["results"]:
         sig = _signature(ev, decision)

@@ -9,8 +9,6 @@ from pathlib import Path
 
 from omr.inspect import InspectError, open_document
 
-KEY_NAMES = {0: "no sharps or flats"}
-
 
 def _key_words(fifths):
     n = int(fifths)

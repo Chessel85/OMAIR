@@ -9,7 +9,6 @@ check. The rules and known limits are in docs/notes/musicxml-spec.md.
 
 import datetime
 import math
-import re
 import xml.etree.ElementTree as ET
 from dataclasses import replace
 from fractions import Fraction
@@ -320,9 +319,8 @@ class Writer:
         for e in ends[:1]:
             kind, *numbers = e.value.split()
             _sub(barline, "ending", number=", ".join(numbers) or "1", type=kind)
-        for e in backward[:1]:
-            times = re.search(r"(\d+) times", e.value)
-            _sub(barline, "repeat", direction="backward", **({"times": times.group(1)} if times else {}))
+        if backward:
+            _sub(barline, "repeat", direction="backward")
 
     # -------------------------------------------------------------- voices
 
@@ -629,7 +627,8 @@ def _fits(evs, into):
     one chord; rests never do)."""
     for a0, a1, ga in _spans(evs):
         for b0, b1, gb in _spans(into):
-            together = (a0, a1) == (b0, b1) and not any(isinstance(e, events.Rest) for e in ga + gb)                 and ga[0].value == gb[0].value and getattr(ga[0], "grace", 0) == getattr(gb[0], "grace", 0)
+            together = ((a0, a1) == (b0, b1) and not any(isinstance(e, events.Rest) for e in ga + gb)
+                        and ga[0].value == gb[0].value and getattr(ga[0], "grace", 0) == getattr(gb[0], "grace", 0))
             if not together and a0 < b1 and b0 < a1:
                 return False
             if not together and a0 == b0 and (a0 == a1 or b0 == b1):

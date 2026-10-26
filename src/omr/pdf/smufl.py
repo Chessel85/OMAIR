@@ -155,15 +155,6 @@ def code_of(name):
 
 
 @functools.cache
-def reference_glyph(name):
-    """The Bravura glyph for a SMuFL name, or None if Bravura has no outline for it."""
-    code = code_of(name)
-    if code is None:
-        return None
-    return font_glyphs("Bravura").get(code)
-
-
-@functools.cache
 def outline_path(name, font="Bravura"):
     """The SVG path data of a glyph (font units, y up), or None."""
     code = code_of(name)

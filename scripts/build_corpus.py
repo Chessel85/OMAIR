@@ -16,7 +16,6 @@ Rules: docs/notes/corpus-sampling.md. Output folder: OMR_CORPUS_DIR.
 import argparse
 import collections
 import sys
-from pathlib import Path
 
 from omr import parallel, paths
 from omr.corpus import config, generate, select, sources

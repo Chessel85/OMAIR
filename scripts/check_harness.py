@@ -12,10 +12,9 @@ it cannot read) are warnings: they are musicdiff's faults, not the harness's.
 import argparse
 import json
 import sys
-from pathlib import Path
 
 from omr import parallel, paths
-from omr.evaluate import harness, report
+from omr.evaluate import harness
 from omr.log import ProgressLog
 
 

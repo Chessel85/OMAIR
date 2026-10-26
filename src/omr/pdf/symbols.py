@@ -87,6 +87,7 @@ class FontPrograms:
         self.doc = doc
         self._buffers = {}
         self._names = {}
+        self.shapes = {}    # (xref, gid): the glyph drawn by _ink_boxes, or None
 
     def buffer(self, xref):
         if xref not in self._buffers:
@@ -199,7 +200,7 @@ class FontIdentifier:
         named = fonttables.legacy_table(use.name)
         if named is not None:
             table = named[0]
-            program = None if table == "emmentaler" else _program(use.name, page_fonts)
+            program = None if table == "emmentaler" else _program(use.name)
             return FontMapping(use.name, table, "name", program=program)
         names = self.programs.glyph_names(xref) if xref else None
         if names and sum(1 for n in names if n.startswith(EMMENTALER_PREFIXES)) >= 3:
@@ -210,7 +211,7 @@ class FontIdentifier:
         return FontMapping(use.name, None, "codes")
 
 
-def _program(name, page_fonts):
+def _program(name):
     """Sibelius or Finale from a legacy font's own name, or None for a renamed font."""
     squashed = evidence._squash(name)
     if squashed.startswith(("opus", "helsinki", "inkpen", "reprise", "norfolk")):
@@ -466,7 +467,7 @@ def _ink_boxes(programs, page, mappings):
             wanted[xref].update(gid for _, gid, _, _ in span["chars"])
     boxes = {}
     for xref, gids in wanted.items():
-        cached = programs.__dict__.setdefault("_shapes", {})
+        cached = programs.shapes
         todo = sorted(g for g in gids if (xref, g) not in cached)
         buffer = programs.buffer(xref)
         if todo and buffer:

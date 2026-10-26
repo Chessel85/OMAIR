@@ -96,10 +96,6 @@ def _inside_any(box, boxes):
     return False
 
 
-def _staff_key(staff):
-    return (staff.page, staff.top, staff.x0, staff.x1, staff.space)
-
-
 def match_staves(truth, found):
     """{index in truth: index in found} for staves on the same page whose top
     line and ends agree within STAFF_TOLERANCE staff spaces."""

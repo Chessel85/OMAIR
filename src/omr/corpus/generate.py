@@ -12,7 +12,7 @@ from pathlib import Path
 
 from omr import inspect as inspector
 from omr import parallel, paths
-from omr.corpus import config, engravers, roundtrip
+from omr.corpus import config, engravers
 
 # The ground-truth file of a pair, relative to its job folder.
 MS4_TRUTH = "score.musicxml"
@@ -152,7 +152,7 @@ def upgrade_metadata(out):
         meta.write_text(text.replace(OLD_TRUTH_LINE, new), encoding="utf-8")
 
 
-def run_export(set_name, candidate, job_name, spec, reference, out):
+def run_export(set_name, candidate, spec, reference, out):
     """Make one export and its metadata file. Runs in a worker process.
 
     Returns (status, message, seconds, note differences). Status is "made"
@@ -243,7 +243,7 @@ def generate_set(set_name, chosen, log, min_free_gb=config.MIN_FREE_GB, retry_fa
                 if (out / "failure.txt").is_file() and not retry_failures:
                     skipped += 1
                     continue
-                future = pool.submit(run_export, set_name, candidate, job_name, spec, reference, out)
+                future = pool.submit(run_export, set_name, candidate, spec, reference, out)
                 running[future] = (number, candidate, job_name, spec)
         while running:
             collect(block=True)

@@ -166,7 +166,7 @@ def label_candidates(candidates, log):
     for i, c in enumerate(candidates, 1):
         try:
             facts = labels.analyse(labels.read_musicxml(c.mxl))
-        except Exception as error:
+        except Exception:
             dropped["unreadable MusicXML"] = dropped.get("unreadable MusicXML", 0) + 1
             continue
         reason = None

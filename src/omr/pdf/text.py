@@ -168,7 +168,6 @@ def _runs(pl):
     its line joined (a raised suffix, a flat drawn in a music font)."""
     runs = [piece for g, r in enumerate(pl.text, 1) if r.text.strip() for piece in _pieces(r, g)]
     # glyphs of a music font used in chord symbols, next to a run
-    space = statistics.median(s.space for s in pl.staves) if pl.staves else 5.0
     for s in pl.symbols:
         if s.name in CHORD_GLYPHS and (s.name.startswith("csym") or pl.staff_of(s) is None
                                        or not -6 <= pl.step_of(s) <= 14):
@@ -611,7 +610,8 @@ def chord_kind(value):
     suffix not in CHORD_KINDS (Stage 1.6 then writes it as printed)."""
     main, _, bass = value.partition(" / ")
     root, _, suffix = main.partition(" ")
-    return root, CHORD_KINDS.get(suffix.strip(), suffix.strip() if "-" in suffix and suffix.islower() else None),         (bass or None)
+    return (root, CHORD_KINDS.get(suffix.strip(), suffix.strip() if "-" in suffix and suffix.islower() else None),
+            bass or None)
 
 
 def _chord_symbols(items):

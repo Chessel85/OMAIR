@@ -8,8 +8,6 @@ NVDA. The last line of a run is always a one-line summary (see `finish`).
 import sys
 import time
 
-LEVELS = ("INFO", "WARNING", "ERROR")
-
 
 class ProgressLog:
     """Write one plain-text line per event to the screen and, optionally, a file."""

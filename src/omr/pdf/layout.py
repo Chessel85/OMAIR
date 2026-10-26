@@ -399,7 +399,8 @@ def join_systems(staves, verticals, symbols, barlines, page_number, system_gap=N
                 s.name in BRACE_NAMES and s.box[1] <= upper.middle and s.box[3] >= lower.middle
                 and s.box[2] <= min(upper.x0, lower.x0) + space
                 for s in symbols)
-        if not bridged and system_gap and lower.top - upper.bottom <= ALIGNED_GAP * system_gap                 and not _starts_system(lower, text, symbols):
+        if (not bridged and system_gap and lower.top - upper.bottom <= ALIGNED_GAP * system_gap
+                and not _starts_system(lower, text, symbols)):
             bridged = _aligned(upper, lower, barlines)
         if bridged:
             parent[root(b)] = root(a)
@@ -564,7 +565,7 @@ def _count(counts, x0, x1):
 
 # ---------------------------------------------------------------- the page
 
-def attach(staves, symbols, space):
+def attach(staves, symbols):
     """{id(symbol): (staff, step)}: each symbol on the staff that is nearest to
     it vertically among those whose span covers its x."""
     out = {}
@@ -643,8 +644,7 @@ def read_layout(page_symbols, page, staves=None, system_gap=None, lines=None):
                         horizontals=lines, verticals=verticals)
     if not staves:
         return layout
-    space = statistics.median(s.space for s in staves)
-    layout.attached = attach(staves, symbols, space)
+    layout.attached = attach(staves, symbols)
     # by the middle of the ink: fonts differ in where a dot's origin is
     dots = [((s.box[0] + s.box[2]) / 2, (s.box[1] + s.box[3]) / 2) for s in symbols if s.name in DOT_NAMES]
     for system in systems:
