@@ -216,8 +216,19 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
         part, number = placer.part_staff(staff)
         score.markings.append(events.Marking(kind, value, part, number if with_staff else None, at[0], at[1]))
 
-    # ---- text
     dynamics = dynamic_groups(pl, system)
+    _text_directions(add, placer, pl, system, items, dynamics, space)
+    _drawn_directions(add, placer, system, shapes, dynamics)
+    _marks_on_notes(extras, pl, evs, chords, members, staccato_dots, space)
+    _fingering(head_marks, head_texts, pl, items, chords, members, space)
+    _slurs(extras, system, shapes, tie_curves, chords, space)
+    _lyrics(extras, items, chords, space)
+    return extras, head_marks, head_texts
+
+
+def _text_directions(add, placer, pl, system, items, dynamics, space):
+    """Words, tempo, chord symbols, rehearsal marks, dynamics and metronome
+    marks read as text."""
     dynamic_boxes = [box for _, box in dynamics] + [i.box for i in items if i.kind == "dynamic"]
     for item in items:
         if item.kind == "words" and item.text.lower() in DYNAMIC_WORDS and _beside(item.box, dynamic_boxes, space):
@@ -228,7 +239,7 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
             # jump words end a bar: in the bar the jump reader gives them, at its end
             k = structure.jump_bar(system, item.box, space)
             at = placer.place(item.box[0], item.staff, "left")
-            if k is not None and at is not None and at[0] != bar_base + k:
+            if k is not None and at is not None and at[0] != placer.bar_base + k:
                 at = placer.end(system.bars[k].x1 - 0.01, item.staff)
             add("words", " ".join(item.text.split()), item.staff, at)
         elif item.kind in ("words", "tempo"):
@@ -239,28 +250,31 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
             # a rehearsal mark stands over the barline at the start of its bar
             k = placer.bar_at(item.box[2] + 0.5 * space)
             if k is not None:
-                add("rehearsal", item.text, item.staff, (bar_base + k, Fraction(0)), False)
+                add("rehearsal", item.text, item.staff, (placer.bar_base + k, Fraction(0)), False)
         elif item.kind == "dynamic":
             staff = placer.staff_below(item.box)
             add("dynamic", item.text, staff, placer.place((item.box[0] + item.box[2]) / 2, staff, "centre"))
         elif item.kind == "metronome":
             unit = _metronome_unit(pl, item, space)
             add("metronome", f"{unit} = {item.text}", item.staff, placer.place(item.box[0], item.staff, "left"), False)
-    # ---- dynamics drawn with music-font glyphs
+
+
+def _drawn_directions(add, placer, system, shapes, dynamics):
+    """Dynamics drawn with music-font glyphs, and hairpins."""
     for value, box in dynamics:
         staff = placer.staff_below(box)
         add("dynamic", value, staff, placer.place((box[0] + box[2]) / 2, staff, "centre"))
-    # ---- hairpins
     for kind, x0, x1, box, starts, ends in hairpins(shapes.thin, system):
         staff = placer.staff_below(box)
         if starts:
             add("hairpin", kind, staff, placer.place(x0, staff, "left"))
         if ends:
             add("hairpin end", "1", staff, placer.end(x1, staff))
-    # ---- marks on notes
-    by_staff = collections.defaultdict(list)
-    for e in chords:
-        by_staff[id(e.staff)].append(e)
+
+
+def _marks_on_notes(extras, pl, evs, chords, members, staccato_dots, space):
+    """Articulations, fermatas, ornaments, breath marks and staccato dots,
+    each on its chord."""
     for s in pl.symbols:
         base = mark_base(s.name)
         marks = NOTE_MARKS.get(base)
@@ -282,8 +296,11 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
         target = _marked_chord(dot, evs, space, 0.8)
         if target is not None:
             extras[id(target)].marks.add("articulation staccato")
-    # ---- fingering and plucking letters
-    # fingering is text, or digits of a music font (fingering0 to fingering5)
+
+
+def _fingering(head_marks, head_texts, pl, items, chords, members, space):
+    """Fingering and plucking letters, each on its notehead. Fingering is
+    text, or digits of a music font (fingering0 to fingering5)."""
     glyphs = [tx.TextItem("fingering", s.name[-1], s.box, pl.page, staff=pl.staff_of(s)) for s in pl.symbols
               if re.fullmatch(r"fingering[0-5]", s.name) and id(pl.staff_of(s)) in members]
     for kind, mark in (("fingering", "technical fingering"), ("pluck", "technical pluck")):
@@ -291,7 +308,11 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
         for head, item in _fingered_heads(found, chords, space):
             head_marks[id(head)].add(mark)
             head_texts[id(head)].append((kind, item.text.strip()))
-    # ---- slurs
+
+
+def _slurs(extras, system, shapes, tie_curves, chords, space):
+    """Slur starts and stops on the chords at the ends of the curves that
+    are not ties."""
     for c in shapes.curves:
         if id(c) in tie_curves or not _in_system(c.box, system, space):
             continue
@@ -310,7 +331,13 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
             extras[id(left)].slurs.append(("start", "1"))
         if right is not None:
             extras[id(right)].slurs.append(("stop", "1"))
-    # ---- lyrics
+
+
+def _lyrics(extras, items, chords, space):
+    """Each lyric syllable on its chord, one a verse."""
+    by_staff = collections.defaultdict(list)
+    for e in chords:
+        by_staff[id(e.staff)].append(e)
     taken = {}
     for item in sorted((i for i in items if i.kind == "lyric"), key=lambda i: i.box[0]):
         target = _lyric_chord(item, by_staff.get(id(item.staff), []), space)
@@ -321,7 +348,6 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
             continue
         taken[key] = item
         extras[id(target)].lyrics.append((item.verse, item.text, item.syllabic, item.extend))
-    return extras, head_marks, head_texts
 
 
 def _in_system(box, system, space):

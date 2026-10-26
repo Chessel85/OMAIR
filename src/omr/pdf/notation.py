@@ -1362,16 +1362,11 @@ def read_notes(score, ordered, pages, layouts=()):
     and with them the markings and text (Stage 1.4, omr.pdf.markings).
     `layouts` are all the page layouts, for the text of pages with no
     system (it goes to score.text)."""
-    bar_base = 0
-    clefs_in_force = {}     # (part, staff) -> clef value
-    clef_onsets = {}        # (part, staff, bar, rank) -> onset of a clef within a bar
-    open_ties = {}          # (part, staff, letter, octave) -> alter, ties running into the next system
+    # the structure is read in full before the notes, so the signatures hold for every system
+    state = _ReadState(events.SignaturesInForce(score))
     shapes_by_page = {}
     text_by_page = {}
-    lengths = collections.defaultdict(Fraction)
     first_page = min((pl.page for pl, _, _ in ordered), default=1)
-    # the structure is read in full before the notes, so this holds for every system
-    signatures = events.SignaturesInForce(score)
 
     def page_text(pl, shapes):
         rect = pages[pl.page - 1].rect
@@ -1386,21 +1381,20 @@ def read_notes(score, ordered, pages, layouts=()):
             shapes_by_page[pl.page] = page_shapes(pages[pl.page - 1], pl.staff_space())
             text_by_page[pl.page] = page_text(pl, shapes_by_page[pl.page])
         items = [i for i in text_by_page[pl.page] if i.system is system]
-        _read_system(score, pl, system, mapping, bar_base, shapes_by_page[pl.page], items, signatures,
-                     clefs_in_force, clef_onsets, lengths, open_ties)
-        bar_base += len(system.bars)
+        _read_system(score, pl, system, mapping, shapes_by_page[pl.page], items, state)
+        state.bar_base += len(system.bars)
     for pl in layouts:
         if pl.page not in text_by_page:
             for r in pl.text:
                 score.text.append(text.TextItem("page text", r.text, r.box, pl.page, r.font, r.size))
     for k, bar in enumerate(score.bars):
-        bar.length = lengths.get(k, Fraction(0))
+        bar.length = state.lengths.get(k, Fraction(0))
     # clefs within a bar take the onset of the event they stand before
     fixed = []
     for e in score.structure:
         if e.kind == "clef" and e.onset < 1:
             rank = int(e.onset * 1000)
-            onset = clef_onsets.get((e.part, e.staff, e.bar, rank))
+            onset = state.clef_onsets.get((e.part, e.staff, e.bar, rank))
             if onset is not None:
                 e = replace(e, onset=onset)
         fixed.append(e)
@@ -1471,23 +1465,71 @@ def _join_bars(score, k, shift):
     score.bar_counts = [len(score.bars)] * len(score.parts)
 
 
-def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures, clefs_in_force, clef_onsets,
-                 lengths, open_ties):
-    beams, curves, dashed, thin = shapes.beams, shapes.level_curves, shapes.dashed, shapes.thin
-    space = statistics.median(s.space for s in system.staves)
-    members = {id(st): k for k, st in enumerate(system.staves)}
-    # the symbols on the system's staves, in page order
-    mine = [s for s in pl.symbols if id(pl.staff_of(s)) in members]
+@dataclass
+class _ReadState:
+    """What reading the systems in score order carries from one to the next."""
+    signatures: events.SignaturesInForce
+    bar_base: int = 0                                # the score bar of the system's first bar
+    clefs: dict = field(default_factory=dict)        # (part, staff) -> clef value in force
+    clef_onsets: dict = field(default_factory=dict)  # (part, staff, bar, rank) -> onset of a clef within a bar
+    lengths: dict = field(default_factory=lambda: collections.defaultdict(Fraction))   # score bar -> length
+    open_ties: dict = field(default_factory=dict)    # (part, staff, letter, octave) -> alter, ties into the next system
 
-    def doubt(staff, k, rule, reason, onset=None):
+
+@dataclass
+class _SystemReading:
+    """One system being read: where it is, and how to note a doubt on it."""
+    score: events.Score
+    pl: lay.PageLayout
+    system: lay.System
+    mapping: object
+    bar_base: int
+    space: float
+    members: dict      # id(staff) -> index in the system
+    mine: list         # the symbols on the system's staves, in page order
+
+    def doubt(self, staff, k, rule, reason, onset=None):
         """Note a doubt (Stage 1.5, omr.pdf.rules) on a staff in bar k of
         the system, or at a place x when k is a float."""
         if isinstance(k, float):
-            k = lay.bar_of(system, k)
-        if k is None or id(staff) not in members:
+            k = lay.bar_of(self.system, k)
+        if k is None or id(staff) not in self.members:
             return
-        part, number = mapping.staves[members[id(staff)]]
-        score.doubts.append(events.Flag(part, number, bar_base + k, rule, reason, onset))
+        part, number = self.mapping.staves[self.members[id(staff)]]
+        self.score.doubts.append(events.Flag(part, number, self.bar_base + k, rule, reason, onset))
+
+
+@dataclass
+class _Found:
+    """A system's events and what is attached to them, before timing."""
+    evs: list
+    dots: list
+    used_dots: set
+    repeat_zones: list
+    unused_marks: list     # tuplet numbers over no notes
+    ties: tuple            # as find_ties gives them
+    octave_spans: list
+    arpeggiated: set
+
+
+def _read_system(score, pl, system, mapping, shapes, items, state):
+    members = {id(st): k for k, st in enumerate(system.staves)}
+    r = _SystemReading(score, pl, system, mapping, state.bar_base, statistics.median(s.space for s in system.staves),
+                       members, [s for s in pl.symbols if id(pl.staff_of(s)) in members])
+    found = _find_events(r, shapes)
+    _time_events(r, found.evs, state.signatures)
+    staccato = _note_doubts(r, found, items)
+    # markings (Stage 1.4): directions go to score.markings, the rest onto the notes
+    extras, head_marks, head_texts = markings.read_system(score, pl, system, mapping, state.bar_base, found.evs,
+                                                          items, shapes, found.ties[4], staccato)
+    _emit_notes(r, found, state, extras, head_marks, head_texts)
+
+
+def _find_events(r, shapes):
+    """The system's noteheads, stems, beams, flags, chords, rests, dots,
+    tuplets, accidentals, ties, octave marks and arpeggios."""
+    pl, system, space, mine, doubt = r.pl, r.system, r.space, r.mine, r.doubt
+    beams, curves, dashed, thin = shapes.beams, shapes.level_curves, shapes.dashed, shapes.thin
     heads = []
     tempo_runs = [run for run in pl.text if run.text.lstrip().startswith("=")]
     for s in pl.symbols:
@@ -1501,7 +1543,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
                     continue
                 if _tempo_head(s, tempo_runs, staff.space):
                     continue
-                if id(staff) in members:
+                if id(staff) in r.members:
                     heads.append(Head(s, staff, step, False))
     _small_heads(heads)
     barline_xs = [x for g in system.barlines for x, _ in g.lines]
@@ -1531,7 +1573,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
     page_staves = [st for sy in pl.systems for st in sy.staves]
     unused_marks = apply_tuplets([m for m in tuplet_marks(pl) if system.staves[0].top - 8 * space <= m.y
                    <= system.staves[-1].bottom + 8 * space and system.x0 <= m.x <= system.x1
-                   and id(_nearest_staff(page_staves, m.y)) in members],
+                   and id(_nearest_staff(page_staves, m.y)) in r.members],
                   evs, thin + [(h.x0, h.y, h.x1, h.y) for h in pl.horizontals if h.thickness <= 0.25 * space],
                   pl.verticals, space)
     # accidentals and key signatures
@@ -1542,7 +1584,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
             if accidental_alter(s.name) is not None and id(s) not in signature]
     for a in attach_accidentals(accs, heads, space):
         doubt(a.staff, a.x, "stray symbol", "an accidental is before no note")
-    tied_to, tied_from, start_next, stop_previous, tie_curves = find_ties(curves, heads, evs, system, space)
+    ties = find_ties(curves, heads, evs, system, space)
     octave_doubts = []
     octave_spans = octave_marks(pl, system, dashed, space, octave_doubts)
     for x0, x1, y, reason in octave_doubts:
@@ -1552,7 +1594,15 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
             for staff in near:
                 doubt(staff, k, "octave sign", reason)
     arpeggiated = arpeggios(pl, [e for e in evs if e.rest is None], space)
-    # events by staff and bar
+    return _Found(evs, dots, used_dots, repeat_zones, unused_marks, ties, octave_spans, arpeggiated)
+
+
+def _time_events(r, evs, signatures):
+    """Each event's bar and onset, staff by staff and bar by bar: whole-bar
+    rests, tuplets printed, detected and hidden, a doubtful staff read again
+    against the others, cross-staff beams and grace notes; and the doubts
+    about rhythm and parts."""
+    system, space, doubt, mapping = r.system, r.space, r.doubt, r.mapping
     by_staff_bar = collections.defaultdict(list)
     for e in evs:
         k = lay.bar_of(system, e.x + 0.01)
@@ -1568,7 +1618,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
     for (staff_id, k), group in by_staff_bar.items():
         main = [e for e in group if not e.grace]
         part = mapping.staves[[id(st) for st in system.staves].index(staff_id)][0]
-        bar_length, _ = _time_in_force(signatures, bar_base + k, part)
+        bar_length, _ = _time_in_force(signatures, r.bar_base + k, part)
         whole = [e for e in main if e.rest is not None and e.rest.name in ("restWhole", "restDoubleWhole")]
         if len(main) == 1 and whole:
             whole[0].whole_bar = True
@@ -1612,8 +1662,14 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
                       "staff belongs to is not certain")
     for staff, k, reason, onset in _column_conflicts(by_staff_bar, space):
         doubt(staff, k, "staves disagree", reason, onset)
+
+
+def _note_doubts(r, found, items):
+    """Doubts about tuplet numbers over no notes and dots beside none.
+    Returns the staccato dots, which the markings take."""
+    pl, system, space, doubt = r.pl, r.system, r.space, r.doubt
     bar_numbers = [i.box for i in items if i.kind == "bar number"]
-    for m in unused_marks:
+    for m in found.unused_marks:
         if any(b[0] <= m.x <= b[2] and b[1] <= m.y <= b[3] for b in bar_numbers):
             continue   # an italic bar number
         if any(c.box[0] - space <= m.x <= c.box[2] + space for c in pl.symbols if c.name in structure.CLEFS
@@ -1622,20 +1678,26 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
         staff = min(system.staves, key=lambda st: 0 if st.top <= m.y <= st.bottom
                     else min(abs(m.y - st.top), abs(m.y - st.bottom)))
         doubt(staff, m.x, "stray symbol", f"a tuplet number {m.actual} is over no notes")
-    # markings (Stage 1.4): directions go to score.markings, the rest onto the notes
-    staccato = staccato_dots([d for d in dots if id(d) not in used_dots], evs, space)
+    staccato = staccato_dots([d for d in found.dots if id(d) not in found.used_dots], found.evs, space)
     taken = {id(d) for d in staccato}
-    for d in dots:
+    for d in found.dots:
         cx = (d.box[0] + d.box[2]) / 2
-        if id(d) not in used_dots and id(d) not in taken and not any(a <= cx <= b for a, b in repeat_zones):
+        if id(d) not in found.used_dots and id(d) not in taken and not any(a <= cx <= b for a, b in found.repeat_zones):
             doubt(pl.staff_of(d), cx, "stray symbol", "a dot is beside no note")
-    extras, head_marks, head_texts = markings.read_system(score, pl, system, mapping, bar_base, evs, items, shapes,
-                                              tie_curves, staccato)
-    # pitch, in x order per staff
+    return staccato
+
+
+def _emit_notes(r, found, state, extras, head_marks, head_texts):
+    """The system's notes and rests into the score, staff by staff in x
+    order, with their pitch from the clef, key, accidentals, ties and octave
+    marks; and the onsets of clefs within bars."""
+    pl, system, score, mapping, bar_base = r.pl, r.system, r.score, r.mapping, r.bar_base
+    evs, octave_spans, arpeggiated = found.evs, found.octave_spans, found.arpeggiated
+    tied_to, tied_from, start_next, stop_previous, _ = found.ties
     alters = {}
     next_ties = {}
     for staff in system.staves:
-        part, number = mapping.staves[members[id(staff)]]
+        part, number = mapping.staves[r.members[id(staff)]]
         staff_clefs = sorted((s for s in pl.on_staff(staff) if s.name in structure.CLEFS), key=lambda s: s.x)
         clef_values = []
         for c in staff_clefs:
@@ -1644,7 +1706,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
             if octave and " octave" not in value:
                 value += f" octave {octave:+d}"
             clef_values.append((c.x, value))
-        state = {}
+        in_bar = {}    # (letter, octave) -> alteration by an accidental earlier in the bar
         current_bar = None
         staff_events = sorted((e for e in evs if e.staff is staff and e.onset is not None),
                               key=lambda e: (e.bar, e.x))
@@ -1657,18 +1719,18 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
         for e in staff_events:
             global_bar = bar_base + e.bar
             if e.bar != current_bar:
-                state, current_bar = {}, e.bar
+                in_bar, current_bar = {}, e.bar
             voice = str(e.voice + 1 + 4 * (number - 1))
-            lengths[global_bar] = max(lengths[global_bar], e.onset + (0 if e.grace else e.duration))
+            state.lengths[global_bar] = max(state.lengths[global_bar], e.onset + (0 if e.grace else e.duration))
             if e.rest is not None:
                 duration = events.WHOLE_BAR if e.whole_bar else e.duration
                 score.rests.append(events.Rest(part, number, voice, global_bar, e.onset, duration))
                 continue
-            clef = clefs_in_force.get((part, number), "G 2")
+            clef = state.clefs.get((part, number), "G 2")
             for x, value in clef_values:
                 if x < e.x:
                     clef = value
-            fifths = signatures.key(part, global_bar)
+            fifths = state.signatures.key(part, global_bar)
             value_name = TYPE_NAME.get(e.base, "quarter") + "." * e.dots
             grace_order = 0
             if e.grace:
@@ -1678,14 +1740,14 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
                 letter, octave = pitch_of(clef, h.step)
                 key = (letter, octave)
                 if h.accidental is not None:
-                    state[key] = h.accidental
-                alter = state.get(key, events.key_alter(fifths, letter))
+                    in_bar[key] = h.accidental
+                alter = in_bar.get(key, events.key_alter(fifths, letter))
                 # a tied note keeps the alteration of the note it is tied from
                 if h.accidental is None:
                     if id(h) in tied_from and id(tied_from[id(h)]) in alters:
                         alter = alters[id(tied_from[id(h)])]
-                    elif id(h) in stop_previous and (part, number, letter, octave) in open_ties:
-                        alter = open_ties[(part, number, letter, octave)]
+                    elif id(h) in stop_previous and (part, number, letter, octave) in state.open_ties:
+                        alter = state.open_ties[(part, number, letter, octave)]
                 alters[id(h)] = alter
                 if id(h) in start_next:
                     next_ties[(part, number, letter, octave)] = alter
@@ -1712,7 +1774,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
                                                syllables=syllables,
                                                fingering=tuple(head_texts.get(id(h), ()))))
         if clef_values:
-            clefs_in_force[(part, number)] = clef_values[-1][1]
+            state.clefs[(part, number)] = clef_values[-1][1]
         # onsets of clefs within bars, by the rank structure.staff_clefs gives them
         music = structure.staff_music(pl, staff)
         for c in staff_clefs:
@@ -1728,9 +1790,8 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
                 # rank 0 with notes of the staff before it: they are drawn on
                 # the other staff (cross-staff), so the clef is not at the start
                 if rank or before:
-                    clef_onsets[(part, number, bar_base + k, rank)] = min(e.onset for e in after)
-    open_ties.clear()
-    open_ties.update(next_ties)
+                    state.clef_onsets[(part, number, bar_base + k, rank)] = min(e.onset for e in after)
+    state.open_ties = next_ties
 
 
 # ------------------------------------------------------------ ledger lines

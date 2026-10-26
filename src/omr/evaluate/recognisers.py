@@ -153,28 +153,28 @@ def _join_point(parts, end):
     return None
 
 
-def damage(truth, out, seed=1, flag_share=0.5):
-    """Copy `truth` to OUT/score.musicxml with known damage and write
-    OUT/damage.json and OUT/flags.json."""
-    out = Path(out)
-    out.mkdir(parents=True, exist_ok=True)
-    tree = ET.ElementTree(events.read_root(truth))
-    root = tree.getroot()
-    rng = random.Random(seed)
-    d = _Damage(root, rng)
-    end = _notes_end(d.parts)
-    join_at = _join_point(d.parts, end)   # the join comes after every other damage
-    reserve = join_at if join_at is not None else end   # no other damage from here on
+def _free_bars(d, reserve, first=0):
+    """(part index, bar index, measure) for the bars from `first` not used
+    yet and before `reserve`, part by part in score order."""
+    for p, part in enumerate(d.parts):
+        for b, measure in enumerate(part.findall("measure")):
+            if b >= first and b not in d.used_bars and b < reserve:
+                yield p, b, measure
 
-    # 1. A pitch an octave higher, where no note of the same chord already has that pitch.
+
+def _raise_octave(d, reserve):
+    """A pitch an octave higher, where no note of the same chord already has that pitch."""
     for p, b, measure, note in d.candidates(lambda n, ns: True, reserve):
         step, alter, octave = _pitch(note)
         if (step, alter, octave + 1) not in _same_onset_pitches(note, measure.findall("note")):
             _set_pitch(note, step, alter, octave + 1)
             d.expected["pitch"] += 1
             d.take("pitch", b, 1, f"part {p + 1}: {step}{alter or ''}{octave} raised an octave")
-            break
-    # 2. An enharmonic respelling (C sharp written as D flat).
+            return
+
+
+def _respell(d, reserve):
+    """An enharmonic respelling (C sharp written as D flat)."""
     for p, b, measure, note in d.candidates(lambda n, ns: True, reserve):
         step, alter, octave = _pitch(note)
         new_step = events.STEPS[(events.STEPS.index(step) + 1) % 7]
@@ -185,14 +185,20 @@ def damage(truth, out, seed=1, flag_share=0.5):
             d.expected["pitch"] += 1
             d.expected["spelling only"] += 1
             d.take("respelling", b, 1, f"part {p + 1}: {step}{alter or ''}{octave} respelled")
-            break
-    # 3. Delete a chord note (it has <chord/>, so no timing moves).
+            return
+
+
+def _delete_chord_note(d, reserve):
+    """Delete a chord note (it has <chord/>, so no timing moves)."""
     for p, b, measure, note in d.candidates(lambda n, ns: n.find("chord") is not None, reserve):
         measure.remove(note)
         d.expected["missing"] += 1
         d.take("missing", b, 1, f"part {p + 1}: a chord note deleted")
-        break
-    # 4. Add a note to a chord, two octaves above one of its notes.
+        return
+
+
+def _add_chord_note(d, reserve):
+    """Add a note to a chord, two octaves above one of its notes."""
     for p, b, measure, note in d.candidates(lambda n, ns: n.find("chord") is None, reserve):
         notes = measure.findall("note")
         step, alter, octave = _pitch(note)
@@ -213,52 +219,48 @@ def damage(truth, out, seed=1, flag_share=0.5):
         measure.insert(position, added)
         d.expected["extra"] += 1
         d.take("extra", b, 1, f"part {p + 1}: a note added to a chord")
-        break
-    # 5. Change the notated type of a note but keep its <duration>, so no onset moves.
+        return
+
+
+def _double_value(d, reserve):
+    """Change the notated type of a note but keep its <duration>, so no onset moves."""
     longer = {"16th": "eighth", "eighth": "quarter", "quarter": "half", "half": "whole"}
     for p, b, measure, note in d.candidates(
             lambda n, ns: (n.findtext("type") or "") in longer and n.find("time-modification") is None, reserve):
         note.find("type").text = longer[note.findtext("type")]
         d.expected["duration"] += 1
         d.take("duration", b, 1, f"part {p + 1}: a note's value doubled")
-        break
-    # 6. Swap the voice numbers in one bar of one part (no note errors).
-    for p, part in enumerate(d.parts):
-        done = False
-        for b, measure in enumerate(part.findall("measure")):
-            if b in d.used_bars or b >= reserve:
-                continue
-            voices = sorted({n.findtext("voice") for n in measure.findall("note") if n.findtext("voice")})
-            if len(voices) >= 2:
-                swap = {voices[0]: voices[1], voices[1]: voices[0]}
-                for n in measure.findall("note"):
-                    if n.findtext("voice") in swap:
-                        n.find("voice").text = swap[n.findtext("voice")]
-                d.take("voices swapped", b, 0, f"part {p + 1}: voices {voices[0]} and {voices[1]} swapped")
-                done = True
-                break
-        if done:
-            break
-    # 7. Remove one dynamic.
-    removed = False
-    for p, part in enumerate(d.parts):
-        for b, measure in enumerate(part.findall("measure")):
-            if b in d.used_bars or b >= reserve:
-                continue
-            for direction in measure.findall("direction"):
-                types = direction.findall("direction-type")
-                if len(types) == 1 and len(types[0]) == 1 and types[0][0].tag == "dynamics" and len(types[0][0]) == 1:
-                    measure.remove(direction)
-                    d.expected["dynamics removed"] += 1
-                    d.take("dynamic removed", b, 0, f"part {p + 1}: a dynamic removed")
-                    removed = True
-                    break
-            if removed:
-                break
-        if removed:
-            break
-    # 8. Move a chord's other notes into a new voice (a chord split into voices: no note
-    #    errors, and voice accuracy unchanged, since two output voices may map to one).
+        return
+
+
+def _swap_voices(d, reserve):
+    """Swap the voice numbers in one bar of one part (no note errors)."""
+    for p, b, measure in _free_bars(d, reserve):
+        voices = sorted({n.findtext("voice") for n in measure.findall("note") if n.findtext("voice")})
+        if len(voices) >= 2:
+            swap = {voices[0]: voices[1], voices[1]: voices[0]}
+            for n in measure.findall("note"):
+                if n.findtext("voice") in swap:
+                    n.find("voice").text = swap[n.findtext("voice")]
+            d.take("voices swapped", b, 0, f"part {p + 1}: voices {voices[0]} and {voices[1]} swapped")
+            return
+
+
+def _remove_dynamic(d, reserve):
+    """Remove one dynamic."""
+    for p, b, measure in _free_bars(d, reserve):
+        for direction in measure.findall("direction"):
+            types = direction.findall("direction-type")
+            if len(types) == 1 and len(types[0]) == 1 and types[0][0].tag == "dynamics" and len(types[0][0]) == 1:
+                measure.remove(direction)
+                d.expected["dynamics removed"] += 1
+                d.take("dynamic removed", b, 0, f"part {p + 1}: a dynamic removed")
+                return
+
+
+def _split_chord(d, reserve):
+    """Move a chord's other notes into a new voice (a chord split into voices: no note
+    errors, and voice accuracy unchanged, since two output voices may map to one)."""
     for p, b, measure, note in d.candidates(lambda n, ns: _chord_notes(n, ns) is not None, reserve):
         notes = measure.findall("note")
         others = _chord_notes(note, notes)
@@ -283,73 +285,84 @@ def damage(truth, out, seed=1, flag_share=0.5):
             measure.insert(position + k, element)
         d.expected["chords split"] += 1
         d.take("chord split", b, 0, f"part {p + 1}: a chord's upper notes moved to voice {new_voice}")
-        break
-    # 9. Remove one hairpin, where no other hairpin of the same kind starts in that bar and part.
-    removed = False
-    for p, part in enumerate(d.parts):
-        for b, measure in enumerate(part.findall("measure")):
-            if b in d.used_bars or b >= reserve:
-                continue
-            wedges = [(direction, _single_wedge(direction)) for direction in measure.findall("direction")]
-            starts = [(direction, kind) for direction, kind in wedges if kind in ("crescendo", "diminuendo")]
-            kinds = [kind for _, kind in starts]
-            for direction, kind in starts:
-                if kinds.count(kind) == 1:
-                    measure.remove(direction)
-                    d.expected["hairpins removed"] += 1
-                    d.take("hairpin removed", b, 0, f"part {p + 1}: a {kind} hairpin removed")
-                    removed = True
-                    break
-            if removed:
-                break
-        if removed:
-            break
-    # 10. Remove one clef, key or time change after the first bar (one structural error).
-    #     A restatement is not a change (decision 11), so removing one is not damage. Removing
-    #     a change can also make a later change a restatement (a clef change and the change
-    #     back), which is one more mismatch, so each candidate is checked by reading the score.
+        return
+
+
+def _remove_hairpin(d, reserve):
+    """Remove one hairpin, where no other hairpin of the same kind starts in that bar and part."""
+    for p, b, measure in _free_bars(d, reserve):
+        wedges = [(direction, _single_wedge(direction)) for direction in measure.findall("direction")]
+        starts = [(direction, kind) for direction, kind in wedges if kind in ("crescendo", "diminuendo")]
+        kinds = [kind for _, kind in starts]
+        for direction, kind in starts:
+            if kinds.count(kind) == 1:
+                measure.remove(direction)
+                d.expected["hairpins removed"] += 1
+                d.take("hairpin removed", b, 0, f"part {p + 1}: a {kind} hairpin removed")
+                return
+
+
+def _remove_signature_change(d, reserve):
+    """Remove one clef, key or time change after the first bar (one structural error).
+    A restatement is not a change (decision 11), so removing one is not damage. Removing
+    a change can also make a later change a restatement (a clef change and the change
+    back), which is one more mismatch, so each candidate is checked by reading the score."""
     def changes():
         """The signature changes as the harness compares them."""
-        return collections.Counter(events.signature_changes(events.without_trailing_empty_bars(events.from_root(root))))
+        return collections.Counter(events.signature_changes(events.without_trailing_empty_bars(events.from_root(d.root))))
 
     before = changes()
-    removed = False
-    for p, part in enumerate(d.parts):
-        for b, measure in enumerate(part.findall("measure")):
-            if b == 0 or b in d.used_bars or b >= reserve:
-                continue
-            for attributes in measure.findall("attributes"):
-                for index, change in enumerate(list(attributes)):
-                    if change.tag not in ("clef", "key", "time"):
-                        continue
-                    attributes.remove(change)
-                    after = changes()
-                    lost = sum((before - after).values())
-                    if lost and not after - before:
-                        d.expected["structure mismatches"] += lost
-                        d.take("structure removed", b, 0, f"part {p + 1}: a {change.tag} change removed"
-                               + (f", which makes {lost - 1} later change a restatement" if lost > 1 else ""))
-                        removed = True
-                        break
-                    attributes.insert(index, change)
-                if removed:
-                    break
-            if removed:
-                break
-        if removed:
-            break
-    # 11. Join two bars near the end in every part (a missed barline: one structural error, no note errors).
+    for p, b, measure in _free_bars(d, reserve, first=1):
+        for attributes in measure.findall("attributes"):
+            for index, change in enumerate(list(attributes)):
+                if change.tag not in ("clef", "key", "time"):
+                    continue
+                attributes.remove(change)
+                after = changes()
+                lost = sum((before - after).values())
+                if lost and not after - before:
+                    d.expected["structure mismatches"] += lost
+                    d.take("structure removed", b, 0, f"part {p + 1}: a {change.tag} change removed"
+                           + (f", which makes {lost - 1} later change a restatement" if lost > 1 else ""))
+                    return
+                attributes.insert(index, change)
+
+
+def _join_bars(d, join_at):
+    """Join two bars near the end in every part (a missed barline: one structural error, no note errors)."""
+    for part in d.parts:
+        measures = part.findall("measure")
+        first, second = measures[join_at], measures[join_at + 1]
+        for child in list(second):
+            if child.tag not in ("print", "barline"):
+                first.append(child)
+        part.remove(second)
+    d.expected["bars joined"] += 1
+    d.expected["structure mismatches"] += 1
+    d.log.append({"kind": "bars joined", "bar": join_at + 1, "what": f"bars {join_at + 1} and {join_at + 2} joined"})
+
+
+# The kinds of damage, each made once where it can be, in this order.
+DAMAGE_STEPS = (_raise_octave, _respell, _delete_chord_note, _add_chord_note, _double_value, _swap_voices,
+                _remove_dynamic, _split_chord, _remove_hairpin, _remove_signature_change)
+
+
+def damage(truth, out, seed=1, flag_share=0.5):
+    """Copy `truth` to OUT/score.musicxml with known damage and write
+    OUT/damage.json and OUT/flags.json."""
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    tree = ET.ElementTree(events.read_root(truth))
+    root = tree.getroot()
+    rng = random.Random(seed)
+    d = _Damage(root, rng)
+    end = _notes_end(d.parts)
+    join_at = _join_point(d.parts, end)   # the join comes after every other damage
+    reserve = join_at if join_at is not None else end   # no other damage from here on
+    for step in DAMAGE_STEPS:
+        step(d, reserve)
     if join_at is not None:
-        for part in d.parts:
-            measures = part.findall("measure")
-            first, second = measures[join_at], measures[join_at + 1]
-            for child in list(second):
-                if child.tag not in ("print", "barline"):
-                    first.append(child)
-            part.remove(second)
-        d.expected["bars joined"] += 1
-        d.expected["structure mismatches"] += 1
-        d.log.append({"kind": "bars joined", "bar": join_at + 1, "what": f"bars {join_at + 1} and {join_at + 2} joined"})
+        _join_bars(d, join_at)
 
     tree.write(out / "score.musicxml", encoding="utf-8", xml_declaration=True)
     flagged = sorted(d.error_bars)[: max(0, round(len(d.error_bars) * flag_share))]
