@@ -269,6 +269,8 @@ def main(argv=None):
                 done = len(results) + failed
                 if done % 100 == 0:
                     log.info(f"{done} of {len(todo)} pairs checked.")
+    # in the set's order, not the order the workers finished in
+    results = {(s, j): results[(s, j)] for s, j, *_ in todo if (s, j) in results}
     text = report(results)
     print(text)
     if args.out:

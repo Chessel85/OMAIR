@@ -67,4 +67,5 @@ def finished(running, block):
         done, _ = cf.wait(running, return_when=cf.FIRST_COMPLETED)
     else:
         done = [f for f in running if f.done()]
-    return [(f, running.pop(f)) for f in done]
+    # in the order they were submitted: `done` is a set, whose order changes from run to run
+    return [(f, running.pop(f)) for f in list(running) if f in done]

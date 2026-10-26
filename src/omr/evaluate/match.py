@@ -326,7 +326,9 @@ def _pair_exact(truth_placed, output_placed, truth_staff_of):
     for p in output_placed:
         by_key_output[p.key].append(p)
     exact, left_truth, left_output = [], [], []
-    for key in set(by_key_truth) | set(by_key_output):
+    # in the order the keys are first met, not a set's: a set of keys holding
+    # strings changes order from run to run, and with it which leftovers pair
+    for key in list(by_key_truth) + [k for k in by_key_output if k not in by_key_truth]:
         ts, os_ = by_key_truth.get(key, []), by_key_output.get(key, [])
         used = set()
         pairs = []

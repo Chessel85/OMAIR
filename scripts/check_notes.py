@@ -183,6 +183,8 @@ def main(argv=None):
                 except Exception as error:   # report and go on with the rest
                     failed += 1
                     log.error(f"{score} {job}: {type(error).__name__}: {error}")
+    # in the set's order, not the order the workers finished in
+    results = {(s, j): results[(s, j)] for s, j, *_ in todo if (s, j) in results}
     text = report(results)
     print(text)
     if args.out:
