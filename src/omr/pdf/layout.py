@@ -558,6 +558,40 @@ def mark_repeats(barline, dots, staff_list):
 
 # -------------------------------------------------------------------- bars
 
+TIME_NAMES = {f"timeSig{i}" for i in range(10)} | {"timeSigCommon", "timeSigCutCommon"}
+
+
+def hidden_barlines(layout, system, music_xs):
+    """Barlines the engraver hid before a time signature: a time signature
+    stands only at the start of a bar, so one inside the staves of at least
+    half the system's staves, with music before it and after it between the
+    same two barlines, starts a bar. (A change at the end of a bar, before a
+    start repeat, has no music after it; a reminder at the end of a line
+    none either.)"""
+    starts = []
+    for staff in system.staves:
+        xs = [s.box[0] for s in layout.on_staff(staff) if s.name in TIME_NAMES
+              and staff.top <= (s.box[1] + s.box[3]) / 2 <= staff.bottom]
+        if xs:
+            starts.append(min(xs))
+    if not starts:
+        return []
+    space = system.staves[0].space
+    needed = max(1, (len(system.staves) + 1) // 2)
+    found = []
+    for x in sorted(starts):
+        if found and x - found[-1] <= space:
+            continue
+        if sum(1 for other in starts if abs(other - x) <= space) < needed:
+            continue
+        before = max((g.x1 for g in system.barlines if g.x1 <= x), default=system.x0)
+        after = min((g.x0 for g in system.barlines if g.x0 >= x), default=system.x1)
+        # music a space or more before it: a tempo mark's note can stand over the signature
+        if any(before < m < x - space for m in music_xs) and any(x < m < after for m in music_xs):
+            found.append(x)
+    return [Barline(x - 0.5 * space, x - 0.5 * space, [(x - 0.5 * space, False)]) for x in found]
+
+
 def make_bars(system, music_xs, counts=()):
     """Bars of a system (rule 5). `music_xs` are the x of the notes and rests
     in it, `counts` (x, y, digit) of digits over a staff: a multi-bar rest's
@@ -704,6 +738,7 @@ def read_layout(page_symbols, page, staves=None, system_gap=None, lines=None):
             mark_repeats(group, dots, system.staves)
         music = [s.x for s in symbols if (is_note(s.name) or is_rest(s.name))
                  and id(layout.staff_of(s)) in members]
+        system.barlines = sorted(system.barlines + hidden_barlines(layout, system, music), key=lambda g: g.x0)
         counts = [(s.x, s.y, s.name[-1]) for s in symbols if s.name.startswith("timeSig") and s.name[-1].isdigit()
                   and id(layout.staff_of(s)) in members and s.box[3] <= layout.staff_of(s).top]
         system.bars = make_bars(system, music, counts)

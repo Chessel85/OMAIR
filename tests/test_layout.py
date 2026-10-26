@@ -399,3 +399,15 @@ def test_a_multi_bar_rest_stands_for_its_count_of_bars():
     counts = [(170.0, 80.0, "1"), (178.0, 80.0, "3"), (170.0, 150.0, "1"), (178.0, 150.0, "3")]
     bars = layout.make_bars(system, [350.0], counts)
     assert len(bars) == 14 and bars[0].x0 == 50.0 and bars[12].x1 == 310.0 and bars[12].end is end
+
+
+def test_a_time_signature_in_the_middle_of_a_bar_starts_one():
+    # the engraver hid the barline before a change to 6/8: notes at 60 and 140, the digits at 100
+    staff = SimpleNamespace(top=100.0, bottom=120.0, space=5.0)
+    digits = [SimpleNamespace(name=f"timeSig{d}", box=(100.0, y, 104.0, y + 10.0)) for d, y in ((6, 100.0), (8, 110.0))]
+    page = SimpleNamespace(on_staff=lambda s: digits)
+    system = SimpleNamespace(staves=[staff], barlines=[layout.Barline(200.0, 200.0, [(200.0, False)])], x0=40.0, x1=300.0)
+    hidden = layout.hidden_barlines(page, system, [60.0, 140.0])
+    assert [round(b.x0, 1) for b in hidden] == [97.5]
+    # a change with no music before it in the bar (the start of a line) is not one
+    assert layout.hidden_barlines(page, system, [140.0]) == []
