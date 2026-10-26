@@ -11,6 +11,8 @@ import weakref
 from collections import Counter
 from dataclasses import dataclass, field
 
+from omr.pdf import geometry
+
 PUA = (0xE000, 0xF8FF)
 SMUFL = (0xE000, 0xF3FF)
 # A Windows "symbol" font (Sibelius's Opus and Helsinki, Finale's Maestro when
@@ -32,7 +34,7 @@ SMUFL_FAMILIES = (
 )
 
 
-def _squash(name):
+def squash(name):
     return re.sub(r"[\s\-_]", "", name).lower()
 
 
@@ -54,7 +56,7 @@ def is_legacy_name(name):
     if any(marker in squashed for marker in LEGACY_TEXT_MARKERS):
         return False
     for legacy in LEGACY_FONTS:
-        prefix = _squash(legacy)
+        prefix = squash(legacy)
         if squashed.startswith(prefix):
             rest = compact[len(prefix):]
             if not rest or not rest[0].islower():
@@ -73,7 +75,7 @@ def plain_code(code):
 
 
 def is_smufl_text_name(name):
-    squashed = _squash(strip_subset_prefix(name))
+    squashed = squash(strip_subset_prefix(name))
     return squashed.endswith("text") and any(squashed.startswith(f) for f in SMUFL_FAMILIES)
 
 
@@ -172,13 +174,6 @@ class PageEvidence:
 
 # ---------------------------------------------------------------- text glyphs
 
-def _display_turn(page):
-    """The matrix that turns the page's stored coordinates into the way it is
-    shown, or None if it is not rotated. A landscape score is often stored as
-    a portrait page with a rotation, so its staff lines are vertical as stored."""
-    return page.rotation_matrix if page.rotation % 360 else None
-
-
 # What PyMuPDF gives for a page, fetched once per page object: the reader asks
 # for each several times. Pass the same page object to each stage (read_pdf
 # loads each page once) for the cache to be shared.
@@ -196,7 +191,7 @@ def shown_drawings(page):
     """The page's drawings (PyMuPDF's get_drawings), with their items and
     rect as the page is shown. Shared between callers: do not change them."""
     def fetch():
-        turn = _display_turn(page)
+        turn = geometry.display_turn(page)
         drawings = page.get_drawings()
         if turn is None:
             return drawings
@@ -223,7 +218,7 @@ def read_text_glyphs(page):
     Positions are as the page is shown."""
     import pymupdf
 
-    turn = _display_turn(page)
+    turn = geometry.display_turn(page)
     font_types = {}
     for entry in page_fonts(page):
         font_types[strip_subset_prefix(entry[3])] = entry[2]
@@ -350,7 +345,7 @@ def _font_buffer(page, name):
                in page_fonts(page) if xref and font_type != "Type3"]
     matches = [xref for xref, base in entries if base == name]
     if not matches:
-        matches = [xref for xref, base in entries if _squash(base).startswith(_squash(name))]
+        matches = [xref for xref, base in entries if squash(base).startswith(squash(name))]
     if len(matches) != 1:
         return None
     try:
@@ -369,7 +364,7 @@ def _cells(build, count, cell=100, size=48):
     build(doc, page, cell, size)
     pix = page.get_pixmap(dpi=72, colorspace=pymupdf.csGRAY)
     grey = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width)
-    return [_normalise(grey[:, i * cell:(i + 1) * cell]) for i in range(count)]
+    return [normalise(grey[:, i * cell:(i + 1) * cell]) for i in range(count)]
 
 
 def _draw_glyphs(buffer, gids):
@@ -391,10 +386,10 @@ def _letter_likeness(shape, char):
             for i, font in enumerate(_REFERENCE_FONTS):
                 page.insert_text((i * cell + 20, cell * 0.7), char, fontname=font, fontsize=size)
         _references[char] = [r for r in _cells(build, len(_REFERENCE_FONTS)) if r is not None]
-    return max((_correlation(shape, r) for r in _references[char]), default=0.0)
+    return max((correlation(shape, r) for r in _references[char]), default=0.0)
 
 
-def _normalise(cell):
+def normalise(cell):
     """The ink, cropped, centred in a square (so the proportions count) and
     scaled to SHAPE_SIZE pixels a side. None if there is no ink."""
     import cv2
@@ -412,7 +407,7 @@ def _normalise(cell):
     return cv2.resize(square, (SHAPE_SIZE, SHAPE_SIZE), interpolation=cv2.INTER_AREA) / 255
 
 
-def _correlation(a, b):
+def correlation(a, b):
     import numpy as np
 
     a, b = a - a.mean(), b - b.mean()
@@ -449,23 +444,6 @@ def _glyphs_on_staves(use, boxes):
 
 
 # ---------------------------------------------------------- vector shapes
-
-def _bbox(points):
-    xs = [p[0] for p in points]
-    ys = [p[1] for p in points]
-    return min(xs), min(ys), max(xs), max(ys)
-
-
-def _item_points(item):
-    kind = item[0]
-    if kind == "re":
-        r = item[1]
-        return [(r.x0, r.y0), (r.x1, r.y1)]
-    if kind == "qu":
-        q = item[1]
-        return [(p.x, p.y) for p in (q.ul, q.ur, q.lr, q.ll)]
-    return [(p.x, p.y) for p in item[1:]]
-
 
 def read_drawings(page):
     """Count lines and filled shapes, and collect horizontal-line candidates
@@ -612,7 +590,7 @@ def fingerprint(items, x0, y0, space):
     key = []
     for item in items:
         key.append(item[0])
-        for px, py in _item_points(item):
+        for px, py in geometry.item_points(item):
             key.append(round((px - x0) / space / 0.05))
             key.append(round((py - y0) / space / 0.05))
     return tuple(key)
@@ -624,8 +602,8 @@ def fingerprint_outlines(curved_shapes, staff_space):
     match wherever they are drawn."""
     prints = Counter()
     for items in curved_shapes:
-        points = [p for item in items for p in _item_points(item)]
-        x0, y0, x1, y1 = _bbox(points)
+        points = [p for item in items for p in geometry.item_points(item)]
+        x0, y0, x1, y1 = geometry.bbox(points)
         w, h = x1 - x0, y1 - y0
         if w > 4 * staff_space or h > 4 * staff_space or w > 4 * h or w <= 0 or h <= 0:
             continue

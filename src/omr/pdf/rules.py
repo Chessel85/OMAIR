@@ -28,24 +28,16 @@ from dataclasses import dataclass
 from fractions import Fraction
 
 from omr.evaluate import events
+from omr.pdf import notation
 
-
-
-@dataclass(frozen=True)
-class Flag:
-    part: int            # from 0
-    staff: int | None    # from 1, or None for the whole part
-    bar: int             # from 0, in score order
-    rule: str
-    reason: str
-    onset: Fraction | None = None   # quarter notes from the start of the bar, when known
+Flag = events.Flag   # kept with the Score, whose doubts are flags too
 
 
 # ------------------------------------------------------------------ rules
 
 
 def check(score):
-    """Every flag for a score read by omr.pdf.structure.read_pdf with notes:
+    """Every flag for a score read by omr.pdf.read.read_pdf with notes:
     the reader's doubts and the rules below."""
     flags = list(score.doubts)
     flags += bar_fullness(score)
@@ -61,8 +53,6 @@ def _beats(length):
 
 
 def bar_fullness(score):
-    from omr.pdf import notation
-
     out = []
     for f in notation.unfilled_bars(score):
         how = "runs past the end of the bar" if f.length > f.expected else "stops short of the end of the bar"

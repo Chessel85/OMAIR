@@ -7,7 +7,9 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from omr.inspect import InspectError, open_document, parse_pages
+from omr.documents import InspectError, open_document
+from omr.inspect import parse_pages
+from omr.pdf import symbols
 
 TABLE_WORDS = {
     "smufl": "SMuFL code points",
@@ -25,8 +27,6 @@ HOW_WORDS = {
 
 def read_file(path, pages=None):
     """{file, pages, results: [PageSymbols]}. Raises InspectError."""
-    from omr.pdf import symbols
-
     doc = open_document(path)
     try:
         numbers = parse_pages(pages, len(doc))

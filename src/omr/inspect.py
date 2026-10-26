@@ -7,9 +7,9 @@ import json
 from collections import Counter
 from pathlib import Path
 
+from omr.documents import InspectError, open_document
 from omr.pdf import classify, evidence
 
-IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 CLASS_LABELS = {
     "smufl": "SMuFL music font",
     "smufl_text": "SMuFL text font",
@@ -17,10 +17,6 @@ CLASS_LABELS = {
     "unknown_music": "unknown font, probably music",
     "text": "text font",
 }
-
-
-class InspectError(Exception):
-    """A file could not be read. The message says why."""
 
 
 def parse_pages(spec, count):
@@ -39,27 +35,6 @@ def parse_pages(spec, count):
         except ValueError:
             raise InspectError(f"'{spec}' is not a page list. Use a form like 1-3,7.")
     return sorted(p for p in pages if 1 <= p <= count)
-
-
-def open_document(path):
-    import pymupdf
-
-    path = Path(path)
-    if not path.is_file():
-        raise InspectError(f"{path} does not exist or is not a file.")
-    try:
-        if path.suffix.lower() in IMAGE_SUFFIXES:
-            image = pymupdf.open(str(path))
-            doc = pymupdf.open("pdf", image.convert_to_pdf())
-            image.close()
-        else:
-            doc = pymupdf.open(str(path))
-    except Exception as error:
-        raise InspectError(f"{path.name} could not be opened ({error}). It may be damaged or not a PDF.")
-    if doc.needs_pass or doc.is_encrypted:
-        doc.close()
-        raise InspectError(f"{path.name} is encrypted. Remove the password first.")
-    return doc
 
 
 def inspect_file(path, pages=None):

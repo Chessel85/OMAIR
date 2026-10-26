@@ -11,7 +11,10 @@ import json
 import sys
 from pathlib import Path
 
-from omr.inspect import IMAGE_SUFFIXES, InspectError, open_document
+from omr import braille as brl, confidence_report, musicxml
+from omr.confidence_report import read_file
+from omr.documents import IMAGE_SUFFIXES, InspectError, open_document
+from omr.pdf import rules
 
 OUTPUTS = ("musicxml", "braille", "report", "flags")
 
@@ -36,8 +39,6 @@ def _plural(n, word):
 
 def read_score(path):
     """(Score, pages in the file). Raises InspectError with the reason."""
-    from omr.confidence_report import read_file
-
     name = Path(path).name
     suffix = Path(path).suffix.lower()
     if suffix != ".pdf" and suffix not in IMAGE_SUFFIXES:
@@ -53,10 +54,6 @@ def read_score(path):
 
 def convert_file(path, paths, braille=True, braille_format=None, out=say):
     """Convert one PDF. Returns (failed, warnings)."""
-    from omr import braille as brl
-    from omr import confidence_report, musicxml
-    from omr.pdf import rules
-
     score, page_count = read_score(path)
     flags = rules.check(score)
     lines = confidence_report.report_lines(path, score, flags)

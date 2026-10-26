@@ -17,6 +17,7 @@ import zipfile
 from pathlib import Path
 
 from omr import paths
+from omr.corpus import engravers
 
 HOMR_DPI = 300
 LEGATO_DPI = 150
@@ -150,7 +151,6 @@ def run_homr(pdf, out):
 
 def _musescore_tidy(source, target):
     """LEGATO's own pipeline passes the converted MusicXML through MuseScore to tidy it."""
-    from omr.corpus import engravers
     exe = engravers.musescore4_path()
     done = subprocess.run([str(exe), "-o", str(target), str(source)], capture_output=True, errors="replace")
     return done.returncode == 0 and Path(target).exists()

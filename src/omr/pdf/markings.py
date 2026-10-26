@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from fractions import Fraction
 
 from omr.evaluate import events
-from omr.pdf import structure, text as tx
+from omr.pdf import layout as lay, structure, text as tx
 
 # SMuFL names (without "Above" or "Below") and the note marks they give,
 # as the harness names them ("articulation accent", from MusicXML's
@@ -128,7 +128,7 @@ class Placer:
         return tx.staff_for(self.system, box, prefer="upper", same_part=self.same_part)[0]
 
     def bar_at(self, x):
-        k = structure._bar_of(self.system, x)
+        k = lay.bar_of(self.system, x)
         if k is None:
             bars = self.system.bars
             if not bars:

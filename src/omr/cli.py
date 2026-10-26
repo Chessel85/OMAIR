@@ -1,4 +1,8 @@
-"""Command-line entry point. All output is plain text."""
+"""Command-line entry point. All output is plain text.
+
+Each command's modules are imported inside the function that runs it, so
+that the command line starts quickly and one command never loads another's
+dependencies."""
 
 import argparse
 import sys

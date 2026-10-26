@@ -32,7 +32,8 @@ from dataclasses import dataclass, field, replace
 from fractions import Fraction
 
 from omr.evaluate import events
-from omr.pdf import evidence, layout as lay, structure
+from omr.pdf import evidence, geometry, layout as lay, markings, structure, text
+from omr.pdf.layout import OCTAVE_TEXT, TUPLET_TEXT, is_head
 
 FLAG_COUNT = {f"flag{name}{way}": n for n, name in enumerate(
     ("8th", "16th", "32nd", "64th", "128th", "256th", "512th", "1024th"), 1) for way in ("Up", "Down")}
@@ -44,13 +45,6 @@ REST_LENGTH = {
 }
 TYPE_NAME = {length: name for name, length in events.TYPE_LENGTH.items()}
 TUPLET_GLYPHS = {f"tuplet{i}": str(i) for i in range(10)}
-TUPLET_TEXT = re.compile(r"^\s*(\d{1,2})\s*(?::\s*(\d{1,2}))?\s*$")
-
-
-def is_head(name):
-    return lay.is_note(name) or name.startswith("noteShape")
-
-
 def head_kind(name):
     if "DoubleWhole" in name:
         return Fraction(8)
@@ -301,8 +295,8 @@ def _curve(items, space):
     note can be that short). It is level, and can be a tie, if it is at
     least one and a half staff spaces wide and its ends are within three
     quarters of a staff space in height."""
-    points = [p for item in items for p in evidence._item_points(item)]
-    x0, y0, x1, y1 = evidence._bbox(points)
+    points = [p for item in items for p in geometry.item_points(item)]
+    x0, y0, x1, y1 = geometry.bbox(points)
     width, height = x1 - x0, y1 - y0
     if width < 0.8 * space or height > 0.5 * width + space or height < 0.1 * space:
         return None
@@ -1324,17 +1318,17 @@ def _signature_accidentals(page_layout, system, staff):
     out = set()
     notes = [(s.x, page_layout.step_of(s)) for s in page_layout.on_staff(staff) if lay.is_note(s.name)]
     for k in range(len(system.bars)):
-        region = structure._signature_region(page_layout, system, staff, k)
+        region = structure.signature_region(page_layout, system, staff, k)
         every = sorted((s for s in region if s.name in (structure.SHARP, structure.FLAT, structure.NATURAL)),
                        key=lambda s: s.x)
         if not every:
             continue
-        every = structure._close_run(every, staff.space)
+        every = structure.close_run(every, staff.space)
         free = [s for s in every if not any(0 < nx - s.x <= 3.5 * staff.space and ns == page_layout.step_of(s)
                                              for nx, ns in notes)]
-        if len(every) >= 2 and free and structure._key_of(page_layout, staff, every) is not None:
+        if len(every) >= 2 and free and structure.key_of(page_layout, staff, every) is not None:
             out.update(id(s) for s in every)
-        elif structure._key_of(page_layout, staff, free) is not None:
+        elif structure.key_of(page_layout, staff, free) is not None:
             out.update(id(s) for s in free)
     return out
 
@@ -1368,8 +1362,6 @@ def read_notes(score, ordered, pages, layouts=()):
     and with them the markings and text (Stage 1.4, omr.pdf.markings).
     `layouts` are all the page layouts, for the text of pages with no
     system (it goes to score.text)."""
-    from omr.pdf import text
-
     bar_base = 0
     clefs_in_force = {}     # (part, staff) -> clef value
     clef_onsets = {}        # (part, staff, bar, rank) -> onset of a clef within a bar
@@ -1481,8 +1473,6 @@ def _join_bars(score, k, shift):
 
 def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures, clefs_in_force, clef_onsets,
                  lengths, open_ties):
-    from omr.pdf import markings, rules
-
     beams, curves, dashed, thin = shapes.beams, shapes.level_curves, shapes.dashed, shapes.thin
     space = statistics.median(s.space for s in system.staves)
     members = {id(st): k for k, st in enumerate(system.staves)}
@@ -1493,11 +1483,11 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
         """Note a doubt (Stage 1.5, omr.pdf.rules) on a staff in bar k of
         the system, or at a place x when k is a float."""
         if isinstance(k, float):
-            k = structure._bar_of(system, k)
+            k = lay.bar_of(system, k)
         if k is None or id(staff) not in members:
             return
         part, number = mapping.staves[members[id(staff)]]
-        score.doubts.append(rules.Flag(part, number, bar_base + k, rule, reason, onset))
+        score.doubts.append(events.Flag(part, number, bar_base + k, rule, reason, onset))
     heads = []
     tempo_runs = [run for run in pl.text if run.text.lstrip().startswith("=")]
     for s in pl.symbols:
@@ -1557,7 +1547,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
     octave_spans = octave_marks(pl, system, dashed, space, octave_doubts)
     for x0, x1, y, reason in octave_doubts:
         near = sorted(system.staves, key=lambda st: min(abs(y - st.top), abs(y - st.bottom)))[:2]
-        bars = {structure._bar_of(system, x) for x in (x0, x1)} - {None}
+        bars = {lay.bar_of(system, x) for x in (x0, x1)} - {None}
         for k in range(min(bars, default=0), max(bars, default=-1) + 1):
             for staff in near:
                 doubt(staff, k, "octave sign", reason)
@@ -1565,7 +1555,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
     # events by staff and bar
     by_staff_bar = collections.defaultdict(list)
     for e in evs:
-        k = structure._bar_of(system, e.x + 0.01)
+        k = lay.bar_of(system, e.x + 0.01)
         if k is None:
             k = len(system.bars) - 1 if system.bars and e.x >= system.bars[-1].x0 else None
         if k is None:
@@ -1650,7 +1640,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
         clef_values = []
         for c in staff_clefs:
             value = structure.clef_value(c.name, pl.step_of(c))
-            octave = structure._octave_digits(pl, c)
+            octave = structure.octave_digits(pl, c)
             if octave and " octave" not in value:
                 value += f" octave {octave:+d}"
             clef_values.append((c.x, value))
@@ -1724,9 +1714,9 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
         if clef_values:
             clefs_in_force[(part, number)] = clef_values[-1][1]
         # onsets of clefs within bars, by the rank structure.staff_clefs gives them
-        music = structure._music(pl, staff)
+        music = structure.staff_music(pl, staff)
         for c in staff_clefs:
-            k = structure._bar_of(system, c.x)
+            k = lay.bar_of(system, c.x)
             if k is None:
                 continue
             # a whole-bar rest is drawn mid-bar but starts the bar: it does not place a clef
@@ -1734,7 +1724,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
             after = [e for e in timed if e.x > c.x]
             before = any(e.x < c.x for e in timed)
             if after:
-                rank = sum(1 for x in music if structure._start(system, k) <= x < c.x)
+                rank = sum(1 for x in music if lay.bar_start(system, k) <= x < c.x)
                 # rank 0 with notes of the staff before it: they are drawn on
                 # the other staff (cross-staff), so the clef is not at the start
                 if rank or before:
@@ -1835,9 +1825,6 @@ def find_ties(curves, heads, evs, system, space):
 
 
 # ---------------------------------------------------------- octave marks
-
-OCTAVE_TEXT = re.compile(r"^\s*\(?\s*(8|15|22)\s*(va|vb|ma|mb|a|b)?\s*\)?\s*$")
-
 
 def octave_marks(page_layout, system, dashed, space, doubts=None):
     """[(staff, x0, x1, octaves)]: octave marks (8va, 8vb, 15ma) over or

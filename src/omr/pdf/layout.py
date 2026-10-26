@@ -24,7 +24,7 @@ import re
 import statistics
 from dataclasses import dataclass, field
 
-from omr.pdf import evidence
+from omr.pdf import evidence, geometry
 
 NOTE_NAMES = ("noteheadBlack", "noteheadHalf", "noteheadWhole", "noteheadDoubleWhole",
               "noteheadXBlack", "noteheadXHalf", "noteheadXWhole", "noteheadDiamondBlack",
@@ -45,6 +45,15 @@ def is_note(name):
 
 def is_rest(name):
     return name in REST_NAMES
+
+
+def is_head(name):
+    return is_note(name) or name.startswith("noteShape")
+
+
+# numbers read as text: a tuplet's ("3", "3:2") and an octave mark's ("8va", "15mb")
+TUPLET_TEXT = re.compile(r"^\s*(\d{1,2})\s*(?::\s*(\d{1,2}))?\s*$")
+OCTAVE_TEXT = re.compile(r"^\s*\(?\s*(8|15|22)\s*(va|vb|ma|mb|a|b)?\s*\)?\s*$")
 
 
 @dataclass
@@ -122,6 +131,21 @@ class System:
     x1: float
     barlines: list = field(default_factory=list)
     bars: list = field(default_factory=list)
+
+
+def bar_start(system, k):
+    """Where bar k's content starts: the first bar includes everything from
+    the start of the system (clef, key and time before a start repeat)."""
+    return system.x0 if k == 0 else system.bars[k].x0
+
+
+def bar_of(system, x):
+    """Index of the bar of the system that holds x, or None if x is after the
+    last barline (courtesy signatures)."""
+    for k, bar in enumerate(system.bars):
+        if bar_start(system, k) - 0.01 <= x < bar.x1 or (k == len(system.bars) - 1 and bar.end is None and x >= bar.x0):
+            return k
+    return None
 
 
 @dataclass
@@ -321,8 +345,8 @@ def vertical_lines(page):
                     if r.height > 3 * max(r.width, 0.01) and r.height > 1:
                         out.append(((r.x0 + r.x1) / 2, r.y0, r.y1, r.width + width))
         if "f" in d["type"] and not any(item[0] == "c" for item in items):
-            points = [p for item in items for p in evidence._item_points(item)]
-            x0, y0, x1, y1 = evidence._bbox(points)
+            points = [p for item in items for p in geometry.item_points(item)]
+            x0, y0, x1, y1 = geometry.bbox(points)
             if y1 - y0 > 3 * max(x1 - x0, 0.01) and y1 - y0 > 1 and _upright(points, x0, x1):
                 out.append(((x0 + x1) / 2, y0, y1, x1 - x0))
     return out

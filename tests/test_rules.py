@@ -134,11 +134,11 @@ def test_report_lines_give_places_in_words():
                                           ("pdmx-4viYqFUrsJaX", "musescore4-base")])
 def test_flags_cover_the_errors_of_regression_pairs(score_id, job):
     pytest.importorskip("pymupdf")
-    from omr.pdf import structure
+    from omr.pdf.read import read_pdf
 
     folder = REGRESSION / score_id
     truth = events.read(folder / job / "score.musicxml")
-    found, _ = structure.read_pdf(folder / job / "score.pdf", notes=True)
+    found, _ = read_pdf(folder / job / "score.pdf", notes=True)
     figures = metrics.compare_scores(truth, found, rules.as_harness_flags(rules.check(found)))
     f = figures["flags"]
     assert f["covered"] >= 0.9 * f["errors"]

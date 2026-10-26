@@ -53,12 +53,13 @@ def check_pair(pdf, truth_path):
     """The error places and every flag of one pair, with the numbers of
     each detection doubt."""
     from omr.evaluate import events, match, metrics
-    from omr.pdf import rules, structure
+    from omr.pdf import rules
+    from omr.pdf.read import read_pdf
     from omr.raster import names
 
     names.doubt_of = measured
     truth = events.read(truth_path)
-    found, _ = structure.read_pdf(pdf, notes=True)
+    found, _ = read_pdf(pdf, notes=True)
     result = match.match(truth, found)
     return {"places": metrics.error_places(result),
             "flags": [(f.rule, f.part, f.staff, f.bar, f.reason) for f in rules.check(found)

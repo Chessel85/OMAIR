@@ -7,7 +7,9 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from omr.inspect import InspectError, open_document
+from omr.documents import InspectError, open_document
+from omr.evaluate import events
+from omr.pdf import layout, structure, symbols
 
 
 def _key_words(fifths):
@@ -30,8 +32,6 @@ def _clef_words(value):
 
 def read_file(path):
     """(Score, layouts). Raises InspectError."""
-    from omr.pdf import layout, structure, symbols
-
     doc = open_document(path)
     try:
         pages = symbols.read_document(doc)
@@ -46,8 +46,6 @@ def read_file(path):
 
 
 def report_lines(path, score, layouts):
-    from omr.evaluate import events
-
     systems = [sy for pl in layouts for sy in pl.systems]
     out = [f"File: {Path(path).name}"]
     attached = sum(len(pl.attached) for pl in layouts)

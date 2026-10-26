@@ -12,6 +12,7 @@ pymupdf = pytest.importorskip("pymupdf")
 
 from omr.evaluate import events, harness  # noqa: E402
 from omr.pdf import layout, structure  # noqa: E402
+from omr.pdf.read import read_pdf  # noqa: E402
 
 ROOT = Path(__file__).parent.parent
 REGRESSION = ROOT / "regression"
@@ -71,7 +72,7 @@ def test_staff_steps():
 # ----------------------------------------------------------- the test PDFs
 
 def _read(path):
-    return structure.read_pdf(path)
+    return read_pdf(path)
 
 
 def test_bach_chorale_has_four_named_parts_and_ten_bars():
@@ -221,8 +222,8 @@ def test_text_read_from_an_image_is_not_a_clef_octave_mark():
 
     clef = SimpleNamespace(name="gClef", box=(46.7, 571.3, 60.1, 607.7), size=20.0)
     run = lambda font: SimpleNamespace(text="8", box=(48.2, 561.6, 54.0, 571.7), font=font)
-    assert structure._octave_digits(SimpleNamespace(symbols=[], text=[run("Edwin")]), clef) == 1
-    assert structure._octave_digits(SimpleNamespace(symbols=[], text=[run("image")]), clef) == 0
+    assert structure.octave_digits(SimpleNamespace(symbols=[], text=[run("Edwin")]), clef) == 1
+    assert structure.octave_digits(SimpleNamespace(symbols=[], text=[run("image")]), clef) == 0
 
 
 def test_a_one_line_percussion_staff():
@@ -267,7 +268,7 @@ def test_a_time_signature_with_a_zero_is_not_read(monkeypatch):
     system = SimpleNamespace(bars=[None])
     digit = lambda name, top: SimpleNamespace(name=name, x=50.0, box=(48.0, top, 52.0, top + 9))
     region = [digit("timeSig3", 100.0)]
-    monkeypatch.setattr(structure, "_signature_region", lambda *args: region)
+    monkeypatch.setattr(structure, "signature_region", lambda *args: region)
     region.append(digit("timeSig4", 111.0))
     assert structure.staff_times(None, system, staff) == [(0, "3/4")]
     region[:] = [digit("timeSig0", 100.0), digit("timeSig0", 111.0)]
@@ -279,7 +280,7 @@ def test_the_8_of_a_lilypond_octave_bass_clef_is_read_below_the_staff():
     # bottom line (pdmx-DCWS1HBccMLY)
     clef = SimpleNamespace(name="fClef", box=(78.3, 656.7, 91.3, 672.7), size=20.0)
     eight = SimpleNamespace(text="8", box=(81.0, 676.6, 84.9, 683.5), font="C059-Italic")
-    assert structure._octave_digits(SimpleNamespace(symbols=[], text=[eight]), clef) == -1
+    assert structure.octave_digits(SimpleNamespace(symbols=[], text=[eight]), clef) == -1
 
 
 def test_an_empty_bar_after_an_end_repeat_joins_the_next():
@@ -308,7 +309,7 @@ def test_the_time_signature_nearest_the_music_is_read(monkeypatch):
     digit = lambda name, x, top: SimpleNamespace(name=name, x=x, box=(x - 2, top, x + 2, top + 9))
     region = [digit("timeSig4", 50.0, 100.0), digit("timeSig4", 50.0, 111.0),
               digit("timeSig3", 85.0, 100.0), digit("timeSig4", 85.0, 111.0)]
-    monkeypatch.setattr(structure, "_signature_region", lambda *args: region)
+    monkeypatch.setattr(structure, "signature_region", lambda *args: region)
     assert structure.staff_times(None, system, staff) == [(0, "3/4")]
 
 

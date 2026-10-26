@@ -13,7 +13,7 @@ import re
 import statistics
 from dataclasses import dataclass
 
-from omr.pdf import layout as lay, notation, structure
+from omr.pdf import layout as lay, structure
 
 # Text more than this many staff spaces above the first system of page 1
 # is a credit (title, composer); text more than BELOW_SYSTEM below the last
@@ -300,10 +300,10 @@ def _system_text(pl, runs, frames, hyphen_lines):
     rest = []
     heads_by_staff = {}
     for s in pl.symbols:
-        if notation.is_head(s.name) and pl.staff_of(s) is not None:
+        if lay.is_head(s.name) and pl.staff_of(s) is not None:
             heads_by_staff.setdefault(id(pl.staff_of(s)), []).append(s)
     metronome_notes = [s for s in pl.symbols if s.name.startswith("metNote") or
-                       (notation.is_head(s.name) and pl.staff_of(s) is not None
+                       (lay.is_head(s.name) and pl.staff_of(s) is not None
                         and not -3 <= pl.step_of(s) <= 11)]
     for r, system in runs:
         space = system.staves[0].space
@@ -331,9 +331,9 @@ def _system_text(pl, runs, frames, hyphen_lines):
         elif structure.ENDING_TEXT.match(text) and where == "above" and staff is system.staves[0] \
                 and not FINGERING.match(text):
             item.kind = "ending"
-        elif notation.TUPLET_TEXT.match(text) and is_italic(r.font):
+        elif lay.TUPLET_TEXT.match(text) and is_italic(r.font):
             item.kind = "tuplet"
-        elif notation.OCTAVE_TEXT.match(text) and not FINGERING.match(text):
+        elif lay.OCTAVE_TEXT.match(text) and not FINGERING.match(text):
             item.kind = "octave"
         elif _framed(r.box, frames, space) and len(text) <= 4 and where == "above":
             item.kind = "rehearsal"
@@ -576,37 +576,6 @@ def chord_value(text):
     if bass:
         value += f" / {bass}"
     return value
-
-
-# printed chord suffixes and the MusicXML kind they stand for
-CHORD_KINDS = {
-    "": "major", "major": "major", "M": "major", "maj": "major", "Δ": "major",
-    "m": "minor", "min": "minor", "mi": "minor", "-": "minor",
-    "7": "dominant", "maj7": "major-seventh", "Maj7": "major-seventh", "M7": "major-seventh",
-    "ma7": "major-seventh", "Δ7": "major-seventh", "^7": "major-seventh",
-    "m7": "minor-seventh", "min7": "minor-seventh", "mi7": "minor-seventh", "-7": "minor-seventh",
-    "dim": "diminished", "°": "diminished", "o": "diminished",
-    "dim7": "diminished-seventh", "°7": "diminished-seventh", "o7": "diminished-seventh",
-    "m7b5": "half-diminished", "m7(b5)": "half-diminished", "-7(b5)": "half-diminished", "-7b5": "half-diminished",
-    "ø": "half-diminished", "ø7": "half-diminished",
-    "aug": "augmented", "+": "augmented", "aug7": "augmented-seventh", "+7": "augmented-seventh",
-    "7#5": "augmented-seventh", "6": "major-sixth", "m6": "minor-sixth", "-6": "minor-sixth",
-    "9": "dominant-ninth", "maj9": "major-ninth", "Δ9": "major-ninth", "m9": "minor-ninth", "-9": "minor-ninth",
-    "11": "dominant-11th", "m11": "minor-11th", "-11": "minor-11th", "13": "dominant-13th",
-    "maj13": "major-13th", "m13": "minor-13th", "sus4": "suspended-fourth", "sus": "suspended-fourth",
-    "sus2": "suspended-second", "5": "power", "mmaj7": "major-minor", "mMaj7": "major-minor",
-    "m(maj7)": "major-minor", "mΔ7": "major-minor", "-Δ7": "major-minor", "mM7": "major-minor",
-}
-
-
-def chord_kind(value):
-    """(root, MusicXML kind, bass) of a chord symbol in the harness's words
-    ("A m7" gives ("A", "minor-seventh", None)); the kind is None for a
-    suffix not in CHORD_KINDS (Stage 1.6 then writes it as printed)."""
-    main, _, bass = value.partition(" / ")
-    root, _, suffix = main.partition(" ")
-    return (root, CHORD_KINDS.get(suffix.strip(), suffix.strip() if "-" in suffix and suffix.islower() else None),
-            bass or None)
 
 
 def _chord_symbols(items):

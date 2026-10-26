@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from omr.pdf import markings, notation, text
+from omr.pdf import layout, markings, text
 
 # ------------------------------------------------------------------ classes
 
@@ -292,14 +292,14 @@ def page_labels(page_symbols, text_chars=()):
     for run in page_symbols.text:
         if id(run) in used or not run.text.strip():
             continue
-        if text.is_italic(run.font) and notation.TUPLET_TEXT.match(run.text) \
+        if text.is_italic(run.font) and layout.TUPLET_TEXT.match(run.text) \
                 and not _bar_number(run, page_symbols.evidence.staves.boxes, space):
             digits = [(c, b) for c, b in text_chars if c.isdigit() and _inside_centre(b, run.box)]
             for c, b in digits:
                 labels.append(Label(f"tuplet{c}", b, [run.text], tighten=True))
             if digits:
                 continue
-        match = notation.OCTAVE_TEXT.match(run.text)
+        match = layout.OCTAVE_TEXT.match(run.text)
         if match and match.group(2):
             labels.append(Label("octave15" if match.group(1) == "15" else "octave8", run.box, [run.text], tighten=True))
             continue

@@ -206,10 +206,11 @@ def test_schema_valid_when_the_schema_is_at_hand(tmp_path):
 
 def test_a_regression_pair_scores_the_same_written_as_in_memory(tmp_path):
     pytest.importorskip("pymupdf")
-    from omr.pdf import rules, structure
+    from omr.pdf import rules
+    from omr.pdf.read import read_pdf
 
     folder = REGRESSION / "pdmx-kyKcYH1Z2cK9" / "musescore4-base"
-    score, _ = structure.read_pdf(folder / "score.pdf", notes=True)
+    score, _ = read_pdf(folder / "score.pdf", notes=True)
     path = _write(score, tmp_path)
     assert musicxml.round_trip_differences(score, events.read(path)) == {}
     flags = rules.check(score)

@@ -20,8 +20,10 @@ import json
 import os
 from pathlib import Path
 
-from omr.raster import names
-from omr.raster import page as rp
+from omr import paths
+from omr.pdf import classify, evidence
+from omr.pdf.symbols import PageSymbols
+from omr.raster import lines as rl, names, page as rp, text as rt
 
 PAGE_SPACE = 20.0     # pixels a staff space the page is scaled to for the detector
 CONFIDENCE = 0.25     # the detector's lowest confidence kept
@@ -33,8 +35,6 @@ DEFAULT_MODEL = Path("runs") / "detector" / "full" / "weights" / "best.onnx"
 def model_path():
     """The detector's model file: OMR_DETECTOR, or the full run's ONNX file
     in the corpus folder."""
-    from omr import paths
-
     configured = os.environ.get(MODEL_ENV)
     return Path(configured) if configured else paths.corpus_dir() / DEFAULT_MODEL
 
@@ -91,7 +91,7 @@ def saved_file(folder, grey, factor, model):
     """The file a page's detections are saved in: named by the image's
     contents, the scale and the model file's contents."""
     key = hashlib.sha256()
-    key.update(_model_digest(str(model)).encode())
+    key.update(model_digest(str(model)).encode())
     key.update(f"{factor:.6f} {CONFIDENCE} {grey.shape}".encode())
     key.update(grey.tobytes())
     name = key.hexdigest()
@@ -99,7 +99,8 @@ def saved_file(folder, grey, factor, model):
 
 
 @functools.cache
-def _model_digest(path):
+def model_digest(path):
+    """The SHA-256 of a model file, read once a process."""
     _check_model(path)
     digest = hashlib.sha256()
     with open(path, "rb") as f:
@@ -111,8 +112,6 @@ def _model_digest(path):
 def is_image_page(page_symbols):
     """The page has no music symbols of its own and an image covers at
     least half of it (the inspector's raster test)."""
-    from omr.pdf import classify
-
     return not page_symbols.symbols and page_symbols.evidence.image_coverage >= classify.BIG_IMAGE
 
 
@@ -120,11 +119,6 @@ def read_page(page, number, detect=None, read_text=None):
     """(PageSymbols, RasterPage) for a PDF page holding a page image.
     `detect` is a function as `detector` gives (the default model if None),
     `read_text` one as `omr.raster.text.reader` gives."""
-    from omr.pdf import evidence
-    from omr.pdf.symbols import PageSymbols
-    from omr.raster import lines as rl
-    from omr.raster import text as rt
-
     seen = detect_image(page, detect)
     if seen is None:
         return _empty(page, number)
@@ -172,8 +166,6 @@ def detect_image(page, detect=None):
     """(level grey image, angle turned, Placement, staff space in pixels,
     detections in page points) for a page's image, or None if it has no
     image or no staff space."""
-    from omr.raster import lines as rl
-
     grey, rect = rp.page_image(page)
     if grey is None:
         return None
@@ -193,9 +185,6 @@ def _to_points(place, box):
 
 
 def _empty(page, number):
-    from omr.pdf import evidence
-    from omr.pdf.symbols import PageSymbols
-
     raster_page = rp.RasterPage(page, [])
     return PageSymbols(number, evidence.gather(raster_page, number)), raster_page
 
@@ -211,7 +200,6 @@ def read_document(doc, pages, detect=None, read_text=None):
             if detect is None:
                 detect = detector()
             if read_text is None:
-                from omr.raster import text as rt
                 read_text = rt.reader()
             ps, page = read_page(page, ps.page, detect, read_text)
         use.append(page)

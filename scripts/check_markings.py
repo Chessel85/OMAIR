@@ -1,7 +1,7 @@
 """Check the text and markings read from PDFs (Stage 1.4) against the ground truth.
 
 For each pair of a set (default: the regression set in the repository), the
-score is read from the PDF alone (`omr.pdf.structure.read_pdf` with notes),
+score is read from the PDF alone (`omr.pdf.read.read_pdf` with notes),
 and compared with the ground-truth MusicXML by the evaluation harness's own
 rules, so the marking figures are those `omr evaluate` would give:
 
@@ -81,16 +81,15 @@ def truth_extras(root):
 def check_pair(pdf, truth_path):
     from omr.evaluate import events, match, metrics
     from omr.evaluate.describe import Describer
-    from omr.pdf import structure
-    from omr.pdf import text as pdf_text
+    from omr.pdf.read import read_pdf
 
     root = events.read_root(truth_path)
     truth = events.from_root(root)
-    found, _ = structure.read_pdf(pdf, notes=True)
+    found, _ = read_pdf(pdf, notes=True)
     result = match.match(truth, found)
     say = Describer(truth)
-    markings = metrics._markings(truth, result.output, result, say)
-    note_marks = metrics._note_marks(result)
+    markings = metrics.marking_figures(truth, result.output, result, say)
+    note_marks = metrics.note_mark_figures(result)
     # lyric syllables: on matched notes with the same lyric text
     syllables = {"truth": 0, "right": 0}
     for t, o in result.exact:
@@ -128,7 +127,7 @@ def check_pair(pdf, truth_path):
     out_chords = collections.Counter()
     for m in found.markings:
         if m.kind == "chord symbol":
-            chord_root, kind, _ = pdf_text.chord_kind(m.value)
+            chord_root, kind, _ = events.chord_kind(m.value)
             out_chords[(m.bar, chord_root, kind)] += 1
     truth_chords = collections.Counter((bar_map.get(b), r, k) for b, r, k in chords)
     names_found = 0

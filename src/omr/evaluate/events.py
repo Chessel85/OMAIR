@@ -133,6 +133,18 @@ class Part:
     staves: int
 
 
+@dataclass(frozen=True)
+class Flag:
+    """A bar that may be wrong: a doubt the PDF reader noted while reading,
+    or a rule it fails (omr.pdf.rules)."""
+    part: int            # from 0
+    staff: int | None    # from 1, or None for the whole part
+    bar: int             # from 0, in score order
+    rule: str
+    reason: str
+    onset: Fraction | None = None   # quarter notes from the start of the bar, when known
+
+
 @dataclass
 class Score:
     parts: list = field(default_factory=list)
@@ -143,7 +155,7 @@ class Score:
     structure: list = field(default_factory=list)  # clefs, keys, times, repeats, endings, navigation
     bar_counts: list = field(default_factory=list) # bars in each part, normally all equal
     text: list = field(default_factory=list)       # page text (title, composer, ...) read from a PDF; not compared
-    doubts: list = field(default_factory=list)     # doubts noted while reading a PDF (omr.pdf.rules.Flag); not compared
+    doubts: list = field(default_factory=list)     # doubts noted while reading a PDF (Flag); not compared
 
     def staves(self):
         """Every staff in score order, as (part, staff) pairs."""
@@ -316,6 +328,37 @@ def key_alter(fifths, step):
     if fifths < 0 and step in SHARP_ORDER[::-1][:-fifths]:
         return Fraction(-1)
     return Fraction(0)
+
+
+# printed chord suffixes and the MusicXML kind they stand for
+CHORD_KINDS = {
+    "": "major", "major": "major", "M": "major", "maj": "major", "Δ": "major",
+    "m": "minor", "min": "minor", "mi": "minor", "-": "minor",
+    "7": "dominant", "maj7": "major-seventh", "Maj7": "major-seventh", "M7": "major-seventh",
+    "ma7": "major-seventh", "Δ7": "major-seventh", "^7": "major-seventh",
+    "m7": "minor-seventh", "min7": "minor-seventh", "mi7": "minor-seventh", "-7": "minor-seventh",
+    "dim": "diminished", "°": "diminished", "o": "diminished",
+    "dim7": "diminished-seventh", "°7": "diminished-seventh", "o7": "diminished-seventh",
+    "m7b5": "half-diminished", "m7(b5)": "half-diminished", "-7(b5)": "half-diminished", "-7b5": "half-diminished",
+    "ø": "half-diminished", "ø7": "half-diminished",
+    "aug": "augmented", "+": "augmented", "aug7": "augmented-seventh", "+7": "augmented-seventh",
+    "7#5": "augmented-seventh", "6": "major-sixth", "m6": "minor-sixth", "-6": "minor-sixth",
+    "9": "dominant-ninth", "maj9": "major-ninth", "Δ9": "major-ninth", "m9": "minor-ninth", "-9": "minor-ninth",
+    "11": "dominant-11th", "m11": "minor-11th", "-11": "minor-11th", "13": "dominant-13th",
+    "maj13": "major-13th", "m13": "minor-13th", "sus4": "suspended-fourth", "sus": "suspended-fourth",
+    "sus2": "suspended-second", "5": "power", "mmaj7": "major-minor", "mMaj7": "major-minor",
+    "m(maj7)": "major-minor", "mΔ7": "major-minor", "-Δ7": "major-minor", "mM7": "major-minor",
+}
+
+
+def chord_kind(value):
+    """(root, MusicXML kind, bass) of a chord symbol in the harness's words
+    ("A m7" gives ("A", "minor-seventh", None)); the kind is None for a
+    suffix not in CHORD_KINDS (the MusicXML writer then writes it as printed)."""
+    main, _, bass = value.partition(" / ")
+    root, _, suffix = main.partition(" ")
+    return (root, CHORD_KINDS.get(suffix.strip(), suffix.strip() if "-" in suffix and suffix.islower() else None),
+            bass or None)
 
 
 def _number(text, default=0):

@@ -42,8 +42,8 @@ def compare_scores(truth, output, flags=None):
         "notes": _note_counts(truth, output, result),
         "diagnostics": _diagnostics(truth, output, result),
         "structure": _structure(truth, output, result, say),
-        "markings": _markings(truth, output, result, say),
-        "note marks": _note_marks(result),
+        "markings": marking_figures(truth, output, result, say),
+        "note marks": note_mark_figures(result),
         "errors": errors,
     }
     if flags is not None:
@@ -292,7 +292,7 @@ def _same_text(a, b):
     return " ".join(a.lower().split()) == " ".join(b.lower().split())
 
 
-def _markings(truth, output, result, say):
+def marking_figures(truth, output, result, say):
     """Recall and precision of dynamics, hairpins, text and chord symbols."""
     placed = collections.defaultdict(list)
     for m in output.markings:
@@ -332,7 +332,7 @@ def _markings(truth, output, result, say):
     return figures
 
 
-def _note_marks(result):
+def note_mark_figures(result):
     """Articulations, ornaments, fermatas, slur ends and lyrics on exactly matched notes."""
     figures = collections.defaultdict(lambda: {"truth": 0, "found": 0})
     for t, o in result.exact:

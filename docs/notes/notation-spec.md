@@ -2,7 +2,7 @@
 
 How the notes and rests of a score are read from a vector PDF: pitch, duration, onset, voice, ties, grace notes and arpeggios. It works from the symbols of Stage 1.1 (`symbol-spec.md`), the staves, systems and bars of Stage 1.2 (`layout-spec.md`), and the page's stems, beams and curves. It is the same for every engraver and for Type A and Type B pages.
 
-- Code: `src/omr/pdf/notation.py`, called by `omr.pdf.structure.read_pdf(path, notes=True)`.
+- Code: `src/omr/pdf/notation.py`, called by `omr.pdf.read.read_pdf(path, notes=True)`.
 - Check: `scripts/check_notes.py`. It reads each PDF and compares the result with the ground truth through the harness's own comparison (`omr.evaluate.metrics.compare_scores`), so the figures are those `omr evaluate` would give. No MusicXML is written yet (that is Stage 1.6).
 
 ## Primitives

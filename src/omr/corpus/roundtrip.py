@@ -9,12 +9,13 @@ Results are cached, so a re-run does not repeat the slow steps.
 import json
 import shutil
 import tempfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
 import pymupdf
 
-from omr.corpus import engravers, sources
+from omr.corpus import engravers, labels, sources
 
 
 @dataclass
@@ -98,8 +99,5 @@ def _run(candidate, folder, timeout):
 
 def _to_plain_xml(path, target):
     """The engravers read plain MusicXML more reliably than compressed .mxl."""
-    from omr.corpus import labels
-    import xml.etree.ElementTree as ET
-
     root = labels.read_musicxml(path)
     ET.ElementTree(root).write(target, encoding="utf-8", xml_declaration=True)

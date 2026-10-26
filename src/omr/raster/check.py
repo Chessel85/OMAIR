@@ -13,6 +13,11 @@ import contextlib
 import tempfile
 from pathlib import Path
 
+from omr import musicxml
+from omr.evaluate import metrics
+from omr.pdf import layout as lay, notation, structure, symbols
+from omr.raster import page as rp
+
 STAFF_TOLERANCE = 0.3     # staff spaces, for the top line and each end
 BARLINE_TOLERANCE = 0.5   # staff spaces along the staff
 STEM_TOLERANCE = 0.3      # staff spaces across the stem
@@ -22,8 +27,6 @@ STEM_END_TOLERANCE = 0.5  # staff spaces at each end
 @contextlib.contextmanager
 def recording_stems(found):
     """Record every stem notation.find_stems returns while the block runs."""
-    from omr.pdf import notation
-
     original = notation.find_stems
 
     def wrapper(*args, **kwargs):
@@ -43,10 +46,6 @@ def read(vector_pdf, raster_pdf=None):
     with the lines of the raster PDF's images if one is given. `shapes` are
     (page, staff space, notation.Shapes) of each page with staves."""
     import pymupdf
-
-    from omr.pdf import layout as lay
-    from omr.pdf import notation, structure, symbols
-    from omr.raster import page as rp
 
     doc = pymupdf.open(str(vector_pdf))
     rdoc = pymupdf.open(str(raster_pdf)) if raster_pdf else None
@@ -209,9 +208,6 @@ def curve_ends(c):
 
 
 def note_figures(score, truth_path, title):
-    from omr import musicxml
-    from omr.evaluate import metrics
-
     with tempfile.TemporaryDirectory() as folder:
         out = Path(folder) / "score.musicxml"
         musicxml.write(score, out, title=title)

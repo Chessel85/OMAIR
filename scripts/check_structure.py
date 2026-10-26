@@ -69,10 +69,10 @@ def describe(kind, key):
 def check_pair(pdf, truth_path):
     """(mismatch lines, counts) for one pair."""
     from omr.evaluate import events
-    from omr.pdf import structure
+    from omr.pdf.read import read_pdf
 
     truth = events.read(truth_path)
-    found, _ = structure.read_pdf(pdf)
+    found, _ = read_pdf(pdf)
     lines = []
     if len(truth.parts) != len(found.parts):
         lines.append(f"parts: the ground truth has {len(truth.parts)}, the PDF reading has {len(found.parts)}")

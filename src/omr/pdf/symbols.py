@@ -13,7 +13,7 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
-from omr.pdf import evidence, fonttables, shapes, smufl
+from omr.pdf import evidence, fonttables, geometry, shapes, smufl
 
 RENAMED = re.compile(r"^TT[0-9A-F]+t00$|^T3Font|^F\d+$")
 
@@ -135,8 +135,8 @@ def _xref_for(xrefs_by_name, name):
     only one whose name starts with it (as evidence._font_buffer does)."""
     if name in xrefs_by_name:
         return xrefs_by_name[name][0]
-    squashed = evidence._squash(name)
-    matches = [x for base, xs in xrefs_by_name.items() if evidence._squash(base).startswith(squashed) for x in xs]
+    squashed = evidence.squash(name)
+    matches = [x for base, xs in xrefs_by_name.items() if evidence.squash(base).startswith(squashed) for x in xs]
     return matches[0] if len(matches) == 1 else None
 
 
@@ -213,7 +213,7 @@ class FontIdentifier:
 
 def _program(name):
     """Sibelius or Finale from a legacy font's own name, or None for a renamed font."""
-    squashed = evidence._squash(name)
+    squashed = evidence.squash(name)
     if squashed.startswith(("opus", "helsinki", "inkpen", "reprise", "norfolk")):
         return "Sibelius"
     if squashed.startswith(("maestro", "petrucci", "engraver", "jazz", "broadway")):
@@ -274,7 +274,7 @@ def read_page(page, number, programs=None, identifier=None, ev=None):
     identifier = identifier or FontIdentifier(programs)
     ev = ev or evidence.gather(page, number)
     result = PageSymbols(number, ev)
-    turn = evidence._display_turn(page)
+    turn = geometry.display_turn(page)
     xrefs = font_xrefs(page)
     uses = {use.name: use for use in ev.fonts}
     mappings = {}
@@ -347,8 +347,8 @@ def _curve_box(items):
                 points.append((u ** 3 * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t ** 3 * p3.x,
                                u ** 3 * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t ** 3 * p3.y))
         else:
-            points.extend(evidence._item_points(item))
-    return evidence._bbox(points)
+            points.extend(geometry.item_points(item))
+    return geometry.bbox(points)
 
 
 def _boxes_overlap(a, b):
@@ -519,8 +519,8 @@ def outline_symbols(page, ev, unmapped, unnamed=None):
             continue
         items = d["items"]
         kinds = [item[0] for item in items]
-        points = [p for item in items for p in evidence._item_points(item)]
-        x0, y0, x1, y1 = evidence._bbox(points)
+        points = [p for item in items for p in geometry.item_points(item)]
+        x0, y0, x1, y1 = geometry.bbox(points)
         w, h = (x1 - x0) / space, (y1 - y0) / space
         if w <= 0 or h <= 0:
             continue

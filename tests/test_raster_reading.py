@@ -114,7 +114,8 @@ def test_an_image_page_reads_as_its_vector_page(tmp_path, monkeypatch):
     the page's true labels gives the vector reading's notes."""
     pymupdf = pytest.importorskip("pymupdf")
     pytest.importorskip("cv2")
-    from omr.pdf import structure, symbols
+    from omr.pdf import symbols
+    from omr.pdf.read import read_pdf
     from omr.raster import detect, page as rp, reading
     from omr.raster import text as rt
 
@@ -136,8 +137,8 @@ def test_an_image_page_reads_as_its_vector_page(tmp_path, monkeypatch):
 
     monkeypatch.setattr(reading, "detector", lambda path=None: fake)
     monkeypatch.setattr(rt, "reader", lambda path=None: lambda crops: [("", 0.0)] * len(crops))
-    vector_score, _ = structure.read_pdf(source, notes=True)
-    image_score, layouts = structure.read_pdf(image_pdf, notes=True)
+    vector_score, _ = read_pdf(source, notes=True)
+    image_score, layouts = read_pdf(image_pdf, notes=True)
     vector_notes = [n for n in vector_score.notes if n.bar < len(image_score.bars)]
     assert image_score.bars and len(layouts[0].staves) >= 1
     pitches = lambda notes: sorted((n.part, n.bar, str(n.pitch)) for n in notes)

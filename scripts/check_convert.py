@@ -66,11 +66,12 @@ def _figures(f):
 def check_pair(pdf, truth_path, out_path, schema_path, with_braille):
     from omr import braille, musicxml
     from omr.evaluate import events, metrics
-    from omr.pdf import rules, structure
+    from omr.pdf import rules
+    from omr.pdf.read import read_pdf
 
     result = {"problems": []}
     started = time.time()
-    score, _ = structure.read_pdf(pdf, notes=True)
+    score, _ = read_pdf(pdf, notes=True)
     result["read seconds"] = time.time() - started
     started = time.time()
     left_out = musicxml.write(score, out_path, title=Path(pdf).stem)

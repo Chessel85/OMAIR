@@ -8,16 +8,16 @@ import json
 from fractions import Fraction
 from pathlib import Path
 
-from omr.inspect import InspectError, open_document
+from omr.documents import InspectError, open_document
+from omr.pdf import rules
+from omr.pdf.read import read_pdf
 
 
 def read_file(path):
     """The Score read with notes. Raises InspectError."""
-    from omr.pdf import structure
-
     open_document(path).close()   # the usual message for a missing or unreadable file
     try:
-        score, _ = structure.read_pdf(path, notes=True)
+        score, _ = read_pdf(path, notes=True)
         return score
     except InspectError:
         raise
@@ -67,8 +67,6 @@ def report_lines(path, score, flags):
     """The confidence report (OUT-3, OUT-4): a summary, the flagged bars in
     score order, then the things also worth checking that seldom mean a
     wrong note (docs/notes/confidence-spec.md)."""
-    from omr.pdf import rules
-
     joined = rules.bar_flags(flags, rules.FLAG_RULES)
     others = rules.bar_flags(flags, set(rules.RULE_PRECISION) - rules.FLAG_RULES)
     bars = len(score.bars)
@@ -88,8 +86,6 @@ def report_lines(path, score, flags):
 
 
 def run(files, out_dir=None, out=print):
-    from omr.pdf import rules
-
     done = failed = 0
     for path in files:
         try:

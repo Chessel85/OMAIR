@@ -1,7 +1,7 @@
 """Check the confidence flags (Stage 1.5) against the real note errors (ACC-4).
 
 For each pair of a set (default: the regression set in the repository), the
-score is read from the PDF alone (`omr.pdf.structure.read_pdf` with notes),
+score is read from the PDF alone (`omr.pdf.read.read_pdf` with notes),
 flagged by the rules layer (`omr.pdf.rules.check`), and compared with the
 ground truth by the harness's own comparison, flags included
 (`omr.evaluate.metrics.compare_scores`), so the figures are those
@@ -38,10 +38,11 @@ import check_notes  # noqa: E402
 def check_pair(pdf, truth_path):
     """The error places and the flags of one pair, for scoring by rule."""
     from omr.evaluate import events, match, metrics
-    from omr.pdf import rules, structure
+    from omr.pdf import rules
+    from omr.pdf.read import read_pdf
 
     truth = events.read(truth_path)
-    found, _ = structure.read_pdf(pdf, notes=True)
+    found, _ = read_pdf(pdf, notes=True)
     result = match.match(truth, found)
     return {"places": metrics.error_places(result),
             "flags": [(f.rule, f.part, f.staff, f.bar) for f in rules.check(found)],

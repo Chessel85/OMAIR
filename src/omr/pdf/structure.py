@@ -268,22 +268,7 @@ def _same_name(short, full):
 
 # ---------------------------------------------------------- per staff
 
-def _start(system, k):
-    """Where bar k's content starts: the first bar includes everything from
-    the start of the system (clef, key and time before a start repeat)."""
-    return system.x0 if k == 0 else system.bars[k].x0
-
-
-def _bar_of(system, x):
-    """Index of the bar of the system that holds x, or None if x is after the
-    last barline (courtesy signatures)."""
-    for k, bar in enumerate(system.bars):
-        if _start(system, k) - 0.01 <= x < bar.x1 or (k == len(system.bars) - 1 and bar.end is None and x >= bar.x0):
-            return k
-    return None
-
-
-def _music(page_layout, staff):
+def staff_music(page_layout, staff):
     """The x of the notes and rests of a staff, at full size: a small
     notehead is a metronome mark, a cue or a grace note, which can stand over
     a time signature or before the first note."""
@@ -310,20 +295,20 @@ def staff_clefs(page_layout, system, staff):
     A clef after the last note of its bar belongs to the start of the next
     bar; one after the last note of the system is a courtesy clef and is left
     out (the next system shows it)."""
-    music = _music(page_layout, staff)
+    music = staff_music(page_layout, staff)
     out = []
     for s in sorted((s for s in page_layout.on_staff(staff) if s.name in CLEFS), key=lambda s: s.x):
-        k = _bar_of(system, s.x)
+        k = lay.bar_of(system, s.x)
         if k is None:
             continue
         bar = system.bars[k]
-        before = any(_start(system, k) <= x < s.x for x in music)
+        before = any(lay.bar_start(system, k) <= x < s.x for x in music)
         after = any(s.x < x < bar.x1 for x in music)
         value = clef_value(s.name, page_layout.step_of(s))
-        octave = _octave_digits(page_layout, s)
+        octave = octave_digits(page_layout, s)
         if octave and " octave" not in value:
             value += f" octave {octave:+d}"
-        if not before and not after and k + 1 < len(system.bars) and s.x > (_start(system, k) + bar.x1) / 2:
+        if not before and not after and k + 1 < len(system.bars) and s.x > (lay.bar_start(system, k) + bar.x1) / 2:
             out.append((k + 1, True, 0, value))   # in an empty bar, near its end: for the next bar
         elif not before:
             out.append((k, True, 0, value))
@@ -331,7 +316,7 @@ def staff_clefs(page_layout, system, staff):
             if k + 1 < len(system.bars):
                 out.append((k + 1, True, 0, value))
         else:
-            rank = sum(1 for x in music if _start(system, k) <= x < s.x)
+            rank = sum(1 for x in music if lay.bar_start(system, k) <= x < s.x)
             out.append((k, False, rank, value))
     return out
 
@@ -356,7 +341,7 @@ def _clef_digits(page_layout, clef):
             and _at_clef(clef, s.box)]
 
 
-def _octave_digits(page_layout, clef):
+def octave_digits(page_layout, clef):
     """The octave change shown by a small 8 or 15 at a clef (LilyPond writes
     an octave clef this way), drawn as music digits or as text: -1 for an 8
     below, +2 for a 15 above; 0 if none. Text read from a page image is
@@ -374,18 +359,18 @@ def _octave_digits(page_layout, clef):
     return -octaves if below else octaves
 
 
-def _signature_region(page_layout, system, staff, k):
+def signature_region(page_layout, system, staff, k):
     """The symbols of a staff that can be bar k's key or time signature:
     those before its first note or rest, and those after the last note or
     rest of the bar before (an engraver puts a change before a start-repeat
     barline, after the last note of the previous bar)."""
-    music = _music(page_layout, staff)
-    start, end = _start(system, k), system.bars[k].x1
+    music = staff_music(page_layout, staff)
+    start, end = lay.bar_start(system, k), system.bars[k].x1
     inside = [x for x in music if start <= x < end]
     first = min(inside) if inside else end
     lo = start
     if k > 0:
-        before = [x for x in music if _start(system, k - 1) <= x < system.bars[k - 1].x1]
+        before = [x for x in music if lay.bar_start(system, k - 1) <= x < system.bars[k - 1].x1]
         if before:
             lo = max(before) + 0.01
     return [s for s in page_layout.on_staff(staff) if lo - 0.01 <= s.x < first]
@@ -420,7 +405,7 @@ def staff_keys(page_layout, system, staff):
     out = []
     notes = [(s.x, page_layout.step_of(s)) for s in page_layout.on_staff(staff) if lay.is_note(s.name)]
     for k in range(len(system.bars)):
-        region = _signature_region(page_layout, system, staff, k)
+        region = signature_region(page_layout, system, staff, k)
         every = sorted((s for s in region if s.name in (SHARP, FLAT, NATURAL)), key=lambda s: s.x)
         if not every:
             if k == 0:
@@ -429,7 +414,7 @@ def staff_keys(page_layout, system, staff):
                 # naturals at the end of the system before, which are left out.
                 out.append((0, 0))
             continue
-        every = _close_run(every, staff.space)
+        every = close_run(every, staff.space)
         free = [s for s in every if not any(0 < nx - s.x <= 3.5 * staff.space and ns == page_layout.step_of(s)
                                              for nx, ns in notes)]
         # A run of two or more that follows the key-signature order is a key
@@ -438,14 +423,14 @@ def staff_keys(page_layout, system, staff):
         # first note's own accidental).
         # (A chord's accidentals each have a note on their step: then at least
         # one accidental of the run must be free of notes.)
-        whole = _key_of(page_layout, staff, every) if len(every) >= 2 and free else None
-        fifths = whole if whole is not None else _key_of(page_layout, staff, free)
+        whole = key_of(page_layout, staff, every) if len(every) >= 2 and free else None
+        fifths = whole if whole is not None else key_of(page_layout, staff, free)
         if fifths is not None:
             out.append((k, fifths))
     return out
 
 
-def _close_run(accidentals, space):
+def close_run(accidentals, space):
     """The accidentals from the first while each is close to the one before:
     a key signature's accidentals are evenly spaced, about a staff space apart."""
     run = accidentals[:1]
@@ -456,7 +441,7 @@ def _close_run(accidentals, space):
     return run
 
 
-def _key_of(page_layout, staff, accidentals):
+def key_of(page_layout, staff, accidentals):
     """The fifths of a run of accidentals if it is a key signature, else None."""
     if not accidentals:
         return None
@@ -484,7 +469,7 @@ def staff_times(page_layout, system, staff):
     common or cut time symbol."""
     out = []
     for k in range(len(system.bars)):
-        region = _signature_region(page_layout, system, staff, k)
+        region = signature_region(page_layout, system, staff, k)
         symbols = [s for s in region if s.name in TIME_SYMBOLS]
         if symbols:
             out.append((k, TIME_SYMBOLS[symbols[0].name]))
@@ -555,8 +540,8 @@ def system_endings(page_layout, system, horizontals):
         # A box round a rehearsal mark ends at its number; a volta runs on.
         if stop_x - run.box[2] < space:
             continue
-        start = _bar_of(system, line.x0 + 0.5 * space)
-        end = _bar_of(system, stop_x - 0.5 * space)
+        start = lay.bar_of(system, line.x0 + 0.5 * space)
+        end = lay.bar_of(system, stop_x - 0.5 * space)
         if start is None:
             continue
         # A volta starts at the start of a bar (in the first bar of a system,
@@ -591,7 +576,7 @@ def _continued_ending(page_layout, system, horizontals):
     line = max(lines, key=lambda h: h.length)
     hooks = [x for x, t, b, _ in page_layout.verticals
              if abs(x - line.x1) <= 0.6 and t <= line.y + 0.5 and b >= line.y + space]
-    end = _bar_of(system, line.x1 - 0.5 * space)
+    end = lay.bar_of(system, line.x1 - 0.5 * space)
     if not hooks and line.x1 >= system.x1 - space:
         return len(system.bars) - 1, "continue"   # across the whole system, on to the next
     return (len(system.bars) - 1 if end is None else end), ("stop" if hooks else "discontinue")
@@ -610,7 +595,7 @@ def jump_bar(system, box, space):
     for k, bar in enumerate(system.bars):
         if bar.end is not None and box[2] - space <= bar.end.x0 <= box[2] + 0.5 * space:
             return k
-    return _bar_of(system, max(box[0], system.x0))
+    return lay.bar_of(system, max(box[0], system.x0))
 
 
 def system_navigation(page_layout, system):
@@ -619,7 +604,7 @@ def system_navigation(page_layout, system):
     top, bottom = system.staves[0], system.staves[-1]
     for s in page_layout.symbols:
         if s.name in NAVIGATION_GLYPHS and top.top - 8 * top.space <= s.y <= bottom.bottom + 8 * top.space:
-            k = _bar_of(system, s.x)
+            k = lay.bar_of(system, s.x)
             if k is not None:
                 out.append((k, NAVIGATION_GLYPHS[s.name]))
     for run in page_layout.text:
@@ -723,41 +708,3 @@ def _share_times(score, shown):
         for p in range(len(score.parts)):
             if p not in values and p not in shown.get(bar, ()):
                 score.structure.append(events.Marking("time", value, p, None, bar, Fraction(0)))
-
-
-def read_pdf(path, notes=False):
-    """(Score, [PageLayout]) for a PDF: the structure, and with `notes` also
-    the notes and rests (Stage 1.3, omr.pdf.notation) and the markings and
-    text (Stage 1.4, omr.pdf.markings and omr.pdf.text). Pages holding a
-    page image are read from it (Stage 2.4, omr.raster.reading)."""
-    from pathlib import Path
-
-    import pymupdf
-
-    from omr.inspect import IMAGE_SUFFIXES
-    from omr.pdf import notation, symbols
-
-    if Path(path).suffix.lower() in IMAGE_SUFFIXES:   # an image file is read as a one-page image PDF
-        image = pymupdf.open(str(path))
-        doc = pymupdf.open("pdf", image.convert_to_pdf())
-        image.close()
-    else:
-        doc = pymupdf.open(str(path))
-    try:
-        # each page loaded once, so what PyMuPDF gives for it is fetched once
-        # (omr.pdf.evidence.shown_drawings)
-        use = [doc[i] for i in range(len(doc))]
-        pages = symbols.read_document(doc, shown=use)
-        if any(not p.symbols for p in pages):
-            from omr.raster import reading
-            use, pages = reading.read_document(use, pages)
-        layouts = lay.read_document(use, pages)
-        assigned = assign_parts(layouts)
-        score = read_structure(layouts, assigned)
-        if notes:
-            notation.read_notes(score, assigned[0], use, layouts)
-            # Jump words read as text that system_navigation did not take are still jumps, as the harness reads them.
-            events.navigation_from_words(score)
-        return score, layouts
-    finally:
-        doc.close()

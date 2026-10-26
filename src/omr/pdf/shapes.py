@@ -2,7 +2,7 @@
 
 Used to tell which legacy font a renamed font is, and to name the outlined
 symbols of Type B pages. Every shape is drawn in grey, cropped to its ink and
-reduced to a SHAPE_SIZE square (evidence._normalise), and two shapes are
+reduced to a SHAPE_SIZE square (evidence.normalise), and two shapes are
 compared by correlation. Sizes are kept apart, in staff spaces where known,
 because a shape alone cannot tell a whole rest from a half rest or a beam
 piece. See docs/notes/symbol-spec.md, "Shapes".
@@ -11,7 +11,7 @@ piece. See docs/notes/symbol-spec.md, "Shapes".
 import functools
 from dataclasses import dataclass
 
-from omr.pdf import evidence, smufl
+from omr.pdf import evidence, geometry, smufl
 
 DRAW_SIZE = 40      # points per em when a font glyph is drawn
 CELL = 160          # points per cell; the origin sits at ORIGIN in each cell
@@ -41,7 +41,7 @@ def _measure(grey, scale, origin):
     if len(xs) == 0:
         return Shape(None)
     return Shape(
-        evidence._normalise(grey),
+        evidence.normalise(grey),
         (xs.max() - xs.min() + 1) / scale,
         (ys.max() - ys.min() + 1) / scale,
         (xs.min() - origin[0]) / scale,
@@ -100,8 +100,8 @@ def draw_paths(drawings, staff_space):
     is put at the ink's top left; the caller knows the page position."""
     import pymupdf
 
-    points = [p for d in drawings for item in d["items"] for p in evidence._item_points(item)]
-    x0, y0, x1, y1 = evidence._bbox(points)
+    points = [p for d in drawings for item in d["items"] for p in geometry.item_points(item)]
+    x0, y0, x1, y1 = geometry.bbox(points)
     scale = PIXELS_PER_SPACE / staff_space
     width = int((x1 - x0) * scale) + 8
     height = int((y1 - y0) * scale) + 8
@@ -167,7 +167,7 @@ def similarity(a, b):
     """Correlation of two normalised shapes, 0 if either is empty."""
     if a is None or b is None or a.image is None or b.image is None:
         return 0.0
-    return evidence._correlation(_blurred(a), _blurred(b))
+    return evidence.correlation(_blurred(a), _blurred(b))
 
 
 def turned(shape):

@@ -21,6 +21,9 @@ from pathlib import Path
 
 import numpy as np
 
+from omr import paths
+from omr.pdf.symbols import TextRun
+
 MODEL_ENV = "OMR_OCR_MODEL"
 THREADS_ENV = "OMR_OCR_THREADS"
 DEFAULT_MODEL = Path("models") / "ocr" / "latin_PP-OCRv5_rec_mobile.onnx"
@@ -48,8 +51,6 @@ LOW = set("gjpqyç;,()[]{}/|")
 
 def model_path():
     """The OCR model: OMR_OCR_MODEL, or models/ocr in the repository."""
-    from omr import paths
-
     configured = os.environ.get(MODEL_ENV)
     return Path(configured) if configured else paths.REPO_ROOT / DEFAULT_MODEL
 
@@ -79,7 +80,7 @@ def reader(path=None, saved_in=None):
     (loaded once a process) on a page's crops. Readings are saved in the
     folder `saved_in`, or with it None in OMR_DETECTIONS_DIR/ocr if set;
     with it False, never."""
-    from omr.raster import reading
+    from omr.raster import reading   # here, as reading imports this module
 
     path = str(path or model_path())
 
@@ -91,6 +92,8 @@ def reader(path=None, saved_in=None):
         engine = _engine(path)
         # each crop prepared as RapidOCR prepares a whole image
         images = [engine.preprocess_img(engine.load_img(c))[0] for c in crops]
+        # RapidOCR's own recogniser, which is not part of its public interface:
+        # the crops are recognised without looking for text in them first
         out = engine._load_rec_model()(TextRecInput(img=images))
         return [(t.strip(), float(p)) for t, p in zip(out.txts, out.scores)]
 
@@ -121,10 +124,10 @@ def saving(run, folder, model):
 def saved_file(folder, crops, model):
     """The file a page's readings are saved in: named by the crops'
     contents and the model file's contents."""
-    from omr.raster import reading
+    from omr.raster import reading   # here, as reading imports this module
 
     key = hashlib.sha256()
-    key.update(reading._model_digest(str(model)).encode())
+    key.update(reading.model_digest(str(model)).encode())
     for crop in crops:
         key.update(f"{crop.shape}".encode())
         key.update(np.ascontiguousarray(crop).tobytes())
@@ -247,8 +250,6 @@ def clean(text):
 def read_regions(grey, place, regions, space_px, read=None):
     """symbols.TextRuns for the page's text regions (boxes in page points),
     read from the level grey image. `read` is a function as `reader` gives."""
-    from omr.pdf.symbols import TextRun
-
     read = read or reader()
     margin = int(MARGIN * space_px)
     boxes, crops = [], []

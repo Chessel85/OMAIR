@@ -2,7 +2,7 @@
 
 How the text and markings of a score are read from a vector PDF: the page text (title, subtitle, composer, lyricist, rights), lyrics with their hyphens and melismas, chord symbols, tempo and expression text, rehearsal marks, metronome marks, dynamics, hairpins, articulations, fermatas, ornaments, breath marks, fingering, plucking letters and slurs. It works from the text runs and symbols of Stage 1.1 (`symbol-spec.md`), the staves and bars of Stage 1.2 (`layout-spec.md`), the notes of Stage 1.3 (`notation-spec.md`), and the page's lines and curves.
 
-- Code: `src/omr/pdf/text.py` (sorting text into kinds, page by page) and `src/omr/pdf/markings.py` (attaching markings to bars, onsets and notes, system by system). Both are called by `omr.pdf.notation.read_notes`, so `omr.pdf.structure.read_pdf(path, notes=True)` gives them.
+- Code: `src/omr/pdf/text.py` (sorting text into kinds, page by page) and `src/omr/pdf/markings.py` (attaching markings to bars, onsets and notes, system by system). Both are called by `omr.pdf.notation.read_notes`, so `omr.pdf.read.read_pdf(path, notes=True)` gives them.
 - Check: `scripts/check_markings.py`. It reads each PDF and scores it with the harness's own rules, so the marking figures are those `omr evaluate` would give. CI runs it on the regression set with a floor of 97 percent for ACC-6.
 - Where the results go: directions (words, tempo marks, chord symbols, dynamics, hairpins, rehearsal and metronome marks) are `Marking`s in `score.markings`; marks, slurs and lyrics are on the notes; page text is in `score.text`. The harness compares the first two and ignores `score.text`, rehearsal and metronome marks; `check_markings.py` scores those itself.
 

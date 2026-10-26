@@ -17,6 +17,9 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
+from omr.corpus import lilypond_check
+from omr.corpus.labels import read_musicxml
+
 PROGRAM_FILES = os.environ.get("ProgramFiles", r"C:\Program Files")
 
 MUSESCORE4_FONTS = {
@@ -228,8 +231,6 @@ def run_musescore3_convert(source, target, timeout=300):
 def lilypond_music_share(source, ly, lily, timeout=300):
     """The share of the reference's notes found in the music musicxml2ly wrote
     to `ly` (lilypond_check.py). ExportError if the check cannot run."""
-    from omr.corpus import lilypond_check
-
     ly = Path(ly)
     midi_ly = ly.with_name(ly.stem + "-midi.ly")
     try:
@@ -248,8 +249,6 @@ def lilypond_music_share(source, ly, lily, timeout=300):
 
 def lilypond_music_failure(share):
     """The failure reason for a share of notes found, or None if it is enough."""
-    from omr.corpus import lilypond_check
-
     if share >= lilypond_check.MIN_NOTES_IN_BAR:
         return None
     return (f"musicxml2ly changed the music: {100 * share:.1f} percent of the reference's notes "
@@ -308,8 +307,6 @@ def staff_key_changes(source):
     """Key changes after the first bar, as {staff number: {bar index: fifths}}, with
     staves numbered down the score as Verovio numbers them; also each staff's
     first key, {staff number: fifths}, and the bar count."""
-    from omr.corpus.labels import read_musicxml
-
     changes, start, first, bars = {}, {}, 1, 0
     for part in read_musicxml(source).findall("part"):
         measures = part.findall("measure")

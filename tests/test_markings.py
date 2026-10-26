@@ -181,9 +181,9 @@ def test_text_on_a_page_is_sorted_into_kinds():
 
 
 def notation_score(score_id, job="musescore4-base"):
-    from omr.pdf import structure
+    from omr.pdf.read import read_pdf
     _, _, pdf, _ = check_notes.pairs(REGRESSION, job, None, score_id)[0]
-    return structure.read_pdf(pdf, notes=True)
+    return read_pdf(pdf, notes=True)
 
 
 def test_span_breaks_split_lyric_syllables():
@@ -205,8 +205,8 @@ def test_staccato_dots_over_a_notehead():
 
 
 def test_printed_chord_suffixes_name_their_kind():
-    assert text.chord_kind("A m7") == ("A", "minor-seventh", None)
-    assert text.chord_kind("G major") == ("G", "major", None)
-    assert text.chord_kind("Bb Δ7") == ("Bb", "major-seventh", None)
-    assert text.chord_kind("C major / E") == ("C", "major", "E")
-    assert text.chord_kind("F# m7b5") == ("F#", "half-diminished", None)
+    assert events.chord_kind("A m7") == ("A", "minor-seventh", None)
+    assert events.chord_kind("G major") == ("G", "major", None)
+    assert events.chord_kind("Bb Δ7") == ("Bb", "major-seventh", None)
+    assert events.chord_kind("C major / E") == ("C", "major", "E")
+    assert events.chord_kind("F# m7b5") == ("F#", "half-diminished", None)

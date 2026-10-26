@@ -1,7 +1,7 @@
 """Check the notes read from PDFs (Stage 1.3) against the ground truth.
 
 For each pair of a set (default: the regression set in the repository), the
-score is read from the PDF alone (`omr.pdf.structure.read_pdf` with notes)
+score is read from the PDF alone (`omr.pdf.read.read_pdf` with notes)
 and compared with the ground-truth MusicXML by the evaluation harness's own
 comparison (`omr.evaluate.metrics.compare_scores`), so the figures are those
 `omr evaluate` would give. No MusicXML is written.
@@ -36,10 +36,11 @@ TUPLET = re.compile(r"triplet|tuplet|\d+:\d+")
 def check_pair(pdf, truth_path):
     """The harness figures for one pair, without the error words for exact notes."""
     from omr.evaluate import events, metrics
-    from omr.pdf import notation, structure
+    from omr.pdf import notation
+    from omr.pdf.read import read_pdf
 
     truth = events.read(truth_path)
-    found, _ = structure.read_pdf(pdf, notes=True)
+    found, _ = read_pdf(pdf, notes=True)
     # bar arithmetic (ACC-5) as flags: each voice that does not fill its bar
     flags = sorted({(f.part, f.bar, f.staff) for f in notation.unfilled_bars(found)})
     figures = metrics.compare_scores(truth, found, flags)

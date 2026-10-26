@@ -1,6 +1,6 @@
 """Write an events.Score as MusicXML 4.0 (Stage 1.6, OUT-1).
 
-The Score is the one `omr.pdf.structure.read_pdf(path, notes=True)` gives.
+The Score is the one `omr.pdf.read.read_pdf(path, notes=True)` gives.
 The writer is the inverse of the harness's reader (`omr.evaluate.events`):
 reading the written file back gives the same notes, rests, markings and
 structure, which `tests/test_musicxml.py` and `scripts/check_convert.py`
@@ -494,8 +494,6 @@ class Writer:
         event}: a jump (D.C., Fine) goes with the words the reader found for it,
         in its bar or the bar either side (words over a barline can be read
         into the next bar), so that no words are made up."""
-        from omr.pdf import structure
-
         out = {}
         words = [m for m in self.score.markings if m.kind == "words"]
         for e in self.score.structure:
@@ -503,7 +501,7 @@ class Writer:
                 continue
             near = sorted((w for w in words if abs(w.bar - e.bar) <= 1 and id(w) not in out
                            and any(value == e.value and pattern.match(w.value)
-                                   for pattern, value in structure.NAVIGATION_TEXT)),
+                                   for pattern, value in events.NAVIGATION_TEXT)),
                           key=lambda w: (abs(w.bar - e.bar), w.part != e.part, w.part))
             if near:
                 out[id(e)] = near[0]
@@ -573,9 +571,7 @@ class Writer:
             _sub(direction, "sound", **{sound[0]: sound[1]})
 
     def _harmony(self, bar, item, offset):
-        from omr.pdf import text as pdf_text
-
-        root, kind, bass = pdf_text.chord_kind(item.value)
+        root, kind, bass = events.chord_kind(item.value)
         main = item.value.partition(" / ")[0]
         suffix = main.partition(" ")[2].strip()
         harmony = _sub(bar.measure, "harmony", placement="above")
