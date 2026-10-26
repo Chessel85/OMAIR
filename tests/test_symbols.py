@@ -213,3 +213,13 @@ def test_a_stretched_brace_is_measured_to_the_top_of_its_ink():
     page.draw_rect(pymupdf.Rect(50, 100, 56, 200), color=None, fill=(0, 0, 0))
     assert abs(symbols._brace_top(page, (50.0, 120.0, 56.0, 200.0)) - 100) < 0.5
     assert symbols._brace_top(page, (50.0, 100.0, 56.0, 200.0)) == 100.0
+
+
+def test_a_page_whose_only_bravura_glyph_is_its_large_brace_reads_bravura_as_music():
+    # MuseScore 3 draws a tall brace with Bravura's own optional glyph, U+F401
+    from omr.pdf import evidence, layout
+
+    use = evidence.FontUse("Bravura", glyphs=1, pua_glyphs=1, smufl_glyphs=0)
+    mapping = symbols.FontIdentifier(None)._decide(use, None, [])
+    assert mapping.table == "smufl"
+    assert symbols.name_glyph(mapping, 0xF401, None) in layout.BRACE_NAMES

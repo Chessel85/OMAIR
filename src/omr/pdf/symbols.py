@@ -193,9 +193,12 @@ class FontIdentifier:
     def _decide(self, use, xref, page_fonts):
         if use.cls in ("smufl", "smufl_text"):
             return FontMapping(use.name, "smufl", "codes")
-        if use.glyphs and use.smufl_glyphs == use.glyphs and not evidence.is_symbol_font(use):
-            # a few glyphs, all SMuFL code points: too few for the inspector's
-            # rule, but music (a page whose only Bravura glyphs are its braces)
+        own = use.pua_glyphs == use.glyphs and smufl.family_of(use.name) is not None
+        if use.glyphs and (use.smufl_glyphs == use.glyphs or own) and not evidence.is_symbol_font(use):
+            # a few glyphs, all SMuFL code points (or a SMuFL font's own
+            # optional glyphs, such as Bravura's large brace): too few for the
+            # inspector's rule, but music (a page whose only Bravura glyphs
+            # are its braces)
             return FontMapping(use.name, "smufl", "codes")
         named = fonttables.legacy_table(use.name)
         if named is not None:
