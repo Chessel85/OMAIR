@@ -859,6 +859,16 @@ These are pinned in `requirements.txt` or `requirements-torch.txt` and installed
 - Source: package metadata in the installed environment
 - Status: ok
 
+### ruff
+
+- Kind: dependency
+- Version: 0.17.2
+- Licence: MIT
+- Use: internal only (development)
+- Source: package metadata in the installed environment
+- Status: ok
+- Note: Development only. The linter, run in CI.
+
 ### scikit-image
 
 - Kind: dependency
