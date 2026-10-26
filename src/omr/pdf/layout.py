@@ -217,6 +217,8 @@ def find_staves(lines, page_number):
                 if nxt is None:
                     break
                 run.append(nxt)
+            if len(run) == 5 and _sixth_line_fits_better(lines, run, gap, first):
+                break    # a line one space below fits the staff better than this top one
             if len(run) == 5:
                 chosen = [lines[k] for k in run]
                 longest = max(l.length for l in chosen)
@@ -236,18 +238,37 @@ def find_staves(lines, page_number):
     return staves
 
 
+def _sixth_line_fits_better(lines, run, gap, first):
+    """Five lines and a sixth one space below them: a staff has five, so one
+    end line is something else, such as a dashed line one space over the
+    staff (MuseScore 3). The top line is dropped when its ends match the
+    middle four less well than the sixth line's do."""
+    sixth = _find_line(lines, run[-1] + 1, first.y + 5 * gap, 0.1 * gap, first)
+    if sixth is None:
+        return False
+    middle = [lines[k] for k in run[1:]]
+    x0, x1 = statistics.median(l.x0 for l in middle), statistics.median(l.x1 for l in middle)
+    misfit = lambda l: abs(l.x0 - x0) + abs(l.x1 - x1)
+    return misfit(lines[run[0]]) > misfit(lines[sixth])
+
+
 def _overlap(a, b):
     shorter = min(a.length, b.length)
     return shorter > 0 and min(a.x1, b.x1) - max(a.x0, b.x0) >= 0.5 * shorter
 
 
 def _find_line(lines, start, y, tolerance, anchor):
+    """The line nearest the height y, preferring one thin enough to be a
+    staff line: a beam can lie on the bottom line (LilyPond)."""
+    found = []
     for k in range(start, len(lines)):
         if lines[k].y > y + tolerance:
-            return None
+            break
         if abs(lines[k].y - y) <= tolerance and _overlap(anchor, lines[k]):
-            return k
-    return None
+            found.append(k)
+    if not found:
+        return None
+    return min(found, key=lambda k: (lines[k].thickness > 10 * tolerance / 3, abs(lines[k].y - y)))
 
 
 # ------------------------------------------------------------ vertical lines
@@ -486,22 +507,59 @@ def mark_repeats(barline, dots, staff_list):
 
 # -------------------------------------------------------------------- bars
 
-def make_bars(system, music_xs):
-    """Bars of a system (rule 5). `music_xs` are the x of the notes and rests in it."""
+def make_bars(system, music_xs, counts=()):
+    """Bars of a system (rule 5). `music_xs` are the x of the notes and rests
+    in it, `counts` (x, y, digit) of digits over a staff: a multi-bar rest's
+    count, which MuseScore draws over an empty bar (the rest itself is lines).
+    Such a bar stands for that many bars: the first keeps its width, the
+    others are slivers before its end barline."""
     bars = []
     start_x, start_line = system.x0, None
-    for group in system.barlines:
+    for i, group in enumerate(system.barlines):
         empty = not any(start_x < x < group.x0 for x in music_xs)
+        # at the end of the system the next bar is on the next one: taken to have music
+        next_x = system.barlines[i + 1].x0 if i + 1 < len(system.barlines) else system.x1
+        next_has_music = group.x1 >= system.x1 - 1 or any(group.x1 < x < next_x for x in music_xs)
         if empty and not bars and (group.repeat_after or group.kind == "heavy-light"):
             pass    # a start repeat after the clef: it opens the first bar
         elif empty and bars and group.x0 - start_x < 2 * system.staves[0].space:
             pass    # too narrow to be a bar (a double line drawn as two groups)
+        elif (empty and bars and start_line is not None and start_line.kind != "single"
+              and next_has_music and not _count(counts, start_x, group.x0)):
+            # LilyPond draws an empty bar after a double or end-repeat barline,
+            # before a start repeat or a change; it joins the next bar, which
+            # keeps its signatures. MuseScore and Verovio draw one holding only
+            # a key or time change. Kept: a bar before another empty one (bars
+            # of hidden rests, which a score can have), and a bar with digits
+            # over the staff (MuseScore draws a multi-bar rest as lines, its
+            # count in time signature digits).
+            start_line = group
+            continue
         else:
-            bars.append(Bar(start_x, group.x0, start_line, group))
+            n = _count(counts, start_x, group.x0) if empty else 0
+            if n > 1:
+                # the first bar keeps the clef, key and time; the rest are slivers before the barline
+                edges = [start_x] + [group.x0 - 0.01 * (n - i) for i in range(1, n)] + [group.x0]
+                bars.extend(Bar(edges[i], edges[i + 1], start_line if i == 0 else None,
+                                group if i == n - 1 else None) for i in range(n))
+            else:
+                bars.append(Bar(start_x, group.x0, start_line, group))
         start_x, start_line = group.x1, group
     if any(x > start_x for x in music_xs):
         bars.append(Bar(start_x, system.x1, start_line, None))
     return bars
+
+
+def _count(counts, x0, x1):
+    """The number written over the bar from x0 to x1: its digits nearest the
+    top of the page (the count is repeated over every staff), left to right.
+    0 if none."""
+    inside = [(x, y, d) for x, y, d in counts if x0 < x < x1]
+    if not inside:
+        return 0
+    top = min(y for _, y, _ in inside)
+    digits = sorted((x, d) for x, y, d in inside if y - top < 2.0)
+    return int("".join(d for _, d in digits))
 
 
 # ---------------------------------------------------------------- the page
@@ -596,5 +654,7 @@ def read_layout(page_symbols, page, staves=None, system_gap=None, lines=None):
             mark_repeats(group, dots, system.staves)
         music = [s.x for s in symbols if (is_note(s.name) or is_rest(s.name))
                  and id(layout.staff_of(s)) in members]
-        system.bars = make_bars(system, music)
+        counts = [(s.x, s.y, s.name[-1]) for s in symbols if s.name.startswith("timeSig") and s.name[-1].isdigit()
+                  and id(layout.staff_of(s)) in members and s.box[3] <= layout.staff_of(s).top]
+        system.bars = make_bars(system, music, counts)
     return layout

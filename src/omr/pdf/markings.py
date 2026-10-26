@@ -223,6 +223,13 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
             # "più p": a word set with a dynamic is part of it (MusicXML's other-dynamics)
             staff = placer.staff_below(item.box)
             add("dynamic", item.text, staff, placer.place((item.box[0] + item.box[2]) / 2, staff, "centre"))
+        elif item.kind == "words" and any(pattern.match(item.text) for pattern, _ in structure.NAVIGATION_TEXT):
+            # jump words end a bar: in the bar the jump reader gives them, at its end
+            k = structure.jump_bar(system, item.box, space)
+            at = placer.place(item.box[0], item.staff, "left")
+            if k is not None and at is not None and at[0] != bar_base + k:
+                at = placer.end(system.bars[k].x1 - 0.01, item.staff)
+            add("words", " ".join(item.text.split()), item.staff, at)
         elif item.kind in ("words", "tempo"):
             add("words", " ".join(item.text.split()), item.staff, placer.place(item.box[0], item.staff, "left"))
         elif item.kind == "chord symbol":

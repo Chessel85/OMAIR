@@ -342,13 +342,15 @@ def staff_clefs(page_layout, system, staff):
 def _at_clef(clef, box):
     """A box is an octave mark of the clef: centred on it, and touching its
     top or bottom (a bar number above the first clef of a system is further
-    off and not centred)."""
+    off and not centred). Below, the gap may be twice as wide: LilyPond puts
+    the 8 of an octave bass clef under the staff, a staff space below the
+    clef, which ends above the bottom line."""
     width = clef.box[2] - clef.box[0]
     gap = 0.15 * (clef.box[3] - clef.box[1])
     centre = (clef.box[0] + clef.box[2]) / 2
     if abs((box[0] + box[2]) / 2 - centre) > 0.3 * width:
         return False
-    return -gap <= box[1] - clef.box[3] <= gap or -gap <= clef.box[1] - box[3] <= gap
+    return -gap <= box[1] - clef.box[3] <= 2 * gap or -gap <= clef.box[1] - box[3] <= gap
 
 
 def _clef_digits(page_layout, clef):
@@ -499,8 +501,10 @@ def staff_times(page_layout, system, staff):
         digits = sorted((s for s in region if s.name in TIME_DIGITS and id(s) not in at_clefs), key=lambda s: s.x)
         if not digits:
             continue
-        x0 = digits[0].x
-        group = sorted((s for s in digits if s.x <= x0 + 3 * staff.space), key=lambda s: s.x)
+        # the last group, nearest the music: MuseScore can put a reminder in
+        # brackets, such as (4/4), before an end repeat, and the change after it
+        x1 = digits[-1].x
+        group = sorted((s for s in digits if s.x >= x1 - 3 * staff.space), key=lambda s: s.x)
         # by the middle of the ink: SMuFL digits are centred on their origin,
         # Emmentaler's stand on it
         middle = (staff.top + staff.bottom) / 2
@@ -577,20 +581,52 @@ def _continued_ending(page_layout, system, horizontals):
     """(end bar, "stop" or "discontinue") of an ending carried over from the
     previous system: a horizontal line above the top staff that starts in
     the system's first bar (after the clef and key) with no number at its
-    start. (None, None) if there is none."""
+    start; "continue" when it runs on past the system's end. (None, None)
+    if there is none."""
     top = system.staves[0]
     space = top.space
-    numbered = [run.box[0] for run in page_layout.text if ENDING_TEXT.match(run.text)]
+    # an ending number just under the line's start: a new ending, not a
+    # continued one (numbers of other systems on the page do not count)
+    numbered = [run.box for run in page_layout.text if ENDING_TEXT.match(run.text)]
     lines = [h for h in horizontals if h.x0 < system.bars[0].x1 and h.length >= 2 * space
              and top.top - 8 * space <= h.y < top.top - 0.5 * space
-             and not any(abs(x - h.x0) <= 1.5 * space for x in numbered)]
+             and not any(abs(box[0] - h.x0) <= 1.5 * space and h.y - space <= box[1] <= h.y + 3 * space
+                         for box in numbered)
+             # not a line of the staff above, when systems stand close
+             and not any(st.top - 0.3 * space <= h.y <= st.bottom + 0.3 * space for st in page_layout.staves)]
     if not lines:
         return None, None
     line = max(lines, key=lambda h: h.length)
     hooks = [x for x, t, b, _ in page_layout.verticals
              if abs(x - line.x1) <= 0.6 and t <= line.y + 0.5 and b >= line.y + space]
     end = _bar_of(system, line.x1 - 0.5 * space)
+    if not hooks and line.x1 >= system.x1 - space:
+        return len(system.bars) - 1, "continue"   # across the whole system, on to the next
     return (len(system.bars) - 1 if end is None else end), ("stop" if hooks else "discontinue")
+
+
+def _nearest_system(page_layout, y):
+    """The system of the page whose staves are nearest the height y."""
+    def distance(system):
+        top, bottom = system.staves[0].top, system.staves[-1].bottom
+        return 0 if top <= y <= bottom else min(abs(y - top), abs(y - bottom))
+    return min(page_layout.systems, key=distance)
+
+
+def jump_bar(system, box, space):
+    """The bar of jump words (D.S., D.C., Fine, To Coda), which mark the end
+    of a bar: the bar ending at a barline the words start on (Verovio sets
+    them from it), else at one they end on (set right to it: MuseScore 3
+    ends a "To Coda" on the right line of a double barline), else the bar
+    they start in (MuseScore 4 starts a "To Coda" just before the barline,
+    and long words run on past it). None past the last barline."""
+    for k, bar in enumerate(system.bars):
+        if bar.end is not None and bar.end.x0 - 0.3 * space <= box[0] <= bar.end.x1 + 0.3 * space:
+            return k
+    for k, bar in enumerate(system.bars):
+        if bar.end is not None and box[2] - space <= bar.end.x0 <= box[2] + 0.5 * space:
+            return k
+    return _bar_of(system, max(box[0], system.x0))
 
 
 def system_navigation(page_layout, system):
@@ -606,9 +642,11 @@ def system_navigation(page_layout, system):
         middle = (run.box[1] + run.box[3]) / 2
         if not top.top - 8 * top.space <= middle <= bottom.bottom + 8 * top.space:
             continue
+        if _nearest_system(page_layout, middle) is not system:
+            continue   # between two systems: the nearer one has it
         for pattern, value in NAVIGATION_TEXT:
             if pattern.match(run.text):
-                k = _bar_of(system, min(run.box[2], system.x1 - 0.1))
+                k = jump_bar(system, run.box, top.space)
                 if k is not None:
                     out.append((k, value))
                 break
@@ -625,6 +663,7 @@ def read_structure(layouts, assigned=None):
     score.parts = [events.Part(name, staves) for name, staves in parts]
     bar_base = 0
     open_ending = None
+    shown = {}    # bar -> the parts with a staff in its system
     for pl, system, mapping in ordered:
         horizontals = getattr(pl, "horizontals", [])
         for k, bar in enumerate(system.bars):
@@ -657,8 +696,12 @@ def read_structure(layouts, assigned=None):
             end, kind = _continued_ending(pl, system, horizontals)
             if end is None:   # no continuation: the ending stopped at the end of the last system
                 end, kind = last_bar - bar_base, "discontinue"
-            for p in part_list:
-                score.structure.append(events.Marking("ending", f"{kind} {numbers}", p, None, bar_base + end, Fraction(0)))
+            if kind == "continue" and system is not ordered[-1][1]:
+                open_ending = (numbers, bar_base + end)   # it runs across this system too
+            else:
+                kind = "discontinue" if kind == "continue" else kind
+                for p in part_list:
+                    score.structure.append(events.Marking("ending", f"{kind} {numbers}", p, None, bar_base + end, Fraction(0)))
         for start, end, numbers, closed in endings:
             reaches_end = end == len(system.bars) - 1 and not closed
             for p in part_list:
@@ -671,12 +714,31 @@ def read_structure(layouts, assigned=None):
                 score.structure.append(events.Marking("ending", f"{kind} {numbers}", p, None, bar_base + end, Fraction(0)))
         for k, value in system_navigation(pl, system):
             score.structure.append(events.Marking("navigation", value, 0, None, bar_base + k, Fraction(0)))
+        for k in range(len(system.bars)):
+            shown[bar_base + k] = {part for part, _ in mapping.staves}
         bar_base += len(system.bars)
+    _share_times(score, shown)
     for p in range(len(score.parts)):
         if not any(e.kind == "key" and e.part == p and e.bar == 0 for e in score.structure):
             score.structure.append(events.Marking("key", "0", p, None, 0, Fraction(0)))
     score.bar_counts = [len(score.bars)] * len(score.parts)
     return score
+
+
+def _share_times(score, shown):
+    """A time signature is the whole score's: a part whose staff was hidden
+    where the metre changed (Verovio hides empty staves) takes it too, the
+    value most parts show. A part shown there with no change keeps its own
+    metre (MuseScore allows a time signature in one part only)."""
+    times = {}
+    for e in score.structure:
+        if e.kind == "time":
+            times.setdefault(e.bar, {})[e.part] = e.value
+    for bar, values in times.items():
+        value = collections.Counter(values.values()).most_common(1)[0][0]
+        for p in range(len(score.parts)):
+            if p not in values and p not in shown.get(bar, ()):
+                score.structure.append(events.Marking("time", value, p, None, bar, Fraction(0)))
 
 
 def read_pdf(path, notes=False):

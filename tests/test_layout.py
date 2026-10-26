@@ -275,3 +275,129 @@ def test_a_time_signature_with_a_zero_is_not_read(monkeypatch):
     assert structure.staff_times(None, system, staff) == [(0, "3/4")]
     region[:] = [digit("timeSig0", 100.0), digit("timeSig0", 111.0)]
     assert structure.staff_times(None, system, staff) == []
+
+
+def test_the_8_of_a_lilypond_octave_bass_clef_is_read_below_the_staff():
+    # LilyPond puts the 8 a staff space under the clef, which ends above the
+    # bottom line (pdmx-DCWS1HBccMLY)
+    clef = SimpleNamespace(name="fClef", box=(78.3, 656.7, 91.3, 672.7), size=20.0)
+    eight = SimpleNamespace(text="8", box=(81.0, 676.6, 84.9, 683.5), font="C059-Italic")
+    assert structure._octave_digits(SimpleNamespace(symbols=[], text=[eight]), clef) == -1
+
+
+def test_an_empty_bar_after_an_end_repeat_joins_the_next():
+    # LilyPond draws a bar with nothing in it between an end repeat and a
+    # start repeat (pdmx-dmijoepBt994); a multi-bar rest drawn as lines,
+    # with its count in time signature digits, is a bar
+    staff = SimpleNamespace(space=5.0)
+    end_repeat = layout.Barline(200.0, 203.0, [(200.0, False), (203.0, True)], repeat_before=True)
+    start_repeat = layout.Barline(400.0, 403.0, [(400.0, True), (403.0, False)], repeat_after=True)
+    single = layout.Barline(500.0, 500.0, [(500.0, False)])
+    system = SimpleNamespace(staves=[staff], x0=50.0, x1=500.0, barlines=[end_repeat, start_repeat, single])
+    bars = layout.make_bars(system, [100.0, 450.0])
+    assert [(b.x0, b.x1) for b in bars] == [(50.0, 200.0), (203.0, 500.0)]
+    assert bars[1].start is start_repeat and bars[0].end is end_repeat
+    assert len(layout.make_bars(system, [100.0, 450.0], [(300.0, 80.0, "4")])) == 6
+    # bars of hidden rests, in a row, are bars (pdmx-Gpyq556zefWD)
+    system.x1 = 600.0
+    assert len(layout.make_bars(system, [100.0])) == 3
+
+
+def test_the_time_signature_nearest_the_music_is_read(monkeypatch):
+    # MuseScore: (4/4) before an end repeat, the brackets drawn as lines,
+    # and 3/4 after the start repeat (pdmx-QgAA3xpvzG7B)
+    staff = SimpleNamespace(top=100.0, bottom=120.0, space=5.0)
+    system = SimpleNamespace(bars=[None])
+    digit = lambda name, x, top: SimpleNamespace(name=name, x=x, box=(x - 2, top, x + 2, top + 9))
+    region = [digit("timeSig4", 50.0, 100.0), digit("timeSig4", 50.0, 111.0),
+              digit("timeSig3", 85.0, 100.0), digit("timeSig4", 85.0, 111.0)]
+    monkeypatch.setattr(structure, "_signature_region", lambda *args: region)
+    assert structure.staff_times(None, system, staff) == [(0, "3/4")]
+
+
+def test_jump_words_between_two_systems_go_to_the_nearer():
+    # "D.S. al Fine" over the last system, also within reach of the one
+    # above (os-sq8437358, MuseScore 3)
+    staff = lambda top: SimpleNamespace(top=top, bottom=top + 20, space=3.1)
+    bar = SimpleNamespace(x0=30.0, x1=567.0, end=SimpleNamespace(x0=567.0))
+    upper = SimpleNamespace(staves=[staff(600.0)], bars=[bar], x0=30.0, x1=567.0)
+    lower = SimpleNamespace(staves=[staff(652.0)], bars=[bar], x0=30.0, x1=567.0)
+    words = SimpleNamespace(text="D.S. al Fine", box=(500.0, 636.6, 540.0, 644.0))
+    page = SimpleNamespace(symbols=[], text=[words], systems=[upper, lower])
+    assert structure.system_navigation(page, upper) == []
+    assert structure.system_navigation(page, lower) == [(0, "dalsegno")]
+
+
+def test_a_time_change_reaches_a_part_whose_staff_was_hidden():
+    # Verovio hides an empty staff, so only the other parts show the change
+    # (pdmx-6MHEGNWk55aY)
+    score = events.Score()
+    score.parts = [events.Part("Voice", 1), events.Part("Piano", 2)]
+    score.structure = [events.Marking("time", "4/4", 0, None, 0, Fraction(0)),
+                       events.Marking("time", "4/4", 1, None, 0, Fraction(0)),
+                       events.Marking("time", "5/4", 1, None, 20, Fraction(0))]
+    structure._share_times(score, {0: {0, 1}, 20: {1}})
+    assert sorted((e.bar, e.part, e.value) for e in score.structure) == [
+        (0, 0, "4/4"), (0, 1, "4/4"), (20, 0, "5/4"), (20, 1, "5/4")]
+    # a part shown with no change keeps its metre (os-lc30437453, MuseScore 4)
+    score.structure = score.structure[:3]
+    structure._share_times(score, {0: {0, 1}, 20: {0, 1}})
+    assert len(score.structure) == 3
+
+
+def test_a_beam_on_the_bottom_line_does_not_hide_the_staff():
+    # LilyPond: a beam 2.95 points thick lies half a point above the bottom
+    # line (pdmx-J2xaCwFmRk5X)
+    lines = [layout._Line(55.21 + 5 * k, 28.6, 567.0, 0.5) for k in range(5)]
+    lines.append(layout._Line(74.74, 73.6, 163.3, 2.95))
+    staves = layout.find_staves(lines, 1)
+    assert len(staves) == 1 and staves[0].top == pytest.approx(55.21) and staves[0].space == pytest.approx(5.0)
+
+
+def test_a_dashed_line_one_space_over_a_staff_is_not_its_top_line():
+    # MuseScore 3: a dashed line over the staff, starting after the clef,
+    # its dashes joined into one line (os-lc6895581)
+    dashed = layout._Line(507.5, 75.0, 560.0, 0.5)
+    staff = [layout._Line(512.5 + 4.96 * k, 43.0, 567.0, 0.5) for k in range(5)]
+    staves = layout.find_staves([dashed] + staff, 1)
+    assert len(staves) == 1 and staves[0].top == pytest.approx(512.5)
+
+
+def test_jump_words_across_a_barline_end_the_bar_before():
+    # MuseScore 4 starts "To Coda" 3 points before the barline
+    # (pdmx-2AMJwsKXBr5s); MuseScore 3 ends it on a double barline's right line
+    barline = lambda x: SimpleNamespace(x0=x, x1=x)
+    bars = [SimpleNamespace(x0=300.0, x1=395.0, end=barline(395.0)),
+            SimpleNamespace(x0=395.0, x1=500.0, end=barline(500.0))]
+    system = SimpleNamespace(bars=bars, x0=300.0, x1=500.0)
+    assert structure.jump_bar(system, (391.7, 303.7, 422.8, 312.8), 5.0) == 0
+    assert structure.jump_bar(system, (360.0, 303.7, 395.0, 312.8), 5.0) == 0
+    assert structure.jump_bar(system, (420.0, 303.7, 450.0, 312.8), 5.0) == 1
+    # Verovio starts them on the barline ending their bar (pdmx-Bymr3299MeqF)
+    assert structure.jump_bar(system, (395.0, 303.7, 500.0, 312.8), 5.0) == 0
+    # long words starting well inside the bar run on past its end (pdmx-sGFqEBfSHk14)
+    assert structure.jump_bar(system, (330.0, 303.7, 405.0, 312.8), 5.0) == 0
+
+
+def test_an_ending_carried_onto_the_next_system_is_found():
+    # MuseScore: ending 1 runs on from the system above, whose "1" stands
+    # at the same x; that number is not this line's (pdmx-TTzehLqU5izw)
+    staff = SimpleNamespace(top=300.0, bottom=320.0, space=5.0)
+    bars = [SimpleNamespace(x0=50.0, x1=150.0, end=SimpleNamespace(x0=150.0, x1=150.0)),
+            SimpleNamespace(x0=150.0, x1=250.0, end=SimpleNamespace(x0=250.0, x1=250.0))]
+    system = SimpleNamespace(staves=[staff], bars=bars, x0=50.0, x1=250.0)
+    number = SimpleNamespace(text="1", box=(82.0, 192.0, 86.0, 200.0))   # the system above
+    page = SimpleNamespace(text=[number], verticals=[(240.0, 285.0, 296.0, 0.5)], staves=[staff])
+    line = layout._Line(285.0, 80.0, 240.0, 0.5)
+    assert structure._continued_ending(page, system, [line]) == (1, "stop")
+
+
+def test_a_multi_bar_rest_stands_for_its_count_of_bars():
+    # MuseScore draws the rest as lines, with "13" over the staff in time
+    # signature digits (pdmx-gyqH2D4TqjTv); the count is repeated per staff
+    staff = SimpleNamespace(space=5.0)
+    end = layout.Barline(310.0, 310.0, [(310.0, False)])
+    system = SimpleNamespace(staves=[staff], x0=50.0, x1=400.0, barlines=[end])
+    counts = [(170.0, 80.0, "1"), (178.0, 80.0, "3"), (170.0, 150.0, "1"), (178.0, 150.0, "3")]
+    bars = layout.make_bars(system, [350.0], counts)
+    assert len(bars) == 14 and bars[0].x0 == 50.0 and bars[12].x1 == 310.0 and bars[12].end is end

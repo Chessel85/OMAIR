@@ -380,3 +380,11 @@ def test_strokes_between_two_stems_are_a_two_note_tremolo():
     alone = quarter(200.0)
     notation.two_note_tremolos([alone], [notation.Beam(203.0, 212.0, 88.0, 88.0, 1.0)], SPACE)
     assert alone.duration == 1
+
+
+def test_the_notehead_of_a_metronome_mark_is_not_a_note():
+    # LilyPond's "♩ = 100" sits low enough to touch the staff (pdmx-dmijoepBt994)
+    head = SimpleNamespace(box=(103.0, 82.6, 107.6, 86.9))
+    mark = SimpleNamespace(text="= 100", box=(109.7, 78.9, 134.0, 88.7))
+    assert notation._tempo_head(head, [mark], SPACE)
+    assert not notation._tempo_head(head, [SimpleNamespace(text="Allegro", box=mark.box)], SPACE)

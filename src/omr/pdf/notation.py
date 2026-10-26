@@ -1431,7 +1431,7 @@ def read_notes(score, ordered, pages, layouts=()):
     # clefs within a bar take the onset of the event they stand before
     fixed = []
     for e in score.structure:
-        if e.kind == "clef" and e.onset != 0 and e.onset < 1:
+        if e.kind == "clef" and e.onset < 1:
             rank = int(e.onset * 1000)
             onset = clef_onsets.get((e.part, e.staff, e.bar, rank))
             if onset is not None:
@@ -1531,6 +1531,8 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
                 # a notehead well clear of the staff with no ledger lines is
                 # text (a metronome mark), not a note
                 if not -3 <= step <= 11 and not _ledgers_reach(s, staff, step, pl.horizontals):
+                    continue
+                if _tempo_head(s, pl.text, staff.space):
                     continue
                 if id(staff) in members:
                     heads.append(Head(s, staff, step, False))
@@ -1748,10 +1750,16 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
             k = structure._bar_of(system, c.x)
             if k is None:
                 continue
-            after = [e for e in staff_events if e.bar == k and not e.grace and e.x > c.x]
+            # a whole-bar rest is drawn mid-bar but starts the bar: it does not place a clef
+            timed = [e for e in staff_events if e.bar == k and not e.grace and not e.whole_bar]
+            after = [e for e in timed if e.x > c.x]
+            before = any(e.x < c.x for e in timed)
             if after:
                 rank = sum(1 for x in music if structure._start(system, k) <= x < c.x)
-                clef_onsets[(part, number, bar_base + k, rank)] = min(e.onset for e in after)
+                # rank 0 with notes of the staff before it: they are drawn on
+                # the other staff (cross-staff), so the clef is not at the start
+                if rank or before:
+                    clef_onsets[(part, number, bar_base + k, rank)] = min(e.onset for e in after)
     open_ties.clear()
     open_ties.update(next_ties)
 
@@ -1774,6 +1782,18 @@ def ledger_staff(symbol, staff, staves, horizontals):
         if _ledgers_reach(symbol, other, other_step, horizontals):
             return other, other_step
     return staff, step
+
+
+def _tempo_head(symbol, text, space):
+    """The notehead of a metronome mark: "= 100" follows it on its level,
+    past its stem, flag or dot. LilyPond puts the mark low enough to touch
+    the staff."""
+    for run in text:
+        if not run.text.lstrip().startswith("="):
+            continue
+        if 0 <= run.box[0] - symbol.box[2] <= 3 * space and run.box[1] < symbol.box[3] and run.box[3] > symbol.box[1]:
+            return True
+    return False
 
 
 def _ledgers_reach(symbol, staff, step, horizontals):
