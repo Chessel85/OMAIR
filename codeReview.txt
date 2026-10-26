@@ -1,0 +1,42 @@
+I've reviewed the whole codebase and changed no project files. The full report, written for another AI to work from, is saved at:
+
+C:\Users\chess\AppData\Local\Temp\claude\C--Users-chess-github-OMR\df25187a-c9df-4368-b96a-769c8154a6e9\scratchpad\code-review-2026-10-26.md
+
+Every finding has a file and line, a fix, and a check. The report starts with one rule for whoever implements it: every change must leave the outputs exactly as they are, checked against JSON from the regression check scripts taken before the work starts. All 479 tests pass. I timed the reader on a 3-page regression PDF, and that profile confirms the speed findings.
+
+## Scores
+
+* Performance and efficiency: 6 out of 10.
+* Simplicity (code that is long for what it does): 7 out of 10.
+* Reuse and separation of responsibility: 5 out of 10.
+* Readability and maintainability: 7 out of 10.
+* Technical debt: 7 out of 10.
+* Comments: 9 out of 10. They explain why, not history, and there are no TODOs.
+* Tests: 8 out of 10 (extra criterion).
+* Tooling, linter and consistency: 4 out of 10 (extra criterion).
+
+## Most severe issues
+
+1. High: each page's drawings are fetched six times. The same rotation code is copied five times. Fetching the drawings alone took about 11 percent of the run. The page's text is also read three times.
+2. High: every symbol on the page is scanned again for each bar and staff. The key and time signature code reads each bar's symbols at least three times. On 3 pages, one lookup ran 253,000 times. The function that reads each system also loops over the whole page about 8 times.
+3. High: the key and time in force are found by scanning the whole score for every note. This lookup is written in four places, and only the MusicXML writer does it efficiently.
+4. Medium: the same rule is written out in several places. This covers:
+   * pitch from a clef (4 versions);
+   * key alterations and the order of sharps (3 copies);
+   * nearest system and nearest staff;
+   * two separate staff finders with different rules (the inspector's and the reader's);
+   * index.txt parsing and percent formatting copied across the scripts.
+5. Medium: some joining loops start over after every join (lines.py, the image line-finder). Several other places do needless repeated scans.
+6. Medium: modules reach into each other's private functions. About 25 private names are used from outside their module. Import cycles are worked round with imports inside functions. The MusicXML writer depends on the PDF reader.
+7. Medium: some functions are very long. The function that reads each system is 257 lines with 11 parameters. Three others are 129 to 212 lines.
+8. Medium: dead code. 14 unused imports, 8 unused names, 10 unused parameters, one dead branch in the MusicXML writer, and a cache bolted onto an object at run time.
+9. Medium: 8 lines lost their line breaks, leaving lines of 150 to 200 characters that still work. There is no linter in CI to catch this; the report recommends adding ruff.
+10. Low:
+    * geometry passed around as bare tuples whose fields are known only by position;
+    * 401 tolerances written inline as numbers;
+    * scripts and tests that import other scripts through a path hack;
+    * a few small leftovers.
+
+The report suggests starting with the linter and dead code, since they are quick and safe. Then the three speed fixes one at a time, then the shared helpers, the module boundaries and splitting the long functions.
+
+The evaluation harness, the adapter that lets the vector reader run on page images, and the docstrings that give each rule's reason are all strong.

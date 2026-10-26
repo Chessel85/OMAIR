@@ -1,0 +1,8 @@
+Still open in the reader:
+1. Rhythm and note starts. This was the largest group: about 5,500 notes starting at the wrong beat in the worst 100 files, plus about 3,300 in bars where every note was shifted by the same amount. The chant Mass, which is written without regular bars, is the worst case, but it happens across all engravers.
+2. Tuplets. About 1,150 errors. These include triplets where the "3" is printed only once, mixed with plain notes.
+3. Notes on the wrong staff or in the wrong part. These happen mainly in Verovio scores that hide empty staves, and where two parts have the same name (two pianos or two harps).
+4. Clefs, keys and times read wrongly. Clefs read on the wrong line, octave clefs read without their 8, and a few key and time signatures.
+5. Text over a barline placed in the next bar. This is the main cause of the navigation mismatches still left.
+6. Five LilyPond pairs that read badly even though they pass the music check. Not yet looked at.
+7. Markings. Tremolos, trill wavy lines, falloffs and string numbers are not read at all. Plain text words are found 68% of the time, chord symbols 80% and slur ends 83%.
