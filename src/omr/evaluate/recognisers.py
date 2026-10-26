@@ -133,9 +133,20 @@ def _plain_bar(measures, index):
     return True
 
 
-def _join_point(parts):
-    """The first of two plain bars to join, searched from three bars before the end."""
-    count = min(len(part.findall("measure")) for part in parts)
+def _notes_end(parts):
+    """The number of bars up to the last with a visible note in any part. The
+    harness leaves out the bars after it (spec decision 14), so no damage goes there."""
+    end = 0
+    for part in parts:
+        for b, measure in enumerate(part.findall("measure")):
+            if any(n.get("print-object") != "no" and n.find("rest") is None for n in measure.findall("note")):
+                end = max(end, b + 1)
+    return end
+
+
+def _join_point(parts, end):
+    """The first of two plain bars to join, searched from three bars before `end`."""
+    count = min(min(len(part.findall("measure")) for part in parts), end)
     for first in range(count - 3, 5, -1):
         if all(_plain_bar(part.findall("measure"), first) and _plain_bar(part.findall("measure"), first + 1)
                for part in parts):
@@ -152,10 +163,12 @@ def damage(truth, out, seed=1, flag_share=0.5):
     root = tree.getroot()
     rng = random.Random(seed)
     d = _Damage(root, rng)
-    join_at = _join_point(d.parts)   # the join comes after every other damage
+    end = _notes_end(d.parts)
+    join_at = _join_point(d.parts, end)   # the join comes after every other damage
+    reserve = join_at if join_at is not None else end   # no other damage from here on
 
     # 1. A pitch an octave higher, where no note of the same chord already has that pitch.
-    for p, b, measure, note in d.candidates(lambda n, ns: True, join_at):
+    for p, b, measure, note in d.candidates(lambda n, ns: True, reserve):
         step, alter, octave = _pitch(note)
         if (step, alter, octave + 1) not in _same_onset_pitches(note, measure.findall("note")):
             _set_pitch(note, step, alter, octave + 1)
@@ -163,7 +176,7 @@ def damage(truth, out, seed=1, flag_share=0.5):
             d.take("pitch", b, 1, f"part {p + 1}: {step}{alter or ''}{octave} raised an octave")
             break
     # 2. An enharmonic respelling (C sharp written as D flat).
-    for p, b, measure, note in d.candidates(lambda n, ns: True, join_at):
+    for p, b, measure, note in d.candidates(lambda n, ns: True, reserve):
         step, alter, octave = _pitch(note)
         new_step = STEPS[(STEPS.index(step) + 1) % 7]
         new_alter = alter - STEP_GAP[step]
@@ -175,13 +188,13 @@ def damage(truth, out, seed=1, flag_share=0.5):
             d.take("respelling", b, 1, f"part {p + 1}: {step}{alter or ''}{octave} respelled")
             break
     # 3. Delete a chord note (it has <chord/>, so no timing moves).
-    for p, b, measure, note in d.candidates(lambda n, ns: n.find("chord") is not None, join_at):
+    for p, b, measure, note in d.candidates(lambda n, ns: n.find("chord") is not None, reserve):
         measure.remove(note)
         d.expected["missing"] += 1
         d.take("missing", b, 1, f"part {p + 1}: a chord note deleted")
         break
     # 4. Add a note to a chord, two octaves above one of its notes.
-    for p, b, measure, note in d.candidates(lambda n, ns: n.find("chord") is None, join_at):
+    for p, b, measure, note in d.candidates(lambda n, ns: n.find("chord") is None, reserve):
         notes = measure.findall("note")
         step, alter, octave = _pitch(note)
         if (step, alter, octave + 2) in _same_onset_pitches(note, notes):
@@ -205,7 +218,7 @@ def damage(truth, out, seed=1, flag_share=0.5):
     # 5. Change the notated type of a note but keep its <duration>, so no onset moves.
     longer = {"16th": "eighth", "eighth": "quarter", "quarter": "half", "half": "whole"}
     for p, b, measure, note in d.candidates(
-            lambda n, ns: (n.findtext("type") or "") in longer and n.find("time-modification") is None, join_at):
+            lambda n, ns: (n.findtext("type") or "") in longer and n.find("time-modification") is None, reserve):
         note.find("type").text = longer[note.findtext("type")]
         d.expected["duration"] += 1
         d.take("duration", b, 1, f"part {p + 1}: a note's value doubled")
@@ -214,7 +227,7 @@ def damage(truth, out, seed=1, flag_share=0.5):
     for p, part in enumerate(d.parts):
         done = False
         for b, measure in enumerate(part.findall("measure")):
-            if b in d.used_bars or (join_at is not None and b >= join_at):
+            if b in d.used_bars or b >= reserve:
                 continue
             voices = sorted({n.findtext("voice") for n in measure.findall("note") if n.findtext("voice")})
             if len(voices) >= 2:
@@ -231,7 +244,7 @@ def damage(truth, out, seed=1, flag_share=0.5):
     removed = False
     for p, part in enumerate(d.parts):
         for b, measure in enumerate(part.findall("measure")):
-            if b in d.used_bars or (join_at is not None and b >= join_at):
+            if b in d.used_bars or b >= reserve:
                 continue
             for direction in measure.findall("direction"):
                 types = direction.findall("direction-type")
@@ -247,7 +260,7 @@ def damage(truth, out, seed=1, flag_share=0.5):
             break
     # 8. Move a chord's other notes into a new voice (a chord split into voices: no note
     #    errors, and voice accuracy unchanged, since two output voices may map to one).
-    for p, b, measure, note in d.candidates(lambda n, ns: _chord_notes(n, ns) is not None, join_at):
+    for p, b, measure, note in d.candidates(lambda n, ns: _chord_notes(n, ns) is not None, reserve):
         notes = measure.findall("note")
         others = _chord_notes(note, notes)
         used_voices = {n.findtext("voice", "1").strip() for n in notes}
@@ -276,7 +289,7 @@ def damage(truth, out, seed=1, flag_share=0.5):
     removed = False
     for p, part in enumerate(d.parts):
         for b, measure in enumerate(part.findall("measure")):
-            if b in d.used_bars or (join_at is not None and b >= join_at):
+            if b in d.used_bars or b >= reserve:
                 continue
             wedges = [(direction, _single_wedge(direction)) for direction in measure.findall("direction")]
             starts = [(direction, kind) for direction, kind in wedges if kind in ("crescendo", "diminuendo")]
@@ -296,18 +309,22 @@ def damage(truth, out, seed=1, flag_share=0.5):
     #     A restatement is not a change (decision 11), so removing one is not damage. Removing
     #     a change can also make a later change a restatement (a clef change and the change
     #     back), which is one more mismatch, so each candidate is checked by reading the score.
-    before = collections.Counter(events.signature_changes(events.from_root(root)))
+    def changes():
+        """The signature changes as the harness compares them."""
+        return collections.Counter(events.signature_changes(events.without_trailing_empty_bars(events.from_root(root))))
+
+    before = changes()
     removed = False
     for p, part in enumerate(d.parts):
         for b, measure in enumerate(part.findall("measure")):
-            if b == 0 or b in d.used_bars or (join_at is not None and b >= join_at):
+            if b == 0 or b in d.used_bars or b >= reserve:
                 continue
             for attributes in measure.findall("attributes"):
                 for index, change in enumerate(list(attributes)):
                     if change.tag not in ("clef", "key", "time"):
                         continue
                     attributes.remove(change)
-                    after = collections.Counter(events.signature_changes(events.from_root(root)))
+                    after = changes()
                     lost = sum((before - after).values())
                     if lost and not after - before:
                         d.expected["structure mismatches"] += lost

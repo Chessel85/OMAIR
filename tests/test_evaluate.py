@@ -235,6 +235,26 @@ def test_navigation_stored_as_words_is_navigation(tmp_path):
     assert fig["structure"]["correct"], fig["structure"]["mismatches"]
 
 
+def test_empty_bars_at_the_end_are_not_counted(tmp_path):
+    # Truth: two bars of notes, then a bar of rests in both parts with a D.C., and a
+    # bar with nothing in it. An output that leaves off the last two bars, and one
+    # that keeps them, are both right; a flag on a left-off bar is not counted.
+    end = "<barline location=\"right\"><bar-style>light-heavy</bar-style></barline>"
+    flute = [four_quarters(), four_quarters("G4 A4 B4 C5", first=" "),
+             rest(48, whole_bar=True) + words("D.C.", '<sound dacapo="yes"/>'), end]
+    oboe = [four_quarters(), rest(48, whole_bar=True), rest(48, whole_bar=True), ""]
+    truth = score(("Flute", flute), ("Oboe", oboe))
+    short = score(("Flute", flute[:2]), ("Oboe", oboe[:2]))
+    for output in (short, truth):
+        fig = compare(tmp_path, truth, output, [{"part": 1, "bar": 4}] if output is truth else [])
+        assert accuracy(fig) == 1 and fig["structure"]["correct"], fig["structure"]["mismatches"]
+        assert fig["flags"]["bars flagged"] == 0 and fig["flags"]["bars"] == 4
+    # Notes in the last bar of any part keep every bar before it.
+    late = score(("Flute", flute), ("Oboe", oboe[:3] + [four_quarters(first=" ")]))
+    fig = compare(tmp_path, late, short)
+    assert fig["notes"]["missing"] == 4 and not fig["structure"]["correct"]
+
+
 def test_multi_bar_rest_with_and_without_the_count(tmp_path):
     counted = attributes(extra="<measure-style><multiple-rest>3</multiple-rest></measure-style>") + rest(48, whole_bar=True)
     plain = attributes() + rest(48, whole_bar=True)
@@ -825,6 +845,13 @@ def test_piano_as_two_parts_does_not_count_its_repeats_twice(tmp_path):
     fig = compare(tmp_path, truth, output)
     assert not any("repeat" in m for m in fig["structure"]["mismatches"])
 
+
+def test_repeat_play_count_is_not_compared(tmp_path):
+    def with_repeat(times):
+        count = f' times="{times}"' if times else ""
+        return score(("Flute", [four_quarters() + f'<barline location="right"><repeat direction="backward"{count}/></barline>']))
+    fig = compare(tmp_path, with_repeat(3), with_repeat(None))
+    assert fig["structure"]["correct"]
 
 def test_band_widens_when_the_best_path_needs_it(tmp_path):
     # 60 bars of one whole note each, no two alike; the output drops the first 30 and

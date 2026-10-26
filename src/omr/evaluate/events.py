@@ -10,7 +10,7 @@ import collections
 import re
 import xml.etree.ElementTree as ET
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from pathlib import Path
 
@@ -211,6 +211,23 @@ def navigation_from_words(score):
             marked[(m.part, m.bar, value)] -= 1
         else:
             score.structure.append(Marking("navigation", value, m.part, None, m.bar, m.onset))
+
+
+def without_trailing_empty_bars(score):
+    """`score` without the bars after its last note (spec decision 14). Those
+    bars hold only rests or nothing in every part, and an engraver may leave
+    them off the page (Verovio hides a system whose staves are all empty).
+    Everything in them goes too. A score with no notes is kept whole."""
+    if not score.notes:
+        return score
+    kept = max(n.bar for n in score.notes) + 1
+    if len(score.bars) <= kept and all(count <= kept for count in score.bar_counts):
+        return score
+    return replace(
+        score, bars=score.bars[:kept], rests=[r for r in score.rests if r.bar < kept],
+        markings=[m for m in score.markings if m.bar < kept],
+        structure=[e for e in score.structure if e.bar < kept],
+        bar_counts=[min(count, kept) for count in score.bar_counts])
 
 
 def restated(score):
@@ -518,10 +535,8 @@ def _read_attributes(score, part_index, bar_index, position, element):
 def _read_barline(score, part_index, bar_index, position, element):
     repeat = element.find("repeat")
     if repeat is not None:
-        value = repeat.get("direction", "")
-        if repeat.get("times"):
-            value += f" {repeat.get('times')} times"
-        score.structure.append(Marking("repeat", value, part_index, None, bar_index, position))
+        # The play count (times) is not compared: no engraver prints it (decision 15).
+        score.structure.append(Marking("repeat", repeat.get("direction", ""), part_index, None, bar_index, position))
     ending = element.find("ending")
     if ending is not None:
         value = f"{ending.get('type', '')} {' '.join((ending.get('number') or '').replace(',', ' ').split())}"

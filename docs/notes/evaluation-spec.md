@@ -1,6 +1,6 @@
 # Evaluation harness specification (`omr evaluate`)
 
-Version 1.3, 25 October 2026, for Stage 6 of `docs/plans/phase0.md`. It covers DEV-1 and the metrics for ACC-1 to ACC-6 in `requirements.md`. The owner accepted the decisions listed at the end on 6 October 2026, decision 10 (clef errors) on 7 October 2026, decision 11 (restated signatures) on 9 October 2026, and decisions 12 (middle barlines) and 13 (navigation as words) on 25 October 2026. This is the specification the harness implements and the code review checks against.
+Version 1.4, 26 October 2026, for Stage 6 of `docs/plans/phase0.md`. It covers DEV-1 and the metrics for ACC-1 to ACC-6 in `requirements.md`. The owner accepted the decisions listed at the end on 6 October 2026, decision 10 (clef errors) on 7 October 2026, decision 11 (restated signatures) on 9 October 2026, decisions 12 (middle barlines) and 13 (navigation as words) on 25 October 2026, and decisions 14 (empty bars at the end) and 15 (repeat play counts) on 26 October 2026. This is the specification the harness implements and the code review checks against.
 
 ## Purpose and principles
 
@@ -26,6 +26,7 @@ The harness reads both files with its own reader, built on the standard XML libr
 
 - A **bar** is one `measure` element of a part, in written order. A pickup bar (`implicit="yes"`, often numbered 0) is a bar. So is the second half of a bar split at a repeat or a system break. Repeats and endings are not expanded.
 - A **middle barline** (`barline` with `location="middle"`, strictly inside the bar's content) ends a bar, in both files (decision 12). The music after it is a new bar, its positions measured from the barline. Its number is the measure's number followed by "after its middle barline" (with a count when there are several).
+- **Empty bars at the end** are left out, in both files, before they are compared (decision 14): the bars after the last visible note of the score, which hold only rests or nothing in every part. Their rests, markings and structure events go with them. A score with no notes is kept whole. Flags on bars left out of the output are not counted.
 - A **multi-bar rest** counts as the bars it stands for. MusicXML always writes each of those bars as its own `measure` element (the `multiple-rest` count only tells an engraver to draw them as one), so they are counted as written.
 - **Bar length** is how far the bar's content reaches: the largest end position of any note, rest or `forward` in the bar. It is used to join two bars when a barline is missing.
 - The printed number (`number` attribute) and, in the ground truth, the page and system (from `print` elements with `new-page` and `new-system`) are kept for the report. MuseScore 4 ground truth writes these, because its MusicXML comes from the same layout as its PDF.
@@ -126,7 +127,7 @@ A file is **structurally correct** when all of these match exactly:
 - the clefs on each staff, with their bar and onset;
 - the key signatures of each part, with their bar (the fifths value; the mode is ignored);
 - the time signatures, with their bar (beats and beat type; a common-time or cut-time symbol equals 4/4 or 2/2 for this test, and a different symbol is reported only as a note);
-- repeat barlines (forward or backward, and the times count), endings (their numbers and where they start and stop), and navigation marks (segno, coda, D.C., D.S., Fine, To Coda).
+- repeat barlines (forward or backward; how many times a repeat is played is not compared, decision 15), endings (their numbers and where they start and stop), and navigation marks (segno, coda, D.C., D.S., Fine, To Coda).
 
 A clef, key signature or time signature equal to the one already in force is a **restatement** and is ignored in both files before they are compared (decision 11). "In force" means in the same part, and for a clef the same staff; a key signature with no staff number applies to every staff of its part. A restatement does not change the music: an engraver writes one at a new system or page, and a recogniser that reads page by page writes one at each join. So only real changes are compared. Whether a printed restatement belongs in the output file is a matter of output quality, not of structure.
 
@@ -234,3 +235,5 @@ Accepted by the owner on 6 October 2026.
 11. **Restated clefs, keys and time signatures are ignored** (owner, 9 October 2026). A clef, key or time signature equal to the one in force is dropped from both files before the structure is compared (see "Structural correctness"). Note accuracy does not change.
 12. **A middle barline is a bar boundary** (owner, 25 October 2026). On the page a barline inside a bar looks exactly like a barline between two bars, so no recogniser can tell them apart. Chant scores use them as phrase marks in bars a line long. The harness splits the bar there in both files (see "Bars").
 13. **Navigation stored as words is navigation** (owner, 25 October 2026). Many uploaders type D.S., Fine or a segno as plain text: MuseScore does not play it as a jump, but it prints the same. The reader finds the printed mark; the ground truth would otherwise have none. The harness reads such words as the reader does (see "Rests and markings"), and the reader applies the same rule to the words it reads.
+14. **Empty bars at the end are not counted** (owner, 26 October 2026). When a score ends with bars that hold only rests or nothing in every part, an engraver may leave them off the page (Verovio hides a system whose staves are all empty), and a conversion that leaves them out loses nothing. The harness leaves them out of both files (see "Bars"), so an output is not penalised whether it has them or not.
+15. **Repeat play counts are not compared** (owner, 26 October 2026). MusicXML can say a repeat is played more than twice (`times` on the repeat), but no engraver prints it, so a recogniser cannot see it. Nor can it be worked out from the verses: MuseScore stores a count only where the uploader set one, and many scores with three verses under a repeat have none. A count written on the page as text, such as "3x", is words, not part of the repeat.

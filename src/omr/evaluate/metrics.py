@@ -29,6 +29,12 @@ def compare(truth_path, output_path, flags_path=None, flags=None):
 
 
 def compare_scores(truth, output, flags=None):
+    # Empty bars at the end may be left off the page, so neither file's count (decision 14).
+    truth = events.without_trailing_empty_bars(truth)
+    trimmed = events.without_trailing_empty_bars(output)
+    if flags is not None and trimmed is not output:
+        flags = [flag for flag in flags if flag[1] < max(trimmed.bar_counts, default=0)]
+    output = trimmed
     result = matching.match(truth, output)
     output = result.output   # with notes moved by any clef corrections
     say = Describer(truth)
