@@ -13,7 +13,7 @@ import re
 import statistics
 from dataclasses import dataclass
 
-from omr.pdf import notation, structure
+from omr.pdf import layout as lay, notation, structure
 
 # Text more than this many staff spaces above the first system of page 1
 # is a credit (title, composer); text more than BELOW_SYSTEM below the last
@@ -82,12 +82,7 @@ def middle(box):
 def system_of(pl, box):
     """The system of a page nearest a box, by the distance from the box's
     middle to the system's staves."""
-    y = middle(box)
-
-    def distance(system):
-        top, bottom = system.staves[0].top, system.staves[-1].bottom
-        return 0 if top <= y <= bottom else min(abs(y - top), abs(y - bottom))
-    return min(pl.systems, key=distance)
+    return lay.nearest_system(pl.systems, middle(box))
 
 
 def staff_for(system, box, prefer="nearest", same_part=None):
@@ -209,7 +204,7 @@ def classify_page(pl, page_rect, first_page, frames=(), hyphen_lines=()):
         for r in runs:
             items.append(TextItem("page text", r.text, r.box, pl.page, r.font, r.size))
         return items
-    space = statistics.median(s.space for s in pl.staves)
+    space = pl.staff_space()
     left_margin = min(s.x0 for s in pl.systems)
     right_margin = max(s.x1 for s in pl.systems)
     first_top = pl.systems[0].staves[0].top

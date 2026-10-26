@@ -513,7 +513,13 @@ MIN_STAFF_SPACES = 6   # shortest staff, in staff spaces
 
 
 def find_staves(candidates, glyph_centres):
-    """Find five-line staves from horizontal line candidates (spec, 'Staves')."""
+    """Find five-line staves from horizontal line candidates (spec, 'Staves').
+
+    This is the inspector's count, kept apart from the reader's staff finder
+    (omr.pdf.layout.horizontal_lines and find_staves) on purpose: it also
+    counts six-line and one-line staves to classify the page, and follows
+    the inspector spec, while the reader's rules are tuned to place each
+    staff exactly. The two counts can differ on a hard page."""
     staves = Staves()
     # 2. merge pieces of one line: same y (within 0.3) and touching along x
     merged = []
@@ -599,6 +605,19 @@ def _equal_gap_run(group, start):
     return best
 
 
+def fingerprint(items, x0, y0, space):
+    """The key of an outline: its segment types and points, moved so that
+    (x0, y0) is at zero, in staff spaces rounded to 0.05. Identical symbols
+    get the same key wherever they are drawn."""
+    key = []
+    for item in items:
+        key.append(item[0])
+        for px, py in _item_points(item):
+            key.append(round((px - x0) / space / 0.05))
+            key.append(round((py - y0) / space / 0.05))
+    return tuple(key)
+
+
 def fingerprint_outlines(curved_shapes, staff_space):
     """Count small curved filled shapes and fingerprint them (spec, 'Outlined
     shapes'). Position and scale-to-staff are removed, so identical symbols
@@ -610,12 +629,7 @@ def fingerprint_outlines(curved_shapes, staff_space):
         w, h = x1 - x0, y1 - y0
         if w > 4 * staff_space or h > 4 * staff_space or w > 4 * h or w <= 0 or h <= 0:
             continue
-        key = []
-        for item in items:
-            key.append(item[0])
-            for px, py in _item_points(item):
-                key.append(round((px - x0) / staff_space / 0.05))
-                key.append(round((py - y0) / staff_space / 0.05))
+        key = list(fingerprint(items, x0, y0, staff_space))
         prints[hashlib.md5(repr(key).encode()).hexdigest()] += 1
     top = [n for _, n in prints.most_common(5)]
     return {

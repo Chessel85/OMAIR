@@ -391,18 +391,14 @@ def _signature_region(page_layout, system, staff, k):
     return [s for s in page_layout.on_staff(staff) if lo - 0.01 <= s.x < first]
 
 
-LETTERS = {"G": 4, "F": 3, "C": 0}
-SHARP_ORDER = (3, 0, 4, 1, 5, 2, 6)   # F C G D A E B, as letters C=0 ... B=6
-FLAT_ORDER = (6, 2, 5, 1, 4, 0, 3)    # B E A D G C F
+SHARP_ORDER = tuple(events.STEPS.index(letter) for letter in events.SHARP_ORDER)   # as letters C=0 ... B=6
+FLAT_ORDER = SHARP_ORDER[::-1]
 
 
 def _letter(clef, step):
     """The letter (C=0 ... B=6) of a staff step under a clef value such as "G 2"."""
-    parts = clef.split()
-    if parts[0] not in LETTERS:
-        return None
-    line = int(parts[1])
-    return (LETTERS[parts[0]] + step - 2 * (line - 1)) % 7
+    bottom = events.clef_bottom(clef)
+    return None if bottom is None else (bottom + step) % 7
 
 
 def _clef_before(page_layout, staff, x):
@@ -601,14 +597,6 @@ def _continued_ending(page_layout, system, horizontals):
     return (len(system.bars) - 1 if end is None else end), ("stop" if hooks else "discontinue")
 
 
-def _nearest_system(page_layout, y):
-    """The system of the page whose staves are nearest the height y."""
-    def distance(system):
-        top, bottom = system.staves[0].top, system.staves[-1].bottom
-        return 0 if top <= y <= bottom else min(abs(y - top), abs(y - bottom))
-    return min(page_layout.systems, key=distance)
-
-
 def jump_bar(system, box, space):
     """The bar of jump words (D.S., D.C., Fine, To Coda), which mark the end
     of a bar: the bar ending at a barline the words start on (Verovio sets
@@ -638,7 +626,7 @@ def system_navigation(page_layout, system):
         middle = (run.box[1] + run.box[3]) / 2
         if not top.top - 8 * top.space <= middle <= bottom.bottom + 8 * top.space:
             continue
-        if _nearest_system(page_layout, middle) is not system:
+        if lay.nearest_system(page_layout.systems, middle) is not system:
             continue   # between two systems: the nearer one has it
         for pattern, value in NAVIGATION_TEXT:
             if pattern.match(run.text):

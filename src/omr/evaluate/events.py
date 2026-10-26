@@ -38,6 +38,9 @@ NAVIGATION_SIGNS = {"\U0001D10B": "segno", "\U0001D10C": "coda", "": "segno",
 MARKUP = re.compile(r"<[^>]*>")   # formatting tags left in words, such as <font size="17">
 
 STEP_SEMITONES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+STEPS = "CDEFGAB"
+SHARP_ORDER = "FCGDAEB"   # the order of sharps in a key signature; flats go the other way
+CLEF_REFERENCE = {"G": ("G", 4, 2), "F": ("F", 3, 4), "C": ("C", 4, 3)}   # pitch on the clef's line, usual line
 
 
 class MusicXMLError(ValueError):
@@ -291,6 +294,28 @@ class SignaturesInForce:
     def time(self, part, bar):
         """The text of the time signature in force, such as "6/8", or None."""
         return self._value("time", part, bar)
+
+
+def clef_bottom(value):
+    """The diatonic number (step + 7 * octave) of the bottom staff line under
+    a clef value such as "G 2" or "F 4 octave -1", or None for a clef with no
+    pitch (percussion, tablature)."""
+    bits = value.split()
+    if not bits or bits[0] not in CLEF_REFERENCE:
+        return None
+    step, octave, usual_line = CLEF_REFERENCE[bits[0]]
+    line = int(bits[1]) if len(bits) > 1 and bits[1].isdigit() else usual_line
+    change = int(bits[3]) if len(bits) > 3 and bits[2] == "octave" else 0
+    return STEPS.index(step) + 7 * (octave + change) - 2 * (line - 1)
+
+
+def key_alter(fifths, step):
+    """The alteration a key signature of so many fifths gives a letter."""
+    if fifths > 0 and step in SHARP_ORDER[:fifths]:
+        return Fraction(1)
+    if fifths < 0 and step in SHARP_ORDER[::-1][:-fifths]:
+        return Fraction(-1)
+    return Fraction(0)
 
 
 def _number(text, default=0):

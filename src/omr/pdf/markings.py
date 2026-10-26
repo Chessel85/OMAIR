@@ -50,8 +50,12 @@ NOTE_MARKS = {
     "brassMuteClosed": ("technical stopped",),
     "pluckedLeftHandPizzicato": ("technical stopped",),
 }
-BREATH_GLYPHS = ("breathMarkComma", "breathMarkTick", "breathMarkTickLike", "breathMarkSalzedo", "breathMarkUpbow")
-CAESURA_GLYPHS = ("caesura", "caesuraThick", "caesuraShort", "caesuraCurved")
+# breath marks and caesuras, which belong to the chord before them
+BREATH_GLYPHS = {
+    **{name: "articulation breath-mark" for name in (
+        "breathMarkComma", "breathMarkTick", "breathMarkTickLike", "breathMarkSalzedo", "breathMarkUpbow")},
+    **{name: "articulation caesura" for name in ("caesura", "caesuraThick", "caesuraShort", "caesuraCurved")},
+}
 # dynamic glyphs and the letters they show
 DYNAMIC_GLYPHS = {
     "dynamicPiano": "p", "dynamicMezzo": "m", "dynamicForte": "f", "dynamicRinforzando": "r",
@@ -263,12 +267,7 @@ def read_system(score, pl, system, mapping, bar_base, evs, items, shapes, tie_cu
         if marks is None and s.name in BREATH_GLYPHS:
             target = _breath_chord(s, chords, space, pl.staff_of(s))
             if target is not None:
-                extras[id(target)].marks.add("articulation breath-mark")
-            continue
-        if marks is None and s.name in CAESURA_GLYPHS:
-            target = _breath_chord(s, chords, space, pl.staff_of(s))
-            if target is not None:
-                extras[id(target)].marks.add("articulation caesura")
+                extras[id(target)].marks.add(BREATH_GLYPHS[s.name])
             continue
         if marks is None:
             continue

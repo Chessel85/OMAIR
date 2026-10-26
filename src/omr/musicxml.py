@@ -30,9 +30,7 @@ JUMP_SOUND = {"dacapo": ("dacapo", "yes"), "dalsegno": ("dalsegno", "segno"), "f
               "tocoda": ("tocoda", "coda")}
 CREDIT_PLACE = {"title": ("center", "top"), "subtitle": ("center", "top"), "composer": ("right", "top"),
                 "lyricist": ("left", "top"), "rights": ("center", "bottom")}
-STEP_ORDER = "CDEFGAB"
 MAX_VOICES = 4   # voices a staff may have in a bar
-SHARP_ORDER = "FCGDAEB"
 
 
 # ------------------------------------------------------------ durations
@@ -440,7 +438,7 @@ class Writer:
         """The accidental to print: where the pitch differs from the key and
         the accidentals earlier in the bar. A tied-over note prints none."""
         key = (e.pitch.step, e.pitch.octave)
-        expected = state.get(key, _key_alter(self.signatures.key(p, b), e.pitch.step))
+        expected = state.get(key, events.key_alter(self.signatures.key(p, b), e.pitch.step))
         if e.tie_stop:
             return None
         if e.pitch.alter == expected:
@@ -651,7 +649,7 @@ KINDS = {"major", "minor", "augmented", "diminished", "dominant", "major-seventh
 
 def _root(text):
     text = (text or "C").replace("♭", "b").replace("♯", "#")
-    step = text[:1].upper() if text[:1].upper() in STEP_ORDER else "C"
+    step = text[:1].upper() if text[:1].upper() in events.STEPS else "C"
     alter = text[1:].count("#") - text[1:].count("b")
     return step, alter
 
@@ -718,14 +716,6 @@ def _time_modification(note, ratio):
 def _staff(note, part, staff):
     if part.staves > 1:
         _sub(note, "staff", staff)
-
-
-def _key_alter(fifths, step):
-    if fifths > 0 and step in SHARP_ORDER[:fifths]:
-        return Fraction(1)
-    if fifths < 0 and step in SHARP_ORDER[::-1][:-fifths]:
-        return Fraction(-1)
-    return Fraction(0)
 
 
 def _number(value):

@@ -172,14 +172,9 @@ def check_type_a(pdf, pages, fonts=None):
 
 
 def pairs(set_root, limit):
-    index = Path(set_root) / "index.txt"
-    out = []
-    for line in index.read_text(encoding="utf-8").splitlines():
-        if line.startswith("#") or not line.strip():
-            continue
-        fields = [f.strip() for f in line.split("|")]
-        if fields[0] == "pair" and fields[2] == "verovio":
-            out.append((fields[1], Path(set_root) / fields[4], Path(set_root) / fields[5]))
+    from omr.evaluate import harness
+
+    out = [(score, pdf, truth) for score, job, pdf, truth in harness.read_index(set_root) if job == "verovio"]
     return out[:limit] if limit else out
 
 

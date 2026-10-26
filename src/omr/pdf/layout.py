@@ -156,6 +156,19 @@ class PageLayout:
         found = self.attached.get(id(symbol))
         return found[1] if found else None
 
+    def staff_space(self):
+        """The page's usual staff space: the median of its staves', or 5
+        points on a page with no staff."""
+        return statistics.median(s.space for s in self.staves) if self.staves else 5.0
+
+
+def nearest_system(systems, y):
+    """The system whose staves are nearest the height y."""
+    def distance(system):
+        top, bottom = system.staves[0].top, system.staves[-1].bottom
+        return 0 if top <= y <= bottom else min(abs(y - top), abs(y - bottom))
+    return min(systems, key=distance)
+
 
 # ---------------------------------------------------------------- lines
 
@@ -209,7 +222,11 @@ def horizontal_lines(candidates):
 def find_staves(lines, page_number):
     """Five-line staves: five lines, equally spaced (within 10 percent), each
     no thicker than a third of the gap, overlapping along at least half of the
-    shortest, and at least six staff spaces long."""
+    shortest, and at least six staff spaces long.
+
+    The inspector counts staves by its own rules (omr.pdf.evidence.find_staves),
+    on purpose: it classifies the page and counts six-line and one-line staves
+    too, where this finder places each five-line staff for the reader."""
     lines = sorted((l for l in lines if l.length >= 15), key=lambda l: l.y)
     used = set()
     staves = []

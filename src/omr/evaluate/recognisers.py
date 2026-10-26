@@ -21,7 +21,6 @@ from pathlib import Path
 
 from omr.evaluate import events
 
-STEPS = "CDEFGAB"
 STEP_GAP = {"C": 2, "D": 2, "E": 1, "F": 2, "G": 2, "A": 2, "B": 1}   # semitones to the next step up
 
 
@@ -178,7 +177,7 @@ def damage(truth, out, seed=1, flag_share=0.5):
     # 2. An enharmonic respelling (C sharp written as D flat).
     for p, b, measure, note in d.candidates(lambda n, ns: True, reserve):
         step, alter, octave = _pitch(note)
-        new_step = STEPS[(STEPS.index(step) + 1) % 7]
+        new_step = events.STEPS[(events.STEPS.index(step) + 1) % 7]
         new_alter = alter - STEP_GAP[step]
         new_octave = octave + (1 if step == "B" else 0)
         if abs(new_alter) <= 2 and (new_step, new_alter, new_octave) not in _same_onset_pitches(note, measure.findall("note")):

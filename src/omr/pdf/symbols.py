@@ -538,7 +538,7 @@ def outline_symbols(page, ev, unmapped, unnamed=None):
                 continue   # rectangles and four-sided pieces: stems, barlines, beams
         if set(kinds) == {"c"} and len(kinds) <= 3:
             continue   # a crescent of two or three curves: a tie or a short slur
-        key = _fingerprint(items, x0, y0, space)
+        key = evidence.fingerprint(items, x0, y0, space)
         if key not in cache:
             shape = shapes.draw_paths([dict(d, items=items)], space)
             cache[key] = "slur" if _thin_band(shape, w, h) else _match_outline(shape, w, h)
@@ -636,16 +636,6 @@ def _whole_or_half(staves, top, bottom, space):
         if min(hang, sit) <= 0.15 * space:
             return "restWhole" if hang < sit else "restHalf"
     return None
-
-
-def _fingerprint(items, x0, y0, space):
-    key = []
-    for item in items:
-        key.append(item[0])
-        for px, py in evidence._item_points(item):
-            key.append(round((px - x0) / space / 0.05))
-            key.append(round((py - y0) / space / 0.05))
-    return tuple(key)
 
 
 # ------------------------------------------------------------ the document

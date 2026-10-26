@@ -56,23 +56,18 @@ def in_flag_file(rule):
 
 def figures(results, keep=in_flag_file):
     """(errors, covered, bars, bars flagged, flagged bars with an error),
-    scored as metrics._flags scores a flag file."""
+    scored as the harness scores a flag file (metrics.flag_coverage)."""
+    from omr.evaluate import metrics
+
     errors = covered = bars = flagged_bars = with_error = 0
     for r in results:
-        flagged = collections.defaultdict(set)
-        for rule, part, staff, bar in r["flags"]:
-            if keep(rule):
-                flagged[(part, bar)].add(staff)
-
-        def covers(part, bar, staff):
-            staves = flagged.get((part, bar))
-            return bool(staves) and (None in staves or staff in staves)
-
+        kept = [(part, bar, staff) for rule, part, staff, bar in r["flags"] if keep(rule)]
+        c, f, w = metrics.flag_coverage(r["places"], kept)
         errors += len(r["places"])
-        covered += sum(any(covers(*place) for place in where) for where in r["places"])
+        covered += c
         bars += r["bars"]
-        flagged_bars += len(flagged)
-        with_error += len({(p, b) for where in r["places"] for p, b, s in where if covers(p, b, s)})
+        flagged_bars += f
+        with_error += w
     return errors, covered, bars, flagged_bars, with_error
 
 

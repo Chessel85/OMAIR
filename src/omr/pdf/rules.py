@@ -72,9 +72,6 @@ def bar_fullness(score):
     return out
 
 
-SHARP_ORDER = "FCGDAEB"
-
-
 def key_spelling(score):
     """A note spelled far round the circle of fifths from its key: more
     than five fifths beyond the key's seven letters, which leaves room for
@@ -85,7 +82,7 @@ def key_spelling(score):
     for n in score.notes:
         fifths = signatures.key(n.part, n.bar)
         # F is -1 and B is 5 on the line of fifths; each sharp adds 7
-        position = SHARP_ORDER.index(n.pitch.step) - 1 + 7 * n.pitch.alter
+        position = events.SHARP_ORDER.index(n.pitch.step) - 1 + 7 * n.pitch.alter
         if position > fifths + 5 + SPELLING_MARGIN or position < fifths - 1 - SPELLING_MARGIN:
             out.setdefault((n.part, n.staff, n.bar), Flag(n.part, n.staff, n.bar, "key and accidentals",
                                                           f"{n.pitch.words()} is unlikely in the key", n.onset))

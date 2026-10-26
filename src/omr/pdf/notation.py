@@ -44,7 +44,6 @@ REST_LENGTH = {
 TYPE_NAME = {length: name for name, length in events.TYPE_LENGTH.items()}
 TUPLET_GLYPHS = {f"tuplet{i}": str(i) for i in range(10)}
 TUPLET_TEXT = re.compile(r"^\s*(\d{1,2})\s*(?::\s*(\d{1,2}))?\s*$")
-LETTERS = "CDEFGAB"
 
 
 def is_head(name):
@@ -1275,35 +1274,13 @@ def assign_graces(staff_events):
 
 # ------------------------------------------------------------------ pitch
 
-def clef_bottom(value):
-    """(letter index, octave) of the bottom staff line under a clef value
-    such as "G 2" or "F 4 octave -1"; None for a clef with no pitch."""
-    parts = value.split()
-    if parts[0] not in ("G", "F", "C"):
-        return None
-    line = int(parts[1])
-    letter, octave = {"G": (4, 4), "F": (3, 3), "C": (0, 4)}[parts[0]]   # the note on the clef's line
-    position = letter + 7 * octave - 2 * (line - 1)
-    if "octave" in value:
-        position += 7 * int(parts[-1])
-    return position
-
-
 def pitch_of(clef, step):
     """(letter, octave) of a staff step under a clef value."""
-    bottom = clef_bottom(clef)
+    bottom = events.clef_bottom(clef)
     if bottom is None:
-        bottom = clef_bottom("G 2")
+        bottom = events.clef_bottom("G 2")
     position = bottom + step
-    return LETTERS[position % 7], position // 7
-
-
-def key_alter(fifths, letter):
-    if fifths > 0 and letter in "FCGDAEB"[:fifths]:
-        return Fraction(1)
-    if fifths < 0 and letter in "BEADGCF"[:-fifths]:
-        return Fraction(-1)
-    return Fraction(0)
+    return events.STEPS[position % 7], position // 7
 
 
 def attach_accidentals(accidentals, heads, space):
@@ -1394,7 +1371,7 @@ def read_notes(score, ordered, pages, layouts=()):
 
     def page_text(pl, shapes):
         rect = pages[pl.page - 1].rect
-        lines = shapes.hyphens + [(h.y, h.x0, h.x1) for h in pl.horizontals if h.thickness <= 0.3 * h_space(pl)]
+        lines = shapes.hyphens + [(h.y, h.x0, h.x1) for h in pl.horizontals if h.thickness <= 0.3 * pl.staff_space()]
         items = text.classify_page(pl, (rect.x0, rect.y0, rect.x1, rect.y1), pl.page == first_page,
                                    shapes.frames, lines)
         score.text.extend(i for i in items if i.system is None)
@@ -1402,7 +1379,7 @@ def read_notes(score, ordered, pages, layouts=()):
 
     for pl, system, mapping in ordered:
         if pl.page not in shapes_by_page:
-            shapes_by_page[pl.page] = page_shapes(pages[pl.page - 1], h_space(pl))
+            shapes_by_page[pl.page] = page_shapes(pages[pl.page - 1], pl.staff_space())
             text_by_page[pl.page] = page_text(pl, shapes_by_page[pl.page])
         items = [i for i in text_by_page[pl.page] if i.system is system]
         _read_system(score, pl, system, mapping, bar_base, shapes_by_page[pl.page], items, signatures,
@@ -1488,10 +1465,6 @@ def _join_bars(score, k, shift):
     for n, bar in enumerate(score.bars[k + 1:], k + 2):
         bar.number = str(n)
     score.bar_counts = [len(score.bars)] * len(score.parts)
-
-
-def h_space(pl):
-    return statistics.median(s.space for s in pl.staves) if pl.staves else 5.0
 
 
 def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures, clefs_in_force, clef_onsets,
@@ -1699,7 +1672,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures
                 key = (letter, octave)
                 if h.accidental is not None:
                     state[key] = h.accidental
-                alter = state.get(key, key_alter(fifths, letter))
+                alter = state.get(key, events.key_alter(fifths, letter))
                 # a tied note keeps the alteration of the note it is tied from
                 if h.accidental is None:
                     if id(h) in tied_from and id(tied_from[id(h)]) in alters:

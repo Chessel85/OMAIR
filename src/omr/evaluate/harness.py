@@ -49,6 +49,23 @@ class Pair:
         return f"{self.id} {self.job}"
 
 
+def _index_fields(root):
+    """The fields of each line of a set folder's index.txt, comments and
+    blank lines left out."""
+    for line in (Path(root) / "index.txt").read_text(encoding="utf-8").splitlines():
+        if line.startswith("#") or not line.strip():
+            continue
+        yield [f.strip() for f in line.split("|")]
+
+
+def read_index(root):
+    """(score id, job, PDF, ground truth) for each pair in a set folder's
+    index.txt, in its order, without the metadata read_pairs adds. Paths in
+    a set kept in the repository are relative to its index."""
+    root = Path(root)
+    return [(f[1], f[2], root / f[4], root / f[5]) for f in _index_fields(root) if f[0] == "pair"]
+
+
 def read_pairs(set_name, root=None):
     """The pairs of a set, from its index.txt and each pair's metadata.
     Returns (pairs, number of failed exports skipped)."""
@@ -57,21 +74,17 @@ def read_pairs(set_name, root=None):
     if not index.is_file():
         raise FileNotFoundError(f"there is no index for the {set_name} set at {index}; run the corpus export first")
     pairs, failures = [], 0
-    for line in index.read_text(encoding="utf-8").splitlines():
-        if line.startswith("#") or not line.strip():
-            continue
-        fields = [f.strip() for f in line.split(" | ")]
+    for fields in _index_fields(root):
         if fields[0] == "failure":
             failures += 1
             continue
         _, score_id, job, _font, pdf, truth = fields[:6]
-        # Paths in a set kept in the repository are relative to its index.
-        pdf, truth = (p if Path(p).is_absolute() else str(root / p) for p in (pdf, truth))
-        meta_path = Path(pdf).parent / "metadata.txt"
+        pdf, truth = root / pdf, root / truth
+        meta_path = pdf.parent / "metadata.txt"
         meta = {}
         if meta_path.is_file():
             meta = dict(l.split(": ", 1) for l in meta_path.read_text(encoding="utf-8").splitlines() if ": " in l)
-        pairs.append(Pair(score_id, job, Path(pdf), Path(truth), meta))
+        pairs.append(Pair(score_id, job, pdf, truth, meta))
     return pairs, failures
 
 

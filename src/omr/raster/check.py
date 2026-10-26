@@ -68,7 +68,7 @@ def read(vector_pdf, raster_pdf=None):
         shapes = []
         for pl in layouts:
             if pl.staves:
-                space = notation.h_space(pl)
+                space = pl.staff_space()
                 found = notation.page_shapes(use[pl.page - 1], space)
                 # symbols drawn as outlines are curved shapes too; only ties and slurs count
                 boxes = rp.symbol_boxes(pages[pl.page - 1])[0]

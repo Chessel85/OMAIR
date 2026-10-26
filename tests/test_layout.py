@@ -10,7 +10,7 @@ import pytest
 
 pymupdf = pytest.importorskip("pymupdf")
 
-from omr.evaluate import events  # noqa: E402
+from omr.evaluate import events, harness  # noqa: E402
 from omr.pdf import layout, structure  # noqa: E402
 
 ROOT = Path(__file__).parent.parent
@@ -105,11 +105,8 @@ PAIRS = [
 
 @pytest.mark.parametrize("score_id, job", PAIRS)
 def test_regression_pairs_are_structurally_right(score_id, job):
-    index = {(f[1], f[2]): f for f in (
-        [x.strip() for x in line.split("|")] for line in (REGRESSION / "index.txt").read_text(encoding="utf-8").splitlines()
-        if line.startswith("pair"))}
-    fields = index[(score_id, job)]
-    lines, _ = check_structure.check_pair(REGRESSION / fields[4], REGRESSION / fields[5])
+    index = {(score, j): (pdf, truth) for score, j, pdf, truth in harness.read_index(REGRESSION)}
+    lines, _ = check_structure.check_pair(*index[(score_id, job)])
     assert lines == []
 
 

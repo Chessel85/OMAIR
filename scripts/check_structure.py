@@ -101,12 +101,9 @@ def check_pair(pdf, truth_path):
 
 
 def pairs(set_root, job, limit):
-    out = []
-    for line in (Path(set_root) / "index.txt").read_text(encoding="utf-8").splitlines():
-        fields = [f.strip() for f in line.split("|")]
-        if line.startswith("#") or fields[0] != "pair" or (job and fields[2] != job):
-            continue
-        out.append((fields[1], fields[2], Path(set_root) / fields[4], Path(set_root) / fields[5]))
+    from omr.evaluate import harness
+
+    out = [p for p in harness.read_index(set_root) if not job or p[1] == job]
     return out[:limit] if limit else out
 
 

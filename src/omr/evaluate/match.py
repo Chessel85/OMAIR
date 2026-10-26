@@ -19,13 +19,13 @@ from fractions import Fraction
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
+from omr.evaluate.events import STEPS, clef_bottom
+
 JOIN_PENALTY = 1.5     # extra cost for joining two bars against one, in notes and rests
 BAND_MARGIN = 20       # bars either side of the diagonal searched, beyond the difference in counts
 PROPERTY_COST = 1      # step 4: cost for each of pitch, onset and duration that differs
 ORDER_MARGIN = 0.3     # similarity gained for each moved staff before the parts are called out of order
 CLEF_MIN_GAIN = 2      # notes a clef correction must put right to be kept (it costs one error)
-STEPS = "CDEFGAB"
-CLEF_REFERENCE = {"G": ("G", 4, 2), "F": ("F", 3, 4), "C": ("C", 4, 3)}   # pitch on the clef's line, usual line
 
 
 @dataclass
@@ -428,18 +428,6 @@ def _match_notes(truth, output, staff_map):
 # Clef errors
 
 
-def _clef_line(value):
-    """The diatonic number (step + 7 * octave) of a clef's bottom line, or None
-    for a clef with no pitch (percussion, tablature)."""
-    bits = value.split()
-    if not bits or bits[0] not in CLEF_REFERENCE:
-        return None
-    step, octave, usual_line = CLEF_REFERENCE[bits[0]]
-    line = int(bits[1]) if len(bits) > 1 and bits[1].isdigit() else usual_line
-    change = int(bits[3]) if len(bits) > 3 and bits[2] == "octave" else 0
-    return STEPS.index(step) + 7 * (octave + change) - 2 * (line - 1)
-
-
 def _clefs_by_staff(score):
     clefs = collections.defaultdict(list)
     for event in score.structure:
@@ -477,7 +465,7 @@ def _clef_regions(truth, output, strict):
             continue
         written = _clef_at(output_clefs.get(staff, []), note.bar, note.onset)
         right = _clef_at(truth_clefs.get(target, []), *position)
-        a, b = (_clef_line(right), _clef_line(written)) if written and right else (None, None)
+        a, b = (clef_bottom(right), clef_bottom(written)) if written and right else (None, None)
         if a is None or b is None or a == b:
             current.pop(staff, None)
             continue

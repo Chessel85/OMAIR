@@ -421,27 +421,34 @@ def error_places(result):
     return out
 
 
-def _flags(output, result, flags):
+def flag_coverage(places, flags):
+    """(errors covered, bars flagged, flagged bars with an error) for the
+    error places of error_places and flags given as (output part, output
+    bar, staff or None for the whole bar). A flagged bar "has an error" if
+    one of its flags covers an error there."""
     flagged = collections.defaultdict(set)   # (output part, output bar) -> staves, or {None} for all
     for part, bar, staff in flags:
         flagged[(part, bar)].add(staff)
 
-    def covered_output(part, bar, staff):
+    def covers(part, bar, staff):
         staves = flagged.get((part, bar))
         return bool(staves) and (None in staves or staff in staves)
 
+    covered = sum(any(covers(*place) for place in where) for where in places)
+    with_error = {(part, bar) for where in places for part, bar, staff in where if covers(part, bar, staff)}
+    return covered, len(flagged), len(with_error)
+
+
+def _flags(output, result, flags):
     places = error_places(result)
-    covered = sum(any(covered_output(*place) for place in where) for where in places)
-    # A flagged bar "has an error" if one of its flags covers an error there.
-    with_error = {(part, bar) for where in places for part, bar, staff in where
-                  if covered_output(part, bar, staff)}
+    covered, bars_flagged, with_error = flag_coverage(places, flags)
     bars_total = sum(output.bar_counts) if output.bar_counts else 0
     return {
         "errors": len(places),
         "covered": covered,
-        "bars flagged": len(flagged),
+        "bars flagged": bars_flagged,
         "bars": bars_total,
-        "flagged bars with an error": len(with_error),
+        "flagged bars with an error": with_error,
     }
 
 

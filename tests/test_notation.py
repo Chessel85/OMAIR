@@ -9,6 +9,7 @@ import pytest
 
 pymupdf = pytest.importorskip("pymupdf")
 
+from omr.evaluate import events  # noqa: E402
 from omr.pdf import layout, notation  # noqa: E402
 
 ROOT = Path(__file__).parent.parent
@@ -31,9 +32,9 @@ def test_pitch_of_staff_steps_under_each_clef():
 
 
 def test_key_alterations():
-    assert notation.key_alter(2, "F") == 1 and notation.key_alter(2, "C") == 1 and notation.key_alter(2, "G") == 0
-    assert notation.key_alter(-3, "A") == -1 and notation.key_alter(-3, "D") == 0
-    assert notation.key_alter(0, "B") == 0
+    assert events.key_alter(2, "F") == 1 and events.key_alter(2, "C") == 1 and events.key_alter(2, "G") == 0
+    assert events.key_alter(-3, "A") == -1 and events.key_alter(-3, "D") == 0
+    assert events.key_alter(0, "B") == 0
 
 
 def test_accidental_names():
@@ -257,7 +258,6 @@ def test_a_triplet_number_over_a_whole_group_keeps_it():
 
 from types import SimpleNamespace  # noqa: E402
 
-from omr.evaluate import events  # noqa: E402
 
 
 def _system(bars_end, text=()):
