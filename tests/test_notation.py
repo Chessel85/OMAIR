@@ -300,6 +300,19 @@ def test_a_line_ending_without_a_barline_and_no_sign_stays_two_bars():
     assert len(score.bars) == 3
 
 
+def test_a_line_starting_with_no_bar_number_where_the_others_have_one_continues_a_bar():
+    # LilyPond without bracketed numbers: the systems after the first carry
+    # their bar numbers, except one that starts in the middle of a bar
+    score = _three_four_score([3, 1, 2, 3, 3])
+    score.notes = [_note(1, 0), _note(2, 0), _note(2, 1), _note(3, 0)]
+    def number(text):
+        return [SimpleNamespace(text=text, box=(30.0, 85.0, 48.0, 95.0))]
+    ordered = [_system([object(), None]), _system([object(), object()]),
+               _system([object()], number("4")), _system([object()], number("5"))]
+    notation.join_split_bars(score, ordered)
+    assert len(score.bars) == 4 and score.bars[1].length == 3
+
+
 def _head_event(x, step, direction, dots=0, rest=None):
     head = SimpleNamespace(step=step, box=(x, 0.0, x + 6.5, 6.0))
     return notation.Event(staff=None, x=x, right=x + 6.5, heads=[] if rest else [head], rest=rest,

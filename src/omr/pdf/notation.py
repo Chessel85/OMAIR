@@ -1404,38 +1404,51 @@ def read_notes(score, ordered, pages, layouts=()):
 
 
 CONTINUED_BAR = re.compile(r"^\(\d+\)$")
+BAR_NUMBER = re.compile(r"^\(?\d+\)?$")
 
 
-def _continued_bar_number(pl, system):
-    """A bar number in brackets at the start of the system, which LilyPond
-    prints when the system starts in the middle of a bar."""
+def _system_bar_number(pl, system):
+    """The bar number at the start of the system: "bracketed" for one in
+    brackets, which LilyPond prints when the system starts in the middle of
+    a bar, "plain" for any other, None if there is none."""
     top, space = system.staves[0], system.staves[0].space
-    return any(CONTINUED_BAR.match(run.text.strip()) and system.x0 - 3 * space <= run.box[2] <= system.x0 + 6 * space
-               and top.top - 6 * space <= run.box[3] <= top.top + space for run in pl.text)
+    for run in pl.text:
+        text = run.text.strip()
+        if (BAR_NUMBER.match(text) and system.x0 - 3 * space <= run.box[2] <= system.x0 + 6 * space
+                and top.top - 6 * space <= run.box[3] <= top.top + space):
+            return "bracketed" if CONTINUED_BAR.match(text) else "plain"
+    return None
 
 
 def join_split_bars(score, ordered):
     """A bar broken across a line (LilyPond does this when a bar is too long
     for one line) is one bar: the system ends with no barline (engravers
     otherwise always end a system with one), and the next system starts
-    with its bar number in brackets. (Two pieces adding up to one bar is
-    not enough: a short bar at the end of a line is common.) The second piece's contents move into the
-    first, placed to end where the bar ends, and the clefs and keys restated
-    at the start of the new system are dropped."""
+    with its bar number in brackets, or with no bar number where every
+    other system after the first has one (LilyPond leaves the number out
+    when its option for brackets is off). (Two pieces adding up to one bar
+    is not enough: a short bar at the end of a line is common.) The second
+    piece's contents move into the first, placed to end where the bar ends,
+    and the clefs and keys restated at the start of the new system are
+    dropped."""
+    numbers = [_system_bar_number(pl, system) for pl, system, _ in ordered]
+    numbered = len(numbers) > 2 and all(n is not None for i, n in enumerate(numbers[1:], 1)
+                                        if not (ordered[i - 1][1].bars and ordered[i - 1][1].bars[-1].end is None))
     joins, base = [], 0
     for i, (pl, system, mapping) in enumerate(ordered):
         base += len(system.bars)
         if i + 1 < len(ordered) and system.bars and system.bars[-1].end is None:
-            joins.append((base - 1, _continued_bar_number(*ordered[i + 1][:2])))
+            nxt = numbers[i + 1]
+            joins.append((base - 1, nxt == "bracketed" or (nxt is None and numbered)))
     # a join changes only the bars after it, and the joins run from the last
     # back, so the signatures in force at each one are those found now
     signatures = events.SignaturesInForce(score)
-    for k, bracketed in reversed(joins):
+    for k, continued in reversed(joins):
         if k + 1 >= len(score.bars):
             continue
         first, second = score.bars[k].length, score.bars[k + 1].length
         full, _ = _time_in_force(signatures, k)
-        if not (bracketed and 0 < first and 0 < second <= full):
+        if not (continued and 0 < first and 0 < second <= full):
             continue
         _join_bars(score, k, full - second)
 
