@@ -531,6 +531,34 @@ def attach_beams(stems, beams, space):
                 stem.beams.append(b)
 
 
+def two_note_tremolos(chords, beams, space):
+    """A two-note tremolo: strokes that float between the stems of two
+    chords of one staff, ending short of both (attach_beams leaves them
+    out). The two chords alternate through the length of one of them
+    together, so each sounds half its written value (as MusicXML writes
+    it: two notes in the time of one). Strokes crossing a stem are a
+    tremolo on one chord, which keeps its value."""
+    stemmed = sorted((e for e in chords if e.stem is not None and not e.grace), key=lambda e: e.stem.x)
+    attached = {id(b) for e in stemmed for b in e.stem.beams}
+    for b in beams:
+        if id(b) in attached or b.x1 - b.x0 < 0.5 * space:
+            continue
+        left = [e for e in stemmed if 0 < b.x0 - e.stem.x <= 2.5 * space
+                and e.stem.top - space <= b.y0 <= e.stem.bottom + space]
+        right = [e for e in stemmed if 0 < e.stem.x - b.x1 <= 2.5 * space
+                 and e.stem.top - space <= b.y1 <= e.stem.bottom + space]
+        if not left or not right:
+            continue
+        first = max(left, key=lambda e: e.stem.x)
+        second = min(right, key=lambda e: e.stem.x)
+        if first.staff is not second.staff or first.base != second.base or first.stem.beams or second.stem.beams:
+            continue
+        if any(first.stem.x < e.stem.x < second.stem.x for e in stemmed if e.staff is first.staff):
+            continue
+        for e in (first, second):
+            e.tuplet = (2, 1)
+
+
 def attach_flags(stems, flags, space):
     """Each flag to the stem whose free end it is at. Returns the flags no
     stem took."""
@@ -641,7 +669,8 @@ def attach_dots(evs, dots, space, repeat_zones):
     on a line has its dot in the space above or below). A dot straight over
     or under a notehead of the same voice (stem the same way) is that note's
     staccato, even where it is level with the note before (a rising line of
-    staccato notes); over another voice's note it can still be a dot."""
+    staccato notes); over another voice's note it can still be a dot. Beside
+    a rest, a dot over or under any note is a staccato."""
     by_event = collections.defaultdict(list)
     used = set()
     for d in dots:
@@ -659,7 +688,10 @@ def attach_dots(evs, dots, space, repeat_zones):
                 level = any(abs(cy - h.y) <= 0.65 * space for h in e.heads)
             if level and (best_dx is None or dx < best_dx):
                 best, best_dx = e, dx
-        if best is not None and any(o is not best and o.direction == best.direction and o.rest is None
+        # (a rest has no voice to tell by its stem: a dot over or under any
+        # note beside it is that note's staccato)
+        if best is not None and any(o is not best and (best.rest is not None or o.direction == best.direction)
+                                    and o.rest is None
                                     and any(h.box[0] <= cx <= h.box[2] and 0.4 * space < abs(cy - h.y) <= 2.5 * space
                                             for h in o.heads) for o in evs):
             best = None   # the staccato of the next note in the same voice
@@ -746,13 +778,21 @@ def apply_tuplets(marks, evs, stems, lines, verticals, space, compound):
         members = []
         if span:
             members = [e for e in evs if not e.grace and span[0] - 0.5 * space <= (e.x + e.right) / 2 <= span[1] + 0.5 * space
-                       and _near_mark(e, m, space)]
-            # a bracket belongs to one staff: the one nearest the number
+                       and _near_mark(e, m, space, span[2])]
+            # a bracket belongs to one staff: the one nearest the number, on
+            # the side its hooks point to
             staves = {id(e.staff): e.staff for e in members}
             if len(staves) > 1:
-                nearest = min(staves.values(), key=lambda st: 0 if st.top <= m.y <= st.bottom
-                              else min(abs(m.y - st.top), abs(m.y - st.bottom)))
+                side = [st for st in staves.values() if span[2] * ((st.top + st.bottom) / 2 - m.y) > 0]
+                nearest = _nearest_staff(side or staves.values(), m.y)
                 members = [e for e in members if e.staff is nearest]
+            # the notes of a beam group under the bracket go together, though
+            # its high or low notes are far from the bracket
+            held = {id(e) for e in members}
+            for g in beam_groups([e for e in evs if not e.grace]):
+                if any(id(e) in held for e in g):
+                    members += [e for e in g if id(e) not in held
+                                and span[0] - 0.5 * space <= (e.x + e.right) / 2 <= span[1] + 0.5 * space]
         else:
             members = _tuplet_run(m, _beam_group(m, evs, space))
         if len(members) < 2:
@@ -764,6 +804,10 @@ def apply_tuplets(marks, evs, stems, lines, verticals, space, compound):
                 e.tuplet = (m.actual, normal)
                 e.tuplet_detected = m.detected
     return unused
+
+
+def _nearest_staff(staves, y):
+    return min(staves, key=lambda st: 0 if st.top <= y <= st.bottom else min(abs(y - st.top), abs(y - st.bottom)))
 
 
 def _normal(actual, compound):
@@ -779,22 +823,31 @@ def _normal(actual, compound):
     return normal
 
 
-def _near_mark(e, m, space):
-    """The event is on the side of the staff the number is on, not far from it."""
-    ys = [h.y for h in e.heads] or [(e.rest.box[1] + e.rest.box[3]) / 2]
+def _near_mark(e, m, space, side=0):
+    """The event is on the side of the staff the number is on, not far from
+    it. A bracket's hooks reach about a space towards its notes (`side`, as
+    _bracket_span gives it), so the distance is measured from their tips."""
+    shift = side * space
+    if e.rest is not None:
+        # a rest sits in the middle of the staff, below a number over the
+        # notes' stems: measured ink to ink
+        return max(e.rest.box[1] - m.box[3] - shift, m.box[1] + shift - e.rest.box[3]) <= 4 * space
+    ys = [h.y for h in e.heads]
     if e.stem is not None:
         ys += [e.stem.top, e.stem.bottom]
-    return min(abs(y - m.y) for y in ys) <= 4 * space
+    return min(abs(y - m.y - shift) for y in ys) <= 4 * space
 
 
 def _bracket_span(m, lines, verticals, space):
-    """(x0, x1) of a tuplet bracket around the number, or None. The bracket's
-    two halves are thin lines near the number's height, one ending just
-    before it and one starting just after it. They slope with the notes."""
+    """(x0, x1, side) of a tuplet bracket around the number, or None. The
+    bracket's two halves are thin lines near the number's height, one ending
+    just before it and one starting just after it. They slope with the
+    notes. `side` is 1 when the hooks at the outer ends point down (the
+    notes are below), -1 when they point up, 0 when no hook is found."""
     left = right = None
     for x0, y0, x1, y1 in lines:
         length = x1 - x0
-        if not 0.5 * space <= length < 30 * space:
+        if not 0.5 * space <= length < 100 * space:
             continue
         if 0 <= m.box[0] - x1 <= 1.5 * space and abs(y1 - m.y) <= 1.5 * space:
             if left is None or x1 > left[2]:
@@ -802,9 +855,18 @@ def _bracket_span(m, lines, verticals, space):
         if 0 <= x0 - m.box[2] <= 1.5 * space and abs(y0 - m.y) <= 1.5 * space:
             if right is None or x0 < right[0]:
                 right = (x0, y0, x1, y1)
-    if left is None or right is None:
+    # the halves meet across the number (a staff line in pieces is not one)
+    if left is None or right is None or abs(left[3] - right[1]) > space:
         return None
-    return left[0], right[2]
+    side = 0
+    for x, y in ((left[0], left[1]), (right[2], right[3])):
+        for vx, top, bottom, _ in verticals:
+            if abs(vx - x) <= 0.3 * space and bottom - top >= 0.3 * space:
+                if abs(top - y) <= 0.3 * space:
+                    side += 1
+                elif abs(bottom - y) <= 0.3 * space:
+                    side -= 1
+    return left[0], right[2], (side > 0) - (side < 0)
 
 
 def _beam_group(m, evs, space):
@@ -1487,6 +1549,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
     for flag in attach_flags(stems, flags, space):
         doubt(pl.staff_of(flag), flag.x, "stray symbol", "a flag is on no stem")
     chords = make_chords(heads, stems, space)
+    two_note_tremolos(chords, beam_list, space)
     rests = [r for r in make_rests(pl.symbols, pl, space) if id(r.staff) in members]
     evs = chords + rests
     mark_graces(evs, space)
@@ -1495,8 +1558,12 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
     dots = [s for s in pl.symbols if s.name == "augmentationDot" and id(pl.staff_of(s)) in members]
     used_dots = attach_dots(evs, dots, space, repeat_zones)
     time_length, compound = _time_in_force(score, bar_base)
+    # a number between two systems belongs to the nearer one (the low notes
+    # of a system can reach a number over the next system's top staff)
+    page_staves = [st for sy in pl.systems for st in sy.staves]
     unused_marks = apply_tuplets([m for m in tuplet_marks(pl) if system.staves[0].top - 8 * space <= m.y
-                   <= system.staves[-1].bottom + 8 * space and system.x0 <= m.x <= system.x1],
+                   <= system.staves[-1].bottom + 8 * space and system.x0 <= m.x <= system.x1
+                   and id(_nearest_staff(page_staves, m.y)) in members],
                   evs, stems, thin + [(h.x0, h.y, h.x1, h.y) for h in pl.horizontals if h.thickness <= 0.25 * space],
                   pl.verticals, space, compound)
     # accidentals and key signatures

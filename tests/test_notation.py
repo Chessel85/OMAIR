@@ -336,3 +336,47 @@ def test_a_staccato_under_the_next_note_is_not_a_dot_of_this_one():
     e_note.direction = -1
     notation.attach_dots([d_note, e_note], [staccato], 5.0, [])
     assert d_note.dots == 1
+
+
+def test_a_staccato_beside_a_rest_is_not_its_dot():
+    # a sixteenth rest inside a beam, then a chord stem up with a staccato
+    # under it, level with the rest (Verovio)
+    rest = notation.Event(staff=None, x=100.0, right=104.0, rest=SimpleNamespace(box=(100.0, 95.0, 104.0, 110.0)))
+    head = SimpleNamespace(step=0, y=102.5, box=(110.0, 100.0, 116.5, 105.0))
+    chord = notation.Event(staff=None, x=110.0, right=116.5, heads=[head], direction=1)
+    staccato = SimpleNamespace(box=(112.0, 107.0, 114.0, 109.0))
+    notation.attach_dots([rest, chord], [staccato], 5.0, [])
+    assert rest.dots == 0
+
+
+# --------------------------------------------- tuplet brackets and tremolos
+
+def test_a_bracket_hook_tells_which_side_its_notes_are():
+    mark = notation.TupletMark(3, None, 50, 100, (48, 97, 52, 103))
+    lines = [(20.0, 100.0, 46.0, 100.0), (54.0, 100.0, 80.0, 100.0)]
+    down = [(20.0, 100.0, 104.0, 0.4), (80.0, 100.0, 104.0, 0.4)]
+    up = [(20.0, 96.0, 100.0, 0.4), (80.0, 96.0, 100.0, 0.4)]
+    assert notation._bracket_span(mark, lines, down, 5.0) == (20.0, 80.0, 1)
+    assert notation._bracket_span(mark, lines, up, 5.0) == (20.0, 80.0, -1)
+    assert notation._bracket_span(mark, lines, [], 5.0) == (20.0, 80.0, 0)
+    # a bracket over a whole bar: halves longer than 30 spaces
+    long = [(20.0, 100.0, 46.0, 100.0), (54.0, 100.0, 300.0, 100.0)]
+    assert notation._bracket_span(mark, long, [], 5.0) == (20.0, 300.0, 0)
+
+
+def test_strokes_between_two_stems_are_a_two_note_tremolo():
+    staff = layout.Staff(1, 100.0, SPACE, 50.0, 550.0)
+
+    def quarter(x):
+        stem = notation.Stem(x + 6.5, 80.0, 105.0, up=True)
+        return notation.Event(staff, x, x + 6.5, stem=stem, base=Fraction(1), direction=1)
+
+    first, second = quarter(100.0), quarter(140.0)
+    # two strokes floating between the stems, short of both
+    strokes = [notation.Beam(112.0, 140.0, 88.0, 88.0, 1.0), notation.Beam(112.0, 140.0, 91.0, 91.0, 1.0)]
+    notation.two_note_tremolos([first, second], strokes, SPACE)
+    assert first.duration == second.duration == Fraction(1, 2)
+    # strokes across one stem are a tremolo on that note alone
+    alone = quarter(200.0)
+    notation.two_note_tremolos([alone], [notation.Beam(203.0, 212.0, 88.0, 88.0, 1.0)], SPACE)
+    assert alone.duration == 1
