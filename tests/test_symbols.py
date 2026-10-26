@@ -204,3 +204,12 @@ def test_a_brace_drawn_in_two_halves():
     found = symbols.brace_halves(page, ev)
     assert len(found) == 1
     assert found[0].name == "brace" and abs(found[0].box[1] - 50) < 1 and abs(found[0].box[3] - 150) < 1
+
+
+def test_a_stretched_brace_is_measured_to_the_top_of_its_ink():
+    # the glyph box says the brace starts at 120; the page shows ink from 100
+    doc = pymupdf.open()
+    page = doc.new_page(width=200, height=300)
+    page.draw_rect(pymupdf.Rect(50, 100, 56, 200), color=None, fill=(0, 0, 0))
+    assert abs(symbols._brace_top(page, (50.0, 120.0, 56.0, 200.0)) - 100) < 0.5
+    assert symbols._brace_top(page, (50.0, 100.0, 56.0, 200.0)) == 100.0

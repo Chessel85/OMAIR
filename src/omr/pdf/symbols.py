@@ -323,6 +323,8 @@ def read_page(page, number, programs=None, identifier=None, ev=None):
                 box = _placed_box(box, origin, size / 4, span["dir"] if turn is None else (1.0, 0.0))
             else:
                 box = tuple(bbox)
+            if symbol == "brace" and turn is None:
+                box = (box[0], _brace_top(page, box), box[2], box[3])
             result.symbols.append(Symbol(symbol, origin[0], y, size, box, name, mapping.table))
     if outlined_page(ev):
         result.symbols.extend(outline_symbols(page, ev, result.unmapped, result.unnamed))
@@ -349,6 +351,25 @@ def _curve_box(items):
         else:
             points.extend(geometry.item_points(item))
     return geometry.bbox(points)
+
+
+def _brace_top(page, box):
+    """The top of a brace glyph's ink. MuseScore stretches a brace over three
+    staves upwards past its font size (a scale the text trace does not
+    give), so the top is measured on the drawn page: the ink running on
+    upwards without a break from the top of the glyph's box."""
+    import pymupdf
+
+    zoom = 4
+    clip = pymupdf.Rect(box[0], box[1] - (box[3] - box[1]), box[2], box[1] + 1)
+    pixmap = page.get_pixmap(clip=clip, matrix=pymupdf.Matrix(zoom, zoom), colorspace=pymupdf.csGRAY)
+    samples, stride, width = pixmap.samples, pixmap.stride, pixmap.width
+    top = None
+    for row in range(pixmap.height - 1, -1, -1):
+        if min(samples[row * stride:row * stride + width]) >= 128:
+            break
+        top = row
+    return box[1] if top is None else min(box[1], clip.y0 + top / zoom)
 
 
 def _boxes_overlap(a, b):
