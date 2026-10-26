@@ -1333,6 +1333,7 @@ def _signature_accidentals(page_layout, system, staff):
     """The accidentals of the staff that are key signatures (as
     structure.staff_keys reads them)."""
     out = set()
+    notes = [(s.x, page_layout.step_of(s)) for s in page_layout.on_staff(staff) if lay.is_note(s.name)]
     for k in range(len(system.bars)):
         region = structure._signature_region(page_layout, system, staff, k)
         every = sorted((s for s in region if s.name in (structure.SHARP, structure.FLAT, structure.NATURAL)),
@@ -1340,8 +1341,6 @@ def _signature_accidentals(page_layout, system, staff):
         if not every:
             continue
         every = structure._close_run(every, staff.space)
-        notes = [(s.x, page_layout.step_of(s)) for s in page_layout.symbols
-                 if lay.is_note(s.name) and page_layout.staff_of(s) is staff]
         free = [s for s in every if not any(0 < nx - s.x <= 3.5 * staff.space and ns == page_layout.step_of(s)
                                              for nx, ns in notes)]
         if len(every) >= 2 and free and structure._key_of(page_layout, staff, every) is not None:
@@ -1509,6 +1508,8 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
     beams, curves, dashed, thin = shapes.beams, shapes.level_curves, shapes.dashed, shapes.thin
     space = statistics.median(s.space for s in system.staves)
     members = {id(st): k for k, st in enumerate(system.staves)}
+    # the symbols on the system's staves, in page order
+    mine = [s for s in pl.symbols if id(pl.staff_of(s)) in members]
 
     def doubt(staff, k, rule, reason, onset=None):
         """Note a doubt (Stage 1.5, omr.pdf.rules) on a staff in bar k of
@@ -1541,20 +1542,20 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
     stems += hidden_stems(heads, stems, beam_list, space, pl.verticals)
     attach_beams(stems, beam_list, space)
     # symbols the detector was unsure of, on a page image (omr.raster.names)
-    for s in pl.symbols:
+    for s in mine:
         if s.doubt is not None:
             doubt(pl.staff_of(s), float(s.x), *s.doubt)
-    flags = [s for s in pl.symbols if s.name in FLAG_COUNT and id(pl.staff_of(s)) in members]
+    flags = [s for s in mine if s.name in FLAG_COUNT]
     for flag in attach_flags(stems, flags, space):
         doubt(pl.staff_of(flag), flag.x, "stray symbol", "a flag is on no stem")
     chords = make_chords(heads, stems, space)
     two_note_tremolos(chords, beam_list, space)
-    rests = [r for r in make_rests(pl.symbols, pl) if id(r.staff) in members]
+    rests = make_rests(mine, pl)
     evs = chords + rests
     mark_graces(evs, space)
     repeat_zones = [(g.x0 - 1.6 * space, g.x1 + 1.6 * space) for g in system.barlines
                     if g.repeat_before or g.repeat_after]
-    dots = [s for s in pl.symbols if s.name == "augmentationDot" and id(pl.staff_of(s)) in members]
+    dots = [s for s in mine if s.name == "augmentationDot"]
     used_dots = attach_dots(evs, dots, space, repeat_zones)
     # a number between two systems belongs to the nearer one (the low notes
     # of a system can reach a number over the next system's top staff)
@@ -1568,8 +1569,8 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
     signature = set()
     for staff in system.staves:
         signature |= _signature_accidentals(pl, system, staff)
-    accs = [_Acc(s, pl.staff_of(s), pl.step_of(s)) for s in pl.symbols
-            if accidental_alter(s.name) is not None and id(pl.staff_of(s)) in members and id(s) not in signature]
+    accs = [_Acc(s, pl.staff_of(s), pl.step_of(s)) for s in mine
+            if accidental_alter(s.name) is not None and id(s) not in signature]
     for a in attach_accidentals(accs, heads, space):
         doubt(a.staff, a.x, "stray symbol", "an accidental is before no note")
     tied_to, tied_from, start_next, stop_previous, tie_curves = find_ties(curves, heads, evs, system, space)
@@ -1666,8 +1667,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
     next_ties = {}
     for staff in system.staves:
         part, number = mapping.staves[members[id(staff)]]
-        staff_clefs = sorted((s for s in pl.symbols if s.name in structure.CLEFS and pl.staff_of(s) is staff),
-                             key=lambda s: s.x)
+        staff_clefs = sorted((s for s in pl.on_staff(staff) if s.name in structure.CLEFS), key=lambda s: s.x)
         clef_values = []
         for c in staff_clefs:
             value = structure.clef_value(c.name, pl.step_of(c))

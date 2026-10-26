@@ -93,8 +93,7 @@ def staff_groups(system, symbols, text=()):
 
 def _initial_clef(page_layout, staff):
     """The name of the first clef on a staff, near its start, or None."""
-    clefs = [s for s in page_layout.symbols if s.name in CLEFS and page_layout.staff_of(s) is staff
-             and s.x <= staff.x0 + 6 * staff.space]
+    clefs = [s for s in page_layout.on_staff(staff) if s.name in CLEFS and s.x <= staff.x0 + 6 * staff.space]
     return min(clefs, key=lambda s: s.x).name if clefs else None
 
 
@@ -288,9 +287,8 @@ def _music(page_layout, staff):
     """The x of the notes and rests of a staff, at full size: a small
     notehead is a metronome mark, a cue or a grace note, which can stand over
     a time signature or before the first note."""
-    return sorted(s.x for s in page_layout.symbols
-                  if (lay.is_note(s.name) or lay.is_rest(s.name)) and page_layout.staff_of(s) is staff
-                  and s.size >= 3 * staff.space)
+    return sorted(s.x for s in page_layout.on_staff(staff)
+                  if (lay.is_note(s.name) or lay.is_rest(s.name)) and s.size >= 3 * staff.space)
 
 
 def clef_value(name, step):
@@ -314,8 +312,7 @@ def staff_clefs(page_layout, system, staff):
     out (the next system shows it)."""
     music = _music(page_layout, staff)
     out = []
-    for s in sorted((s for s in page_layout.symbols if s.name in CLEFS and page_layout.staff_of(s) is staff),
-                    key=lambda s: s.x):
+    for s in sorted((s for s in page_layout.on_staff(staff) if s.name in CLEFS), key=lambda s: s.x):
         k = _bar_of(system, s.x)
         if k is None:
             continue
@@ -391,7 +388,7 @@ def _signature_region(page_layout, system, staff, k):
         before = [x for x in music if _start(system, k - 1) <= x < system.bars[k - 1].x1]
         if before:
             lo = max(before) + 0.01
-    return [s for s in page_layout.symbols if page_layout.staff_of(s) is staff and lo - 0.01 <= s.x < first]
+    return [s for s in page_layout.on_staff(staff) if lo - 0.01 <= s.x < first]
 
 
 LETTERS = {"G": 4, "F": 3, "C": 0}
@@ -409,7 +406,7 @@ def _letter(clef, step):
 
 
 def _clef_before(page_layout, staff, x):
-    clefs = [s for s in page_layout.symbols if s.name in CLEFS and page_layout.staff_of(s) is staff and s.x < x]
+    clefs = [s for s in page_layout.on_staff(staff) if s.name in CLEFS and s.x < x]
     if not clefs:
         return None
     last = max(clefs, key=lambda s: s.x)
@@ -425,8 +422,7 @@ def staff_keys(page_layout, system, staff):
     accidentals has no sharps or flats. An accidental with a notehead just
     to its right on its step belongs to that note."""
     out = []
-    notes = [(s.x, page_layout.step_of(s)) for s in page_layout.symbols
-             if lay.is_note(s.name) and page_layout.staff_of(s) is staff]
+    notes = [(s.x, page_layout.step_of(s)) for s in page_layout.on_staff(staff) if lay.is_note(s.name)]
     for k in range(len(system.bars)):
         region = _signature_region(page_layout, system, staff, k)
         every = sorted((s for s in region if s.name in (SHARP, FLAT, NATURAL)), key=lambda s: s.x)

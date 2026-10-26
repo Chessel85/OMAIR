@@ -134,6 +134,19 @@ class PageLayout:
     attached: dict = field(default_factory=dict)   # id(symbol) -> (staff, step)
     horizontals: list = field(default_factory=list)  # joined horizontal lines (_Line)
     verticals: list = field(default_factory=list)    # (x, top, bottom, width)
+    _by_staff: dict = field(default=None, repr=False, compare=False)
+
+    def on_staff(self, staff):
+        """The symbols attached to a staff, in page order: built once, after
+        `attached` is filled, so that each bar and staff is not a scan of
+        the whole page."""
+        if self._by_staff is None:
+            self._by_staff = {}
+            for s in self.symbols:
+                found = self.attached.get(id(s))
+                if found:
+                    self._by_staff.setdefault(id(found[0]), []).append(s)
+        return self._by_staff.get(id(staff), [])
 
     def staff_of(self, symbol):
         found = self.attached.get(id(symbol))
