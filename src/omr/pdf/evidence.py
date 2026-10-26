@@ -7,6 +7,7 @@ import hashlib
 import re
 import statistics
 import string
+import weakref
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -178,6 +179,45 @@ def _display_turn(page):
     return page.rotation_matrix if page.rotation % 360 else None
 
 
+# What PyMuPDF gives for a page, fetched once per page object: the reader asks
+# for each several times. Pass the same page object to each stage (read_pdf
+# loads each page once) for the cache to be shared.
+_PAGE_CACHE = weakref.WeakKeyDictionary()
+
+
+def _cached(page, key, fetch):
+    store = _PAGE_CACHE.setdefault(page, {})
+    if key not in store:
+        store[key] = fetch()
+    return store[key]
+
+
+def shown_drawings(page):
+    """The page's drawings (PyMuPDF's get_drawings), with their items and
+    rect as the page is shown. Shared between callers: do not change them."""
+    def fetch():
+        turn = _display_turn(page)
+        drawings = page.get_drawings()
+        if turn is None:
+            return drawings
+        return [dict(d, rect=d["rect"] * turn,
+                     items=[(item[0], *(part * turn if hasattr(part, "transform") else part for part in item[1:]))
+                            for item in d["items"]])
+                for d in drawings]
+    return _cached(page, "drawings", fetch)
+
+
+def page_texttrace(page):
+    """The page's text spans (PyMuPDF's get_texttrace), as stored: not turned
+    for display. Shared between callers: do not change them."""
+    return _cached(page, "texttrace", page.get_texttrace)
+
+
+def page_fonts(page):
+    """The page's fonts (PyMuPDF's get_fonts with full=True)."""
+    return _cached(page, "fonts", lambda: page.get_fonts(full=True))
+
+
 def read_text_glyphs(page):
     """Return (fonts by name, hidden glyph count). Invisible text is counted apart.
     Positions are as the page is shown."""
@@ -185,11 +225,11 @@ def read_text_glyphs(page):
 
     turn = _display_turn(page)
     font_types = {}
-    for entry in page.get_fonts(full=True):
+    for entry in page_fonts(page):
         font_types[strip_subset_prefix(entry[3])] = entry[2]
     fonts = {}
     hidden = 0
-    for span in page.get_texttrace():
+    for span in page_texttrace(page):
         count = len(span["chars"])
         if span.get("type") == 3 or span.get("opacity", 1.0) == 0:
             hidden += count
@@ -307,7 +347,7 @@ def _font_buffer(page, name):
     the font ("Name" against "Name Book"): an exact match is used if there is
     one, otherwise the only PDF font whose name starts with it."""
     entries = [(xref, strip_subset_prefix(basefont)) for xref, _, font_type, basefont, *_
-               in page.get_fonts(full=True) if xref and font_type != "Type3"]
+               in page_fonts(page) if xref and font_type != "Type3"]
     matches = [xref for xref, base in entries if base == name]
     if not matches:
         matches = [xref for xref, base in entries if _squash(base).startswith(_squash(name))]
@@ -431,18 +471,13 @@ def read_drawings(page):
     """Count lines and filled shapes, and collect horizontal-line candidates
     and curved filled shapes for the staff and outline tests. Positions are
     as the page is shown."""
-    turn = _display_turn(page)
     lines = {"horizontal": 0, "vertical": 0, "other": 0}
     filled = {"rectangles": 0, "polygons": 0, "curved": 0}
     candidates = []  # (y, x0, x1, thickness)
     curved_shapes = []  # list of item lists
-    for d in page.get_drawings():
+    for d in shown_drawings(page):
         kind = d["type"]
         items = d["items"]
-        if turn is not None:
-            items = [(item[0], *(part * turn if hasattr(part, "transform") else part for part in item[1:]))
-                     for item in items]
-            d = dict(d, rect=d["rect"] * turn)
         width = d.get("width") or 0.0
         if "s" in kind:
             for item in items:

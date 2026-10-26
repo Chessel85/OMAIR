@@ -276,13 +276,9 @@ def _find_line(lines, start, y, tolerance, anchor):
 def vertical_lines(page):
     """(x, top, bottom, width) of every vertical line: stroked lines, and
     filled rectangles at least three times as tall as wide. As the page is shown."""
-    turn = evidence._display_turn(page)
     out = []
-    for d in page.get_drawings():
+    for d in evidence.shown_drawings(page):
         items = d["items"]
-        if turn is not None:
-            items = [(item[0], *(part * turn if hasattr(part, "transform") else part for part in item[1:]))
-                     for item in items]
         width = d.get("width") or 0.0
         if "s" in d["type"]:
             for item in items:

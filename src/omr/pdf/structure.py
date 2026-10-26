@@ -760,11 +760,13 @@ def read_pdf(path, notes=False):
     else:
         doc = pymupdf.open(str(path))
     try:
-        pages = symbols.read_document(doc)
-        use = doc
+        # each page loaded once, so what PyMuPDF gives for it is fetched once
+        # (omr.pdf.evidence.shown_drawings)
+        use = [doc[i] for i in range(len(doc))]
+        pages = symbols.read_document(doc, shown=use)
         if any(not p.symbols for p in pages):
             from omr.raster import reading
-            use, pages = reading.read_document(doc, pages)
+            use, pages = reading.read_document(use, pages)
         layouts = lay.read_document(use, pages)
         assigned = assign_parts(layouts)
         score = read_structure(layouts, assigned)

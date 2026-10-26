@@ -124,7 +124,7 @@ def _glyph_names(buffer):
 def font_xrefs(page):
     """{font name as the text layer gives it: [xrefs]} for the page."""
     out = defaultdict(list)
-    for xref, _, font_type, basefont, *_ in page.get_fonts(full=True):
+    for xref, _, font_type, basefont, *_ in evidence.page_fonts(page):
         if xref and font_type != "Type3":
             out[evidence.strip_subset_prefix(basefont)].append(xref)
     return out
@@ -285,7 +285,7 @@ def read_page(page, number, programs=None, identifier=None, ev=None):
     guess_programs(result.fonts.values())
     ink = _ink_boxes(programs, page, mappings)
     run = None
-    for span in page.get_texttrace():
+    for span in evidence.page_texttrace(page):
         if span.get("type") == 3 or span.get("opacity", 1.0) == 0:
             continue
         name = evidence.strip_subset_prefix(span["font"])
@@ -363,15 +363,11 @@ def brace_halves(page, ev):
     space = ev.staves.staff_space_pt
     if not space:
         return []
-    turn = evidence._display_turn(page)
     halves = []
-    for d in page.get_drawings():
+    for d in evidence.shown_drawings(page):
         items = d["items"]
         if "f" not in d["type"] or not items or any(item[0] != "c" for item in items) or len(items) > 4:
             continue
-        if turn is not None:
-            items = [(item[0], *(part * turn if hasattr(part, "transform") else part for part in item[1:]))
-                     for item in items]
         x0, y0, x1, y1 = _curve_box(items)
         if y1 - y0 > 1.5 * space and x1 - x0 < (y1 - y0) / 3:
             halves.append((x0, y0, x1, y1))
@@ -400,20 +396,15 @@ def outline_braces(page, ev):
     space = ev.staves.staff_space_pt
     if not space:
         return []
-    turn = evidence._display_turn(page)
     found = []
-    for d in page.get_drawings():
+    for d in evidence.shown_drawings(page):
         if "f" not in d["type"] or not any(item[0] == "c" for item in d["items"]):
             continue
-        r = d["rect"] * turn if turn is not None else d["rect"]
+        r = d["rect"]
         w, h = r.width / space, r.height / space
         if not (h > 3 and w < h / 6):
             continue
-        items = d["items"]
-        if turn is not None:
-            items = [(item[0], *(part * turn if hasattr(part, "transform") else part for part in item[1:]))
-                     for item in items]
-        match = _match_outline(shapes.draw_paths([dict(d, items=items)], space), w, h)
+        match = _match_outline(shapes.draw_paths([d], space), w, h)
         if match and match[0] == "brace":
             found.append(Symbol("brace", r.x0, r.y1, 4 * space, (r.x0, r.y0, r.x1, r.y1), "outlines", "outline"))
     return found
@@ -461,7 +452,7 @@ def _placed_box(shape, origin, scale, direction):
 def _ink_boxes(programs, page, mappings):
     """{(xref, gid): Shape} for every music glyph on the page, drawn once."""
     wanted = defaultdict(set)
-    for span in page.get_texttrace():
+    for span in evidence.page_texttrace(page):
         mapping, xref = mappings.get(evidence.strip_subset_prefix(span["font"]), (None, None))
         if mapping is not None and mapping.table is not None and xref:
             wanted[xref].update(gid for _, gid, _, _ in span["chars"])
@@ -522,15 +513,11 @@ def outline_symbols(page, ev, unmapped, unnamed=None):
     space = ev.staves.staff_space_pt
     if not space:
         return []
-    turn = evidence._display_turn(page)
     found, cache = [], {}
-    for d in page.get_drawings():
+    for d in evidence.shown_drawings(page):
         if "f" not in d["type"] or not d["items"]:
             continue
         items = d["items"]
-        if turn is not None:
-            items = [(item[0], *(part * turn if hasattr(part, "transform") else part for part in item[1:]))
-                     for item in items]
         kinds = [item[0] for item in items]
         points = [p for item in items for p in evidence._item_points(item)]
         x0, y0, x1, y1 = evidence._bbox(points)
@@ -663,9 +650,11 @@ def _fingerprint(items, x0, y0, space):
 
 # ------------------------------------------------------------ the document
 
-def read_document(doc, pages=None):
-    """PageSymbols for each page (all pages, or the numbers from 1 given)."""
+def read_document(doc, pages=None, shown=None):
+    """PageSymbols for each page (all pages, or the numbers from 1 given).
+    `shown` is the document's pages already loaded, to read in place of
+    loading them again."""
     programs = FontPrograms(doc)
     identifier = FontIdentifier(programs)
     numbers = pages or range(1, len(doc) + 1)
-    return [read_page(doc[n - 1], n, programs, identifier) for n in numbers]
+    return [read_page((shown or doc)[n - 1], n, programs, identifier) for n in numbers]

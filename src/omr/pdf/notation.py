@@ -246,19 +246,14 @@ def page_shapes(page, space):
     among them the halves of tuplet brackets and of hairpins. Frames are
     small stroked boxes (round rehearsal marks); hyphens are short level
     lines (lyric hyphens and extenders, which can also be filled)."""
-    turn = evidence._display_turn(page)
     found = {}
     curves = {}
     dashed = []
     thin = []
     frames = []
     hyphens = []
-    for d in page.get_drawings():
-        items = d["items"]
-        if turn is not None:
-            items = [(item[0], *(part * turn if hasattr(part, "transform") else part for part in item[1:]))
-                     for item in items]
-        rect = d["rect"] * turn if turn is not None else d["rect"]
+    for d in evidence.shown_drawings(page):
+        items, rect = d["items"], d["rect"]
         if ("s" in d["type"] and "f" not in d["type"] and 1.2 * space <= rect.width <= 10 * space
                 and 1.2 * space <= rect.height <= 5 * space and len(items) <= 12):
             frames.append((rect.x0, rect.y0, rect.x1, rect.y1))
