@@ -27,6 +27,8 @@ import re
 from dataclasses import dataclass
 from fractions import Fraction
 
+from omr.evaluate import events
+
 
 
 @dataclass(frozen=True)
@@ -73,33 +75,15 @@ def bar_fullness(score):
 SHARP_ORDER = "FCGDAEB"
 
 
-def _key_in_force(score):
-    """(part, bar) -> fifths, from the key signatures."""
-    keys = collections.defaultdict(list)
-    for e in score.structure:
-        if e.kind == "key":
-            keys[e.part].append((e.bar, int(e.value)))
-    for part in keys:
-        keys[part].sort()
-
-    def fifths(part, bar):
-        value = 0
-        for start, f in keys.get(part, ()):
-            if start <= bar:
-                value = f
-        return value
-    return fifths
-
-
 def key_spelling(score):
     """A note spelled far round the circle of fifths from its key: more
     than five fifths beyond the key's seven letters, which leaves room for
     the raised and lowered notes of major and minor keys (a sharp fourth or
     a flat seventh) but not, say, a D sharp in A flat major."""
-    fifths_at = _key_in_force(score)
+    signatures = events.SignaturesInForce(score)
     out = {}
     for n in score.notes:
-        fifths = fifths_at(n.part, n.bar)
+        fifths = signatures.key(n.part, n.bar)
         # F is -1 and B is 5 on the line of fifths; each sharp adds 7
         position = SHARP_ORDER.index(n.pitch.step) - 1 + 7 * n.pitch.alter
         if position > fifths + 5 + SPELLING_MARGIN or position < fifths - 1 - SPELLING_MARGIN:

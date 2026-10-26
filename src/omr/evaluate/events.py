@@ -264,6 +264,35 @@ def signature_changes(score):
     return kept
 
 
+class SignaturesInForce:
+    """The key and the time signature in force in each part at any bar,
+    from the score's structure as it stands when this is made: each lookup
+    is a bisection, not a scan of the whole structure. Where a part has two
+    of a kind at one bar, the later in the structure counts."""
+
+    def __init__(self, score):
+        by_bar = {}    # (kind, part) -> {bar: value}
+        for e in score.structure:
+            if e.kind in ("key", "time"):
+                by_bar.setdefault((e.kind, e.part), {})[e.bar] = e.value
+        self._starts = {where: sorted(values) for where, values in by_bar.items()}
+        self._values = {where: [by_bar[where][b] for b in starts] for where, starts in self._starts.items()}
+
+    def _value(self, kind, part, bar):
+        starts = self._starts.get((kind, part), ())
+        k = bisect.bisect_right(starts, bar)
+        return self._values[(kind, part)][k - 1] if k else None
+
+    def key(self, part, bar):
+        """The fifths of the key signature in force, 0 if there is none."""
+        value = self._value("key", part, bar)
+        return int(value) if value is not None else 0
+
+    def time(self, part, bar):
+        """The text of the time signature in force, such as "6/8", or None."""
+        return self._value("time", part, bar)
+
+
 def _number(text, default=0):
     try:
         return Fraction(text.strip()) if text and text.strip() else Fraction(default)

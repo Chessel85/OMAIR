@@ -1361,28 +1361,16 @@ class _Acc:
         return self.symbol.x
 
 
-def _time_in_force(score, bar, part=0):
+def _time_in_force(signatures, bar, part=0):
     """(bar length in quarter notes, compound) of a part's time signature in
-    force at a bar. Parts can have different time signatures."""
-    found = None
-    for e in score.structure:
-        if e.kind == "time" and e.part == part and e.bar <= bar:
-            if found is None or e.bar >= found.bar:
-                found = e
-    if found is None:
+    force at a bar (`signatures` is an events.SignaturesInForce). Parts can
+    have different time signatures."""
+    value = signatures.time(part, bar)
+    if value is None:
         return Fraction(4), False
-    beats, beat_type = found.value.split("/")
+    beats, beat_type = value.split("/")
     beats, beat_type = int(beats), int(beat_type)
     return Fraction(4 * beats, beat_type), beat_type >= 8 and beats % 3 == 0 and beats > 3
-
-
-def _key_in_force(score, part, bar):
-    found = None
-    for e in score.structure:
-        if e.kind == "key" and e.part == part and e.bar <= bar:
-            if found is None or e.bar >= found.bar:
-                found = e
-    return int(found.value) if found else 0
 
 
 def read_notes(score, ordered, pages, layouts=()):
@@ -1401,6 +1389,8 @@ def read_notes(score, ordered, pages, layouts=()):
     text_by_page = {}
     lengths = collections.defaultdict(Fraction)
     first_page = min((pl.page for pl, _, _ in ordered), default=1)
+    # the structure is read in full before the notes, so this holds for every system
+    signatures = events.SignaturesInForce(score)
 
     def page_text(pl, shapes):
         rect = pages[pl.page - 1].rect
@@ -1415,8 +1405,8 @@ def read_notes(score, ordered, pages, layouts=()):
             shapes_by_page[pl.page] = page_shapes(pages[pl.page - 1], h_space(pl))
             text_by_page[pl.page] = page_text(pl, shapes_by_page[pl.page])
         items = [i for i in text_by_page[pl.page] if i.system is system]
-        _read_system(score, pl, system, mapping, bar_base, shapes_by_page[pl.page], items, clefs_in_force,
-                     clef_onsets, lengths, open_ties)
+        _read_system(score, pl, system, mapping, bar_base, shapes_by_page[pl.page], items, signatures,
+                     clefs_in_force, clef_onsets, lengths, open_ties)
         bar_base += len(system.bars)
     for pl in layouts:
         if pl.page not in text_by_page:
@@ -1462,11 +1452,14 @@ def join_split_bars(score, ordered):
         base += len(system.bars)
         if i + 1 < len(ordered) and system.bars and system.bars[-1].end is None:
             joins.append((base - 1, _continued_bar_number(*ordered[i + 1][:2])))
+    # a join changes only the bars after it, and the joins run from the last
+    # back, so the signatures in force at each one are those found now
+    signatures = events.SignaturesInForce(score)
     for k, bracketed in reversed(joins):
         if k + 1 >= len(score.bars):
             continue
         first, second = score.bars[k].length, score.bars[k + 1].length
-        full, _ = _time_in_force(score, k)
+        full, _ = _time_in_force(signatures, k)
         if not (bracketed and 0 < first and 0 < second <= full):
             continue
         _join_bars(score, k, full - second)
@@ -1501,8 +1494,8 @@ def h_space(pl):
     return statistics.median(s.space for s in pl.staves) if pl.staves else 5.0
 
 
-def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_force, clef_onsets, lengths,
-                 open_ties):
+def _read_system(score, pl, system, mapping, bar_base, shapes, items, signatures, clefs_in_force, clef_onsets,
+                 lengths, open_ties):
     from omr.pdf import markings, rules
 
     beams, curves, dashed, thin = shapes.beams, shapes.level_curves, shapes.dashed, shapes.thin
@@ -1599,7 +1592,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
     for (staff_id, k), group in by_staff_bar.items():
         main = [e for e in group if not e.grace]
         part = mapping.staves[[id(st) for st in system.staves].index(staff_id)][0]
-        bar_length, _ = _time_in_force(score, bar_base + k, part)
+        bar_length, _ = _time_in_force(signatures, bar_base + k, part)
         whole = [e for e in main if e.rest is not None and e.rest.name in ("restWhole", "restDoubleWhole")]
         if len(main) == 1 and whole:
             whole[0].whole_bar = True
@@ -1693,7 +1686,7 @@ def _read_system(score, pl, system, mapping, bar_base, shapes, items, clefs_in_f
             for x, value in clef_values:
                 if x < e.x:
                     clef = value
-            fifths = _key_in_force(score, part, global_bar)
+            fifths = signatures.key(part, global_bar)
             value_name = TYPE_NAME.get(e.base, "quarter") + "." * e.dots
             grace_order = 0
             if e.grace:
@@ -1961,6 +1954,7 @@ def unfilled_bars(score):
     side by side that together make one (a bar split at a repeat or a
     system break), nor a voice that only fills part of a bar whose other
     voices fill it (rests hidden by the engraver)."""
+    signatures = events.SignaturesInForce(score)
     reach = collections.defaultdict(Fraction)
     for n in score.notes:
         if not n.grace:
@@ -1968,7 +1962,7 @@ def unfilled_bars(score):
             reach[key] = max(reach[key], n.onset + n.duration)
     for r in score.rests:
         key = (r.part, r.staff, r.bar, r.voice)
-        expected, _ = _time_in_force(score, r.bar, r.part)
+        expected, _ = _time_in_force(signatures, r.bar, r.part)
         length = expected if r.duration == events.WHOLE_BAR else r.duration
         reach[key] = max(reach[key], r.onset + length)
     by_bar = collections.defaultdict(Fraction)
@@ -1976,7 +1970,7 @@ def unfilled_bars(score):
         by_bar[(part, bar)] = max(by_bar[(part, bar)], length)
     out = []
     for (part, staff, bar, voice), length in sorted(reach.items()):
-        expected, _ = _time_in_force(score, bar, part)
+        expected, _ = _time_in_force(signatures, bar, part)
         whole = by_bar[(part, bar)]
         if length > expected:
             out.append(BarFill(part, staff, bar, voice, length, expected))

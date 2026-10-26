@@ -131,22 +131,7 @@ class Writer:
         self.jumps = self._jump_words()
         self.merged = set()    # (part, bar, staff) whose voices were merged to MAX_VOICES
         self.left_out = []     # notes and rests not written, as no voice had room (_merge_voices)
-        self.keys = {}       # (part, bar) -> fifths in force
-        self.times = {}      # (part, bar) -> bar length from the time signature in force
-        for p in range(len(score.parts)):
-            fifths, length = 0, None
-            changes = {}
-            for e in sorted((e for e in score.structure if e.part == p and e.kind in ("key", "time")),
-                            key=lambda e: e.bar):
-                changes.setdefault(e.bar, []).append(e)
-            for b in range(self._bar_count(p)):
-                for e in changes.get(b, ()):
-                    if e.kind == "key":
-                        fifths = int(e.value)
-                    else:
-                        length = _time_length(e.value)
-                self.keys[(p, b)] = fifths
-                self.times[(p, b)] = length
+        self.signatures = events.SignaturesInForce(score)
 
     def _bar_count(self, part):
         counts = self.score.bar_counts
@@ -373,7 +358,8 @@ class Writer:
 
     def _length(self, p, b, e):
         if isinstance(e, events.Rest) and e.duration == events.WHOLE_BAR:
-            length = self.times.get((p, b))
+            time = self.signatures.time(p, b)
+            length = _time_length(time) if time is not None else None
             if length is None:
                 bar = self.score.bars[b] if b < len(self.score.bars) else None
                 length = bar.length if bar is not None and bar.length else Fraction(4)
@@ -454,7 +440,7 @@ class Writer:
         """The accidental to print: where the pitch differs from the key and
         the accidentals earlier in the bar. A tied-over note prints none."""
         key = (e.pitch.step, e.pitch.octave)
-        expected = state.get(key, _key_alter(self.keys.get((p, b), 0), e.pitch.step))
+        expected = state.get(key, _key_alter(self.signatures.key(p, b), e.pitch.step))
         if e.tie_stop:
             return None
         if e.pitch.alter == expected:
