@@ -201,6 +201,24 @@ def test_two_endings_drawn_with_one_joined_line():
     assert structure.system_endings(page, system, [line]) == [(1, 1, "1", True), (2, 2, "1", True)]
 
 
+def test_an_ending_after_a_start_repeat_starts_past_its_dots():
+    # MuseScore 4 starts the line 2 spaces after the barline (pdmx-cKcqbwQThoZ6)
+    from types import SimpleNamespace
+
+    staff = SimpleNamespace(top=100.0, space=5.0)
+    repeat = layout.Barline(95.0, 100.0, [(95.0, True), (100.0, False)], repeat_after=True)
+    bars = [SimpleNamespace(x0=50, x1=95, end=repeat, start=None),
+            SimpleNamespace(x0=100, x1=300, end=object(), start=repeat)]
+    system = SimpleNamespace(staves=[staff], bars=bars, x0=50.0, x1=300.0)
+    page = SimpleNamespace(text=[SimpleNamespace(text="1", box=(113.0, 85.0, 117.0, 92.0))],
+                           verticals=[(110.0, 83.0, 93.0, 0.5)])
+    line = layout._Line(83.0, 110.0, 300.0, 0.5)
+    assert structure.system_endings(page, system, [line]) == [(1, 1, "1", False)]
+    # without the repeat, a line that far into the bar is not an ending
+    bars[1].start = None
+    assert structure.system_endings(page, system, [line]) == []
+
+
 def test_a_boxed_rehearsal_mark_is_not_an_ending():
     # the frame round a rehearsal mark "2" has a hook down at each end, just
     # past the number

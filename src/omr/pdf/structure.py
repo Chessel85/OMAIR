@@ -595,7 +595,10 @@ def system_endings(page_layout, system, horizontals):
             continue
         # A volta starts at the start of a bar (in the first bar of a system,
         # anywhere after the clef and key); a line over a fingering need not.
-        if start > 0 and abs(line.x0 - system.bars[start].x0) > 1.5 * space:
+        # After a start repeat MuseScore 4 starts it past the dots, 2 spaces on (pdmx-cKcqbwQThoZ6).
+        bar = system.bars[start]
+        reach = 2.5 if getattr(getattr(bar, "start", None), "repeat_after", False) else 1.5
+        if start > 0 and abs(line.x0 - bar.x0) > reach * space:
             continue
         if end is None:
             end = len(system.bars) - 1
