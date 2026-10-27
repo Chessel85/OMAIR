@@ -600,12 +600,13 @@ def hidden_barlines(layout, system, music_xs):
     return [Barline(x - 0.5 * space, x - 0.5 * space, [(x - 0.5 * space, False)]) for x in found]
 
 
-def make_bars(system, music_xs, counts=()):
+def make_bars(system, music_xs, counts=(), times=()):
     """Bars of a system (rule 5). `music_xs` are the x of the notes and rests
     in it, `counts` (x, y, digit) of digits over a staff: a multi-bar rest's
     count, which MuseScore draws over an empty bar (the rest itself is lines).
     Such a bar stands for that many bars: the first keeps its width, the
-    others are slivers before its end barline."""
+    others are slivers before its end barline. `times` are the x of time
+    signatures in the system."""
     bars = []
     start_x, start_line = system.x0, None
     for i, group in enumerate(system.barlines):
@@ -616,6 +617,7 @@ def make_bars(system, music_xs, counts=()):
         if empty and not bars and (group.repeat_after or group.kind == "heavy-light"):
             pass    # a start repeat after the clef: it opens the first bar
         elif (empty and not bars and next_has_music and group.x1 < system.x1 - 1
+              and any(group.x1 <= x <= group.x1 + 3 * system.staves[0].space for x in times)
               and not _count(counts, start_x, group.x0) and not (system.page == 1 and system.index == 0)):
             # LilyPond can start a line with its clef and key, then a barline
             # before a time change: nothing stands before it (a whole bar of
@@ -762,5 +764,6 @@ def read_layout(page_symbols, page, staves=None, system_gap=None, lines=None):
                 and id(layout.staff_of(s)) in members]
         counts = [(s.x, s.y, s.name[-1]) for s in symbols if s.name.startswith("timeSig") and s.name[-1].isdigit()
                   and id(layout.staff_of(s)) in members and s.box[3] <= layout.staff_of(s).top]
-        system.bars = make_bars(system, main, counts)
+        times = [s.x for s in symbols if s.name in TIME_NAMES and id(layout.staff_of(s)) in members]
+        system.bars = make_bars(system, main, counts, times)
     return layout
