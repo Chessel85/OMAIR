@@ -446,3 +446,12 @@ def test_a_grace_notes_smaller_accidental_ends_a_key_signature_run():
     flats = [SimpleNamespace(x=86.0 + 4.6 * k, size=20.0) for k in range(5)]
     grace = SimpleNamespace(x=110.6, size=12.6)
     assert structure.close_run(flats + [grace], 5.0) == flats
+
+
+def test_a_clef_in_parentheses_is_a_courtesy():
+    staff = SimpleNamespace(top=420.0, bottom=440.0, space=5.0)
+    sides = [SimpleNamespace(name="brace", box=(583.0, 420.0, 589.0, 456.0)),
+             SimpleNamespace(name="brace", box=(600.0, 420.0, 606.0, 456.0))]
+    page = SimpleNamespace(symbols=sides)
+    assert structure.in_parentheses(page, staff, 588.0, 601.0)
+    assert not structure.in_parentheses(page, staff, 627.0, 640.0)

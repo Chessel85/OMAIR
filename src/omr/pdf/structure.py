@@ -299,7 +299,7 @@ def staff_clefs(page_layout, system, staff):
     out = []
     for s in sorted((s for s in page_layout.on_staff(staff) if s.name in CLEFS), key=lambda s: s.x):
         k = lay.bar_of(system, s.x)
-        if k is None:
+        if k is None or in_parentheses(page_layout, staff, s.box[0], s.box[2]):
             continue
         bar = system.bars[k]
         before = any(lay.bar_start(system, k) <= x < s.x for x in music)
@@ -319,6 +319,18 @@ def staff_clefs(page_layout, system, staff):
             rank = sum(1 for x in music if lay.bar_start(system, k) <= x < s.x)
             out.append((k, False, rank, value))
     return out
+
+
+def in_parentheses(page_layout, staff, x0, x1):
+    """Whether the ink from x0 to x1 on a staff stands in parentheses: a
+    courtesy clef or key that MuseScore puts round a repeat barline (it
+    draws the brackets as outlines, read as small braces)."""
+    space = staff.space
+    sides = [b.box for b in page_layout.symbols if b.name in lay.BRACE_NAMES
+             and b.box[3] - b.box[1] < 2 * (staff.bottom - staff.top)
+             and b.box[1] < staff.bottom and b.box[3] > staff.top]
+    return (any(x0 - space <= box[2] <= x0 + 0.3 * space for box in sides)
+            and any(x1 - 0.3 * space <= box[0] <= x1 + space for box in sides))
 
 
 def _at_clef(clef, box):
@@ -417,6 +429,8 @@ def staff_keys(page_layout, system, staff):
                 out.append((0, 0))
             continue
         every = close_run(every, staff.space)
+        if in_parentheses(page_layout, staff, every[0].box[0], every[-1].box[2]):
+            continue
         free = [s for s in every if not any(0 < nx - s.x <= 3.5 * staff.space and ns == page_layout.step_of(s)
                                              for nx, ns in notes)]
         # A run of two or more that follows the key-signature order is a key
