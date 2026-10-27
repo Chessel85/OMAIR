@@ -336,7 +336,29 @@ def read_page(page, number, programs=None, identifier=None, ev=None):
     braces = [s.box for s in result.symbols if s.name == "brace"]
     result.symbols.extend(b for b in brace_halves(page, ev)
                           if not any(_boxes_overlap(b.box, other) for other in braces))
+    if not outlined_page(ev):   # on a page drawn as outlines, glyphs have such curves too
+        braces = [s.box for s in result.symbols if s.name == "brace"]
+        result.symbols.extend(b for b in parentheses(page, ev)
+                              if not any(_boxes_overlap(b.box, other) for other in braces))
     return result
+
+
+def parentheses(page, ev):
+    """Round brackets drawn as shapes (MuseScore 4 brackets a courtesy key
+    this way): a filled shape of two to four curves, about two staff spaces
+    tall and a fraction of that wide."""
+    space = ev.staves.staff_space_pt
+    if not space:
+        return []
+    found = []
+    for d in evidence.shown_drawings(page):
+        items = d["items"]
+        if "f" not in d["type"] or not 2 <= len(items) <= 4 or any(item[0] != "c" for item in items):
+            continue
+        x0, y0, x1, y1 = _curve_box(items)
+        if 1.5 * space <= y1 - y0 <= 3 * space and x1 - x0 < (y1 - y0) / 4:
+            found.append(Symbol("parenthesis", x0, y1, 4 * space, (x0, y0, x1, y1), "outlines", "outline"))
+    return found
 
 
 def _curve_box(items):

@@ -343,7 +343,7 @@ def in_parentheses(page_layout, staff, x0, x1):
     courtesy clef or key that MuseScore puts round a repeat barline (it
     draws the brackets as outlines, read as small braces)."""
     space = staff.space
-    sides = [b.box for b in page_layout.symbols if b.name in lay.BRACE_NAMES
+    sides = [b.box for b in page_layout.symbols if (b.name in lay.BRACE_NAMES or b.name == "parenthesis")
              and b.box[3] - b.box[1] < 2 * (staff.bottom - staff.top)
              and b.box[1] < staff.bottom and b.box[3] > staff.top]
     return (any(x0 - space <= box[2] <= x0 + 0.3 * space for box in sides)

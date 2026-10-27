@@ -495,3 +495,10 @@ def test_a_lone_digit_in_the_staff_is_no_time_signature_for_a_hidden_barline():
     page = SimpleNamespace(on_staff=lambda s: finger)
     system = SimpleNamespace(staves=[staff], barlines=[layout.Barline(200.0, 200.0, [(200.0, False)])], x0=40.0, x1=300.0)
     assert layout.hidden_barlines(page, system, [60.0, 140.0]) == []
+
+
+def test_a_key_between_parenthesis_shapes_is_a_courtesy():
+    staff = SimpleNamespace(top=643.0, bottom=663.0, space=5.0)
+    sides = [SimpleNamespace(name="parenthesis", box=(427.1, 644.8, 428.8, 654.9)),
+             SimpleNamespace(name="parenthesis", box=(435.9, 644.8, 437.6, 654.9))]
+    assert structure.in_parentheses(SimpleNamespace(symbols=sides), staff, 430.0, 434.0)
