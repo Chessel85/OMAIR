@@ -478,4 +478,5 @@ def test_a_time_change_between_a_barline_and_a_start_repeat_opens_the_next_bar()
     repeat = layout.Barline(614.0, 619.0, [(614.0, True), (619.0, False)], repeat_after=True)
     system = SimpleNamespace(staves=[staff], x0=20.0, x1=820.0, barlines=[single, repeat], page=1, index=5)
     bars = layout.make_bars(system, [500.0, 650.0])
-    assert [(b.x0, b.x1) for b in bars] == [(20.0, 589.0), (619.0, 820.0)]
+    # the second bar takes in the time signature and starts at the repeat
+    assert [(b.x0, b.x1) for b in bars] == [(20.0, 589.0), (589.0, 820.0)] and bars[1].start is repeat
