@@ -109,6 +109,13 @@ def test_outlined_verovio_page_is_named_by_shape():
     assert all(s.source == "outline" for p in pages for s in p.symbols)
 
 
+@pytest.mark.parametrize("name", ["gClef8vb", "gClef8va", "fClef8vb", "fClef8va"])
+def test_an_outlined_octave_clef_keeps_its_8(name):
+    # the small 8 is part of the glyph: without its own candidate the plain clef matches (Verovio's double bass)
+    for ref in shapes.references(name):
+        assert symbols._match_outline(ref, ref.width, ref.height)[0] == name
+
+
 def test_a_page_turned_into_outlines_gives_the_same_noteheads():
     doc = pymupdf.open(DATA / "ms4_leland.pdf")
     svg = doc[0].get_svg_image(text_as_path=True)

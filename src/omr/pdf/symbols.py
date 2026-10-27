@@ -530,7 +530,7 @@ OUTLINE_CANDIDATES = (
     "noteheadXBlack", "noteheadCircleX", "noteheadDiamondBlack",                          # drums and harmonics
     "restWhole", "restHalf", "restQuarter", "rest8th", "rest16th", "rest32nd", "rest64th",
     "accidentalSharp", "accidentalFlat", "accidentalNatural", "accidentalDoubleSharp", "accidentalDoubleFlat",
-    "gClef", "fClef", "cClef", "gClef8vb", "unpitchedPercussionClef1",
+    "gClef", "fClef", "cClef", "gClef8vb", "gClef8va", "fClef8vb", "fClef8va", "unpitchedPercussionClef1",
     "flag8thUp", "flag8thDown", "flag16thUp", "flag16thDown", "flag32ndUp", "flag32ndDown",
     "augmentationDot", "timeSigCommon", "timeSigCutCommon",
     *(f"timeSig{i}" for i in range(10)), *(f"tuplet{i}" for i in range(10)),
@@ -544,7 +544,7 @@ OUTLINE_CANDIDATES = (
     "keyboardPedalUp", "stringsUpBow", "stringsDownBow", "wiggleTrill", "wiggleArpeggiatoUp", "tremolo1",
 )
 OUTLINE_MATCH = 0.75    # similarity needed to name an outlined shape
-MAX_SYMBOL_SPACES = 8   # larger shapes (slurs, ties, beams) are not symbols
+MAX_SYMBOL_SPACES = 8.5   # larger shapes (slurs, ties, beams) are not symbols; Leland's gClef8vb is 8.08
 
 
 def outline_symbols(page, ev, unmapped, unnamed=None):
