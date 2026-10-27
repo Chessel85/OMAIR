@@ -636,7 +636,9 @@ def _read_barline(score, part_index, bar_index, position, element):
         score.structure.append(Marking("repeat", repeat.get("direction", ""), part_index, None, bar_index, position))
     ending = element.find("ending")
     if ending is not None:
-        value = f"{ending.get('type', '')} {' '.join((ending.get('number') or '').replace(',', ' ').split())}"
+        # An end with or without its closing hook is the same end: engravers choose it (decision 16).
+        kind = {"discontinue": "stop"}.get(ending.get("type", ""), ending.get("type", ""))
+        value = f"{kind} {' '.join((ending.get('number') or '').replace(',', ' ').split())}"
         score.structure.append(Marking("ending", value.strip(), part_index, None, bar_index, position))
     for name in ("segno", "coda"):
         if element.find(name) is not None:

@@ -853,6 +853,14 @@ def test_repeat_play_count_is_not_compared(tmp_path):
     fig = compare(tmp_path, with_repeat(3), with_repeat(None))
     assert fig["structure"]["correct"]
 
+def test_an_endings_closing_hook_is_not_compared(tmp_path):
+    def with_ending(end):
+        start = '<barline location="left"><ending number="2" type="start">2.</ending></barline>'
+        return score(("Flute", [start + four_quarters() + f'<barline location="right"><ending number="2" type="{end}"/></barline>']))
+    fig = compare(tmp_path, with_ending("stop"), with_ending("discontinue"))
+    assert fig["structure"]["correct"]
+
+
 def test_band_widens_when_the_best_path_needs_it(tmp_path):
     # 60 bars of one whole note each, no two alike; the output drops the first 30 and
     # adds 30 wrong bars at the end. The best alignment keeps the 30 surviving bars,
