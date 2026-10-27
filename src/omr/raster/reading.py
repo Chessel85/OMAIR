@@ -47,9 +47,9 @@ def _check_model(path):
 
 @functools.cache
 def _model(path):
+    _check_model(path)   # before the import: a missing model is the message to give, installed or not
     from ultralytics import YOLO
 
-    _check_model(path)
     return YOLO(str(path), task="detect")
 
 
