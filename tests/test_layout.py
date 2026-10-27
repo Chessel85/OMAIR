@@ -201,6 +201,25 @@ def test_two_endings_drawn_with_one_joined_line():
     assert structure.system_endings(page, system, [line]) == [(1, 1, "1", True), (2, 2, "1", True)]
 
 
+def test_lines_in_step_far_larger_than_the_page_staves_are_no_staff():
+    # os-sq8437358, MuseScore 4: five lines 14 points apart among staves of 3.1
+    staff = lambda top: [layout._Line(top + 3.1 * k, 43.0, 553.0, 0.4) for k in range(5)]
+    lines = staff(100.0) + staff(130.0) + staff(160.0) + [layout._Line(121.0 + 14 * k, 57.0, 552.0, 0.4) for k in range(5)]
+    found = layout.find_staves(lines, 1)
+    assert [round(s.top) for s in found] == [100, 130, 160]
+
+
+def test_a_bar_number_over_a_clef_is_not_its_octave_mark():
+    # MuseScore 4's "15" touches the clef under it; "8" stands at an earlier line's start
+    run = lambda text, y: SimpleNamespace(text=text, box=(42.0, y, 53.0, y + 10), font="Edwin-Italic", size=10.0)
+    clef = SimpleNamespace(name="gClef", box=(45.4, 676.7, 53.5, 699.2), size=12.5)
+    page = SimpleNamespace(text=[run("8", 410.7), run("15", 667.8)], symbols=[clef])
+    assert structure.octave_digits(page, clef) == 0
+    # an 8 printed alike at every clef is the octave mark
+    page.text = [run("8", 410.7), run("8", 667.8)]
+    assert structure.octave_digits(page, clef) == 1
+
+
 def test_an_ending_after_a_start_repeat_starts_past_its_dots():
     # MuseScore 4 starts the line 2 spaces after the barline (pdmx-cKcqbwQThoZ6)
     from types import SimpleNamespace
@@ -488,7 +507,7 @@ def test_an_octave_8_between_two_close_clefs_is_the_nearer_ones():
     upper = SimpleNamespace(name="gClef", box=(157.0, 249.0, 170.0, 286.0), size=20.0)
     lower = SimpleNamespace(name="gClef", box=(157.0, 294.0, 170.0, 331.0), size=20.0)
     def eight(y):
-        return SimpleNamespace(text="8", box=(160.2, y, 164.1, y + 6.9), font="C059-Italic")
+        return SimpleNamespace(text="8", box=(160.2, y, 164.1, y + 6.9), font="C059-Italic", size=8.0)
     page = SimpleNamespace(symbols=[upper, lower], text=[eight(283.7), eight(328.9)])
     assert structure.octave_digits(page, lower) == -1
     assert structure.octave_digits(page, upper) == -1

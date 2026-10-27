@@ -375,6 +375,17 @@ def _clef_digits(page_layout, clef):
             and _at_clef(clef, s.box)]
 
 
+def _bar_number(page_layout, run):
+    """A number that is a bar number: the same font and size print another
+    number at the same place on another line of the page (MuseScore 4's
+    "15" touching the clef under it, os-sq8437358). An octave mark repeats
+    unchanged."""
+    return any(other is not run and other.font == run.font and abs(other.size - run.size) < 0.1
+               and other.text.strip().isdigit() and other.text.strip() != run.text.strip()
+               and abs(other.box[0] - run.box[0]) <= 2 and abs(other.box[1] - run.box[1]) > 20
+               for other in page_layout.text)
+
+
 def octave_digits(page_layout, clef):
     """The octave change shown by a small 8 or 15 at a clef (LilyPond writes
     an octave clef this way), drawn as music digits or as text: -1 for an 8
@@ -384,7 +395,7 @@ def octave_digits(page_layout, clef):
     marks = [(TIME_DIGITS[d.name], d.box) for d in _clef_digits(page_layout, clef)]
     marks += [(run.text.strip(), run.box) for run in page_layout.text
               if run.text.strip() in ("8", "15", "22") and not run.font.startswith("image")
-              and _at_clef(clef, run.box)]
+              and _at_clef(clef, run.box) and not _bar_number(page_layout, run)]
     # on staves close together, the 8 under one clef can touch the top of the clef below: it is the nearer one's
     others = [c for c in page_layout.symbols if c.name in CLEFS and c is not clef]
     marks = [m for m in marks if not any(_at_clef(c, m[1]) and _clef_gap(c, m[1]) < _clef_gap(clef, m[1])

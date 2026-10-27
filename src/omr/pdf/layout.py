@@ -246,12 +246,29 @@ def horizontal_lines(candidates):
 def find_staves(lines, page_number):
     """Five-line staves: five lines, equally spaced (within 10 percent), each
     no thicker than a third of the gap, overlapping along at least half of the
-    shortest, and at least six staff spaces long.
+    shortest, and at least six staff spaces long. On a page of three or more,
+    no staff is over twice the median staff space.
 
     The inspector counts staves by its own rules (omr.pdf.evidence.find_staves),
     on purpose: it classifies the page and counts six-line and one-line staves
     too, where this finder places each five-line staff for the reader."""
     lines = sorted((l for l in lines if l.length >= 15), key=lambda l: l.y)
+    staves = _five_line_staves(lines, page_number, 15)
+    if len(staves) >= 3:
+        # lines of other things in step with staff lines can make a staff far
+        # larger than the page's (14 points against 3.1, os-sq8437358; an
+        # octave line over a staff, pdmx-3KrrJW9pPmYS), taking the real
+        # staff's lines: look again with no gap over twice the usual
+        usual = statistics.median(s.space for s in staves)
+        if any(s.space > 2 * usual for s in staves):
+            staves = _five_line_staves(lines, page_number, 2 * usual)
+    staves.sort(key=lambda s: (s.top, s.x0))
+    return staves
+
+
+def _five_line_staves(lines, page_number, widest):
+    """The staves of find_staves, from lines sorted by height, with no gap
+    between lines over `widest` points."""
     used = set()
     staves = []
     for i, first in enumerate(lines):
@@ -260,7 +277,7 @@ def find_staves(lines, page_number):
         best = None
         for j in range(i + 1, len(lines)):
             gap = lines[j].y - first.y
-            if gap > 15:
+            if gap > widest:
                 break
             if gap < 2 or not _overlap(first, lines[j]):
                 continue
@@ -289,7 +306,6 @@ def find_staves(lines, page_number):
             ys = [lines[k].y for k in run]
             space = (ys[4] - ys[0]) / 4
             staves.append(Staff(page_number, ys[0], space, x0, x1))
-    staves.sort(key=lambda s: (s.top, s.x0))
     return staves
 
 
