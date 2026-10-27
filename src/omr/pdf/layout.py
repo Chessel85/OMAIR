@@ -265,8 +265,9 @@ def find_staves(lines, page_number):
             if gap < 2 or not _overlap(first, lines[j]):
                 continue
             run = [i, j]
-            for k in range(3):
-                want = first.y + (k + 2) * gap
+            for _ in range(3):
+                # from the line before: one line set a fraction off (a hairline joined to it) does not lose the staff
+                want = lines[run[-1]].y + gap
                 nxt = _find_line(lines, run[-1] + 1, want, 0.1 * gap, first)
                 if nxt is None:
                     break
