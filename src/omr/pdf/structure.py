@@ -644,6 +644,7 @@ def read_structure(layouts, assigned=None):
     open_ending = None
     shown = {}    # bar -> the parts with a staff in its system
     line_doubles = []   # bars after a double barline that ends a system
+    system_starts = set()
     for pl, system, mapping in ordered:
         horizontals = getattr(pl, "horizontals", [])
         for k, bar in enumerate(system.bars):
@@ -697,10 +698,12 @@ def read_structure(layouts, assigned=None):
         for k in range(len(system.bars)):
             shown[bar_base + k] = {part for part, _ in mapping.staves}
         lilypond = any(s.source == "emmentaler" for s in pl.symbols)
+        system_starts.add(bar_base)
         if lilypond and system.bars and system.bars[-1].end is not None and system.bars[-1].end.kind == "double":
             line_doubles.append(bar_base + len(system.bars))
         bar_base += len(system.bars)
     _line_break_repeats(score, line_doubles)
+    _drop_lone_naturals(score, shown, system_starts)
     _share_times(score, shown)
     for p in range(len(score.parts)):
         if not any(e.kind == "key" and e.part == p and e.bar == 0 for e in score.structure):
@@ -729,6 +732,20 @@ def _line_break_repeats(score, line_doubles):
         for p in range(len(score.parts)):
             score.structure.append(events.Marking("repeat", "forward", p, None, bar, Fraction(0)))
         marks.add((bar, "forward"))
+
+
+def _drop_lone_naturals(score, shown, system_starts):
+    """A change to no sharps or flats inside a system is the whole score's:
+    one read in only some of the parts shown there is naturals before the
+    first note of a bar, and is dropped. (A key with sharps or flats can
+    change in one part alone.)"""
+    keys = collections.defaultdict(dict)
+    for e in score.structure:
+        if e.kind == "key" and e.bar not in system_starts:
+            keys[e.bar][e.part] = e.value
+    lone = {bar for bar, parts in keys.items()
+            if len(parts) < len(shown.get(bar, ())) and set(parts.values()) == {"0"}}
+    score.structure = [e for e in score.structure if not (e.kind == "key" and e.bar in lone)]
 
 
 def _share_times(score, shown):
