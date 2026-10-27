@@ -440,3 +440,9 @@ def test_naturals_read_as_a_key_in_one_part_inside_a_system_are_dropped():
     structure._drop_lone_naturals(score, {5: {0, 1}, 7: {0, 1}}, {0})
     # a flat in one part alone stays: a part can change key by itself
     assert [(e.value, e.bar) for e in score.structure] == [("-1", 7)]
+
+
+def test_a_grace_notes_smaller_accidental_ends_a_key_signature_run():
+    flats = [SimpleNamespace(x=86.0 + 4.6 * k, size=20.0) for k in range(5)]
+    grace = SimpleNamespace(x=110.6, size=12.6)
+    assert structure.close_run(flats + [grace], 5.0) == flats

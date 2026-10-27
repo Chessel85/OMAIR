@@ -433,11 +433,13 @@ def staff_keys(page_layout, system, staff):
 
 
 def close_run(accidentals, space):
-    """The accidentals from the first while each is close to the one before:
-    a key signature's accidentals are evenly spaced, about a staff space apart."""
+    """The accidentals from the first while each is close to the one before
+    and the same size: a key signature's accidentals are evenly spaced,
+    about a staff space apart (a grace note's smaller accidental can follow
+    just after)."""
     run = accidentals[:1]
     for s in accidentals[1:]:
-        if s.x - run[-1].x > 1.6 * space:
+        if s.x - run[-1].x > 1.6 * space or abs(s.size - run[0].size) > 0.1 * run[0].size:
             break
         run.append(s)
     return run
