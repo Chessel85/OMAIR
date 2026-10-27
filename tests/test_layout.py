@@ -433,15 +433,6 @@ def test_a_side_of_a_rehearsal_mark_box_is_not_an_ending_line():
     assert not structure._boxes_text(page, ending, 5.0)
 
 
-def test_naturals_read_as_a_key_in_one_part_inside_a_system_are_dropped():
-    score = events.Score(parts=[events.Part("Voice", 1), events.Part("Piano", 2)])
-    score.structure = [events.Marking("key", "0", 1, None, 5, Fraction(0)),
-                       events.Marking("key", "-1", 0, None, 7, Fraction(0))]
-    structure._drop_lone_naturals(score, {5: {0, 1}, 7: {0, 1}}, {0})
-    # a flat in one part alone stays: a part can change key by itself
-    assert [(e.value, e.bar) for e in score.structure] == [("-1", 7)]
-
-
 def test_a_grace_notes_smaller_accidental_ends_a_key_signature_run():
     flats = [SimpleNamespace(x=86.0 + 4.6 * k, size=20.0) for k in range(5)]
     grace = SimpleNamespace(x=110.6, size=12.6)

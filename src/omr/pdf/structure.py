@@ -441,9 +441,11 @@ def staff_keys(page_layout, system, staff):
     accidentals has no sharps or flats. An accidental with a notehead just
     to its right on its step belongs to that note."""
     out = []
-    heads = [(s.x, page_layout.step_of(s)) for s in page_layout.on_staff(staff) if lay.is_note(s.name)]
-    # a head pushed right of its chord (a second) is measured from the chord's left edge
-    notes = [(min(ox for ox, _ in heads if 0 <= x - ox <= 2.2 * staff.space), step) for x, step in heads]
+    heads = [(s.x, page_layout.step_of(s), s.box[2] - s.box[0]) for s in page_layout.on_staff(staff)
+             if lay.is_note(s.name)]
+    # a head pushed right of its chord (a second) is measured from the chord's
+    # left edge: it stands about a head's width on (grace notes in a row stand further apart)
+    notes = [(min(ox for ox, _, width in heads if 0 <= x - ox <= 1.15 * width), step) for x, step, _ in heads]
     for k in range(len(system.bars)):
         region = signature_region(page_layout, system, staff, k)
         every = sorted((s for s in region if s.name in (SHARP, FLAT, NATURAL)), key=lambda s: s.x)
@@ -465,6 +467,9 @@ def staff_keys(page_layout, system, staff):
         # first note's own accidental).
         # (A chord's accidentals each have a note on their step: then at least
         # one accidental of the run must be free of notes.)
+        # Sharps and flats together are a chord's accidentals, not a key signature.
+        if any(s.name == SHARP for s in every) and any(s.name == FLAT for s in every):
+            continue
         whole = key_of(page_layout, staff, every) if len(every) >= 2 and free else None
         fifths = whole if whole is not None else key_of(page_layout, staff, free)
         if fifths is not None:
@@ -688,7 +693,6 @@ def read_structure(layouts, assigned=None):
     open_ending = None
     shown = {}    # bar -> the parts with a staff in its system
     line_doubles = []   # bars after a double barline that ends a system
-    system_starts = set()
     for pl, system, mapping in ordered:
         horizontals = getattr(pl, "horizontals", [])
         for k, bar in enumerate(system.bars):
@@ -742,12 +746,10 @@ def read_structure(layouts, assigned=None):
         for k in range(len(system.bars)):
             shown[bar_base + k] = {part for part, _ in mapping.staves}
         lilypond = any(s.source == "emmentaler" for s in pl.symbols)
-        system_starts.add(bar_base)
         if lilypond and system.bars and system.bars[-1].end is not None and system.bars[-1].end.kind == "double":
             line_doubles.append(bar_base + len(system.bars))
         bar_base += len(system.bars)
     _line_break_repeats(score, line_doubles)
-    _drop_lone_naturals(score, shown, system_starts)
     _share_times(score, shown)
     for p in range(len(score.parts)):
         if not any(e.kind == "key" and e.part == p and e.bar == 0 for e in score.structure):
@@ -776,20 +778,6 @@ def _line_break_repeats(score, line_doubles):
         for p in range(len(score.parts)):
             score.structure.append(events.Marking("repeat", "forward", p, None, bar, Fraction(0)))
         marks.add((bar, "forward"))
-
-
-def _drop_lone_naturals(score, shown, system_starts):
-    """A change to no sharps or flats inside a system is the whole score's:
-    one read in only some of the parts shown there is naturals before the
-    first note of a bar, and is dropped. (A key with sharps or flats can
-    change in one part alone.)"""
-    keys = collections.defaultdict(dict)
-    for e in score.structure:
-        if e.kind == "key" and e.bar not in system_starts:
-            keys[e.bar][e.part] = e.value
-    lone = {bar for bar, parts in keys.items()
-            if len(parts) < len(shown.get(bar, ())) and set(parts.values()) == {"0"}}
-    score.structure = [e for e in score.structure if not (e.kind == "key" and e.bar in lone)]
 
 
 def _share_times(score, shown):
