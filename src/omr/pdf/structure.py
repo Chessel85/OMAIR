@@ -403,7 +403,9 @@ def staff_keys(page_layout, system, staff):
     accidentals has no sharps or flats. An accidental with a notehead just
     to its right on its step belongs to that note."""
     out = []
-    notes = [(s.x, page_layout.step_of(s)) for s in page_layout.on_staff(staff) if lay.is_note(s.name)]
+    heads = [(s.x, page_layout.step_of(s)) for s in page_layout.on_staff(staff) if lay.is_note(s.name)]
+    # a head pushed right of its chord (a second) is measured from the chord's left edge
+    notes = [(min(ox for ox, _ in heads if 0 <= x - ox <= 2.2 * staff.space), step) for x, step in heads]
     for k in range(len(system.bars)):
         region = signature_region(page_layout, system, staff, k)
         every = sorted((s for s in region if s.name in (SHARP, FLAT, NATURAL)), key=lambda s: s.x)
