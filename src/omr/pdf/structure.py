@@ -633,6 +633,7 @@ def read_structure(layouts, assigned=None):
     bar_base = 0
     open_ending = None
     shown = {}    # bar -> the parts with a staff in its system
+    line_doubles = []   # bars after a double barline that ends a system
     for pl, system, mapping in ordered:
         horizontals = getattr(pl, "horizontals", [])
         for k, bar in enumerate(system.bars):
@@ -685,13 +686,39 @@ def read_structure(layouts, assigned=None):
             score.structure.append(events.Marking("navigation", value, 0, None, bar_base + k, Fraction(0)))
         for k in range(len(system.bars)):
             shown[bar_base + k] = {part for part, _ in mapping.staves}
+        lilypond = any(s.source == "emmentaler" for s in pl.symbols)
+        if lilypond and system.bars and system.bars[-1].end is not None and system.bars[-1].end.kind == "double":
+            line_doubles.append(bar_base + len(system.bars))
         bar_base += len(system.bars)
+    _line_break_repeats(score, line_doubles)
     _share_times(score, shown)
     for p in range(len(score.parts)):
         if not any(e.kind == "key" and e.part == p and e.bar == 0 for e in score.structure):
             score.structure.append(events.Marking("key", "0", p, None, 0, Fraction(0)))
     score.bar_counts = [len(score.bars)] * len(score.parts)
     return score
+
+
+def _line_break_repeats(score, line_doubles):
+    """LilyPond draws a start repeat that falls at a line break as a double
+    barline at the end of the line, with no dots at the start of the next:
+    such a bar starts a repeat when an end repeat follows with no start
+    repeat since the end repeat before it, and no jump mark (a Fine) stands
+    at the double barline."""
+    marks = {(e.bar, e.value) for e in score.structure if e.kind == "repeat"}
+    jumps = {e.bar for e in score.structure if e.kind == "navigation"}
+    for bar in line_doubles:
+        if bar in jumps or bar - 1 in jumps:
+            continue
+        backward = [b for b, v in marks if v == "backward" and b >= bar]
+        if not backward:
+            continue
+        before = max((b for b, v in marks if v == "backward" and b < bar), default=-1)
+        if any(v == "forward" and before < b <= min(backward) for b, v in marks):
+            continue
+        for p in range(len(score.parts)):
+            score.structure.append(events.Marking("repeat", "forward", p, None, bar, Fraction(0)))
+        marks.add((bar, "forward"))
 
 
 def _share_times(score, shown):

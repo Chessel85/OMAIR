@@ -411,3 +411,15 @@ def test_a_time_signature_in_the_middle_of_a_bar_starts_one():
     assert [round(b.x0, 1) for b in hidden] == [97.5]
     # a change with no music before it in the bar (the start of a line) is not one
     assert layout.hidden_barlines(page, system, [140.0]) == []
+
+
+def test_a_lilypond_double_barline_at_a_line_end_starts_the_repeat_that_follows():
+    score = events.Score(parts=[events.Part("Voice", 1)])
+    score.structure = [events.Marking("repeat", "backward", 0, None, 9, Fraction(0))]
+    structure._line_break_repeats(score, [4])
+    assert [(e.value, e.bar) for e in score.structure if e.kind == "repeat"] == [("backward", 9), ("forward", 4)]
+    # a Fine at the double barline ends a section: no repeat starts there
+    score.structure = [events.Marking("repeat", "backward", 0, None, 9, Fraction(0)),
+                       events.Marking("navigation", "fine", 0, None, 3, Fraction(0))]
+    structure._line_break_repeats(score, [4])
+    assert not any(e.value == "forward" for e in score.structure)
