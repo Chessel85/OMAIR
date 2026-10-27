@@ -480,3 +480,18 @@ def test_a_time_change_between_a_barline_and_a_start_repeat_opens_the_next_bar()
     bars = layout.make_bars(system, [500.0, 650.0])
     # the second bar takes in the time signature and starts at the repeat
     assert [(b.x0, b.x1) for b in bars] == [(20.0, 589.0), (589.0, 820.0)] and bars[1].start is repeat
+
+
+def test_an_unnamed_bass_staff_below_a_named_braced_pair_is_its_pedal_staff():
+    # LilyPond's organ: the brace and the name take in the manuals only
+    def staff(top):
+        return SimpleNamespace(top=top, bottom=top + 20.0, middle=top + 10.0, space=5.0, x0=75.0)
+    staves = [staff(140.0), staff(188.0), staff(235.0)]
+    system = SimpleNamespace(staves=staves, x0=75.0)
+    brace = SimpleNamespace(name="brace", box=(66.0, 140.0, 72.0, 210.0))
+    pedal_clef = SimpleNamespace(name="fClef", x=78.0, y=240.0, box=(78.0, 235.0, 90.0, 250.0))
+    name = SimpleNamespace(text="Orgel", box=(20.0, 170.0, 60.0, 180.0))
+    assert structure.staff_groups(system, [brace, pedal_clef], [name]) == [[0, 1, 2]]
+    # a treble staff there is another instrument
+    pedal_clef.name = "gClef"
+    assert structure.staff_groups(system, [brace, pedal_clef], [name]) == [[0, 1], [2]]

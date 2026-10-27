@@ -86,9 +86,26 @@ def staff_groups(system, symbols, text=()):
     for k in range(1, len(staves)):
         if joined[k - 1]:
             groups[-1].append(k)
+        elif _pedal_staff(groups[-1], k, staves, symbols, on_staff, in_gap):
+            groups[-1].append(k)
         else:
             groups.append([k])
     return groups
+
+
+def _pedal_staff(group, k, staves, symbols, on_staff, in_gap):
+    """Staff k is an organ's pedal staff: LilyPond braces only the manuals,
+    with the instrument's name, and leaves the pedal staff below them
+    unnamed. It has a bass clef, no name of its own, and the staff after it
+    (if any) has one."""
+    named = any(j in on_staff for j in group) or any(j in in_gap for j in group[:-1])
+    if len(group) < 2 or not named or k in on_staff or k - 1 in in_gap or k in in_gap:
+        return False
+    if k + 1 < len(staves) and k + 1 not in on_staff:
+        return False
+    staff = staves[k]
+    return any(s.name == "fClef" and staff.x0 - staff.space <= s.x <= staff.x0 + 6 * staff.space
+               and staff.top <= s.y <= staff.bottom for s in symbols)
 
 
 def _initial_clef(page_layout, staff):
