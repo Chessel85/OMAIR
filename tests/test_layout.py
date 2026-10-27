@@ -455,3 +455,13 @@ def test_a_clef_in_parentheses_is_a_courtesy():
     page = SimpleNamespace(symbols=sides)
     assert structure.in_parentheses(page, staff, 588.0, 601.0)
     assert not structure.in_parentheses(page, staff, 627.0, 640.0)
+
+
+def test_an_octave_8_between_two_close_clefs_is_the_nearer_ones():
+    upper = SimpleNamespace(name="gClef", box=(157.0, 249.0, 170.0, 286.0), size=20.0)
+    lower = SimpleNamespace(name="gClef", box=(157.0, 294.0, 170.0, 331.0), size=20.0)
+    def eight(y):
+        return SimpleNamespace(text="8", box=(160.2, y, 164.1, y + 6.9), font="C059-Italic")
+    page = SimpleNamespace(symbols=[upper, lower], text=[eight(283.7), eight(328.9)])
+    assert structure.octave_digits(page, lower) == -1
+    assert structure.octave_digits(page, upper) == -1

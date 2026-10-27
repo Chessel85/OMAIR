@@ -347,6 +347,11 @@ def _at_clef(clef, box):
     return -gap <= box[1] - clef.box[3] <= 2 * gap or -gap <= clef.box[1] - box[3] <= gap
 
 
+def _clef_gap(clef, box):
+    """How far a box is above or below a clef's ink."""
+    return max(box[1] - clef.box[3], clef.box[1] - box[3], 0)
+
+
 def _clef_digits(page_layout, clef):
     """Small music digits that are an octave mark of a clef."""
     return [s for s in page_layout.symbols if s.name in TIME_DIGITS and s.size < 0.8 * clef.size
@@ -363,6 +368,10 @@ def octave_digits(page_layout, clef):
     marks += [(run.text.strip(), run.box) for run in page_layout.text
               if run.text.strip() in ("8", "15", "22") and not run.font.startswith("image")
               and _at_clef(clef, run.box)]
+    # on staves close together, the 8 under one clef can touch the top of the clef below: it is the nearer one's
+    others = [c for c in page_layout.symbols if c.name in CLEFS and c is not clef]
+    marks = [m for m in marks if not any(_at_clef(c, m[1]) and _clef_gap(c, m[1]) < _clef_gap(clef, m[1])
+                                         for c in others)]
     if not marks:
         return 0
     marks.sort(key=lambda m: m[1][0])
