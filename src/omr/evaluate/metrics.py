@@ -28,6 +28,12 @@ def compare(truth_path, output_path, flags_path=None, flags=None):
 
 
 def compare_scores(truth, output, flags=None):
+    # A first bar of hidden rests is not on the page, so it joins the next in both files (decision 17).
+    truth = events.without_hidden_first_bar(truth)
+    joined = events.without_hidden_first_bar(output)
+    if flags is not None and joined is not output:   # the output's flags move with its bars
+        flags = [(flag[0], max(flag[1] - 1, 0), *flag[2:]) for flag in flags]
+    output = joined
     # Empty bars at the end may be left off the page, so neither file's count (decision 14).
     truth = events.without_trailing_empty_bars(truth)
     trimmed = events.without_trailing_empty_bars(output)

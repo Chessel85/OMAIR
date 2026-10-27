@@ -861,6 +861,30 @@ def test_an_endings_closing_hook_is_not_compared(tmp_path):
     assert fig["structure"]["correct"]
 
 
+HIDDEN_BAR = (attributes(key=1) + '<harmony><root><root-step>A</root-step></root><kind>major</kind></harmony>'
+              f'<note print-object="no"><rest measure="yes"/><duration>{4 * DIV}</duration><voice>1</voice></note>'
+              '<barline location="right"><bar-style>none</bar-style></barline>')
+
+
+def test_a_first_bar_of_hidden_rests_joins_the_next(tmp_path):
+    # pdmx-9mh9Dt5NAnR9: the page shows the clef, key and pickup as one bar
+    truth = score(("Fiddle", [HIDDEN_BAR, note("D4"), four_quarters("G4 A4 B4 C5", first=" ")]))
+    output = score(("Fiddle", [attributes(key=1) + '<harmony><root><root-step>A</root-step></root><kind>major</kind></harmony>'
+                               + note("D4"), four_quarters("G4 A4 B4 C5", first=" ")]))
+    fig = compare(tmp_path, truth, output)
+    assert fig["structure"]["correct"]
+    assert fig["notes"]["exact"] == fig["notes"]["truth"] == 5
+    assert fig["markings"]["chord symbol"]["found"] == 1
+
+
+def test_a_first_bar_is_kept_when_another_part_plays_in_it(tmp_path):
+    truth = events.read(write(tmp_path, "t.musicxml", score(("Voice", [HIDDEN_BAR, four_quarters(first=" ")]),
+                                                            ("Piano", [four_quarters(), four_quarters()]))))
+    assert not truth.hidden_first_bar
+    alone = events.read(write(tmp_path, "a.musicxml", score(("Voice", [HIDDEN_BAR, four_quarters(first=" ")]))))
+    assert alone.hidden_first_bar and len(events.without_hidden_first_bar(alone).bars) == 1
+
+
 def test_band_widens_when_the_best_path_needs_it(tmp_path):
     # 60 bars of one whole note each, no two alike; the output drops the first 30 and
     # adds 30 wrong bars at the end. The best alignment keeps the 30 surviving bars,

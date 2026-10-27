@@ -156,6 +156,7 @@ class Score:
     bar_counts: list = field(default_factory=list) # bars in each part, normally all equal
     text: list = field(default_factory=list)       # page text (title, composer, ...) read from a PDF; not compared
     doubts: list = field(default_factory=list)     # doubts noted while reading a PDF (Flag); not compared
+    hidden_first_bar: bool = False                 # bar 1 cannot be seen on the page (decision 17)
 
     def staves(self):
         """Every staff in score order, as (part, staff) pairs."""
@@ -199,7 +200,41 @@ def from_root(root):
     for index, part in enumerate(parts):
         _read_part(score, index, names.get(part.get("id"), ""), part)
     navigation_from_words(score)
+    score.hidden_first_bar = _hidden_first_bar(parts)
     return score
+
+
+def _hidden_first_bar(parts):
+    """Whether the first measure of every part holds only hidden rests (or
+    nothing) and draws no barline at its end, and a second measure follows:
+    a bar the page does not show (decision 17)."""
+    for part in parts:
+        measures = part.findall("measure")
+        if len(measures) < 2:
+            return False
+        first = measures[0]
+        if any(n.find("rest") is None or n.get("print-object") != "no" for n in first.findall("note")):
+            return False
+        right = [b for b in first.findall("barline") if b.get("location", "right") == "right"]
+        if not right or any(b.findtext("bar-style") != "none" for b in right):
+            return False
+    return True
+
+
+def without_hidden_first_bar(score):
+    """`score` with a first bar the page does not show joined to the next
+    (spec decision 17). What was in it (clef, key, time, words, chord
+    symbols) goes to the start of the next bar."""
+    if not score.hidden_first_bar or len(score.bars) < 2:
+        return score
+
+    def moved(items):
+        return [replace(e, bar=e.bar - 1) if e.bar else replace(e, onset=Fraction(0)) for e in items]
+
+    return replace(
+        score, bars=score.bars[1:], notes=moved(score.notes), rests=moved(score.rests),
+        markings=moved(score.markings), structure=moved(score.structure),
+        bar_counts=[max(count - 1, 0) for count in score.bar_counts], hidden_first_bar=False)
 
 
 def navigation_value(text):

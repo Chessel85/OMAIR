@@ -309,7 +309,8 @@ def _remove_signature_change(d, reserve):
     back), which is one more mismatch, so each candidate is checked by reading the score."""
     def changes():
         """The signature changes as the harness compares them."""
-        return collections.Counter(events.signature_changes(events.without_trailing_empty_bars(events.from_root(d.root))))
+        score = events.without_hidden_first_bar(events.from_root(d.root))
+        return collections.Counter(events.signature_changes(events.without_trailing_empty_bars(score)))
 
     before = changes()
     for p, b, measure in _free_bars(d, reserve, first=1):
