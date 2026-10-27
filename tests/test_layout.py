@@ -326,6 +326,24 @@ def test_jump_words_between_two_systems_go_to_the_nearer():
     assert structure.system_navigation(page, lower) == [(0, "dalsegno")]
 
 
+def test_a_segno_or_coda_sign_marks_the_system_below_it():
+    # MuseScore 3 set a segno as text 9.6 spaces over the first staff (pdmx-puXngfDsjit7)
+    staff = lambda top: SimpleNamespace(top=top, bottom=top + 13, space=3.23)
+    bar = SimpleNamespace(x0=101.0, x1=567.0, end=SimpleNamespace(x0=567.0))
+    first = SimpleNamespace(staves=[staff(76.0)], bars=[bar], x0=101.0, x1=567.0)
+    second = SimpleNamespace(staves=[staff(140.0)], bars=[bar], x0=101.0, x1=567.0)
+    sign = SimpleNamespace(name="segno", x=390.0, y=45.0)
+    page = SimpleNamespace(symbols=[sign], text=[], systems=[first, second])
+    assert structure.system_navigation(page, first) == [(0, "segno")]
+    # between two systems, nearer the upper, it is the lower one's, and only its (pdmx-3M2FCkVcJu2Z)
+    sign.name, sign.y = "coda", 110.0
+    assert structure.system_navigation(page, first) == []
+    assert structure.system_navigation(page, second) == [(0, "coda")]
+    # under the last system, with no system below, it is that one's
+    sign.y = 170.0
+    assert structure.system_navigation(page, second) == [(0, "coda")]
+
+
 def test_a_time_change_reaches_a_part_whose_staff_was_hidden():
     # Verovio hides an empty staff, so only the other parts show the change
     # (pdmx-6MHEGNWk55aY)

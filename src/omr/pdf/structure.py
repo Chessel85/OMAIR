@@ -657,12 +657,30 @@ def jump_bar(system, box, space):
     return lay.bar_of(system, max(box[0], system.x0))
 
 
+def _sign_system(systems, y):
+    """The system a segno or coda sign at height y marks, or None. A sign
+    stands over the staff, so the system below it wins while its top is
+    within 12 spaces (MuseScore 3 set one as text 9.6 spaces over the staff,
+    pdmx-puXngfDsjit7), even where the system above is nearer (a coda
+    between two systems, pdmx-3M2FCkVcJu2Z); else the system above, within
+    8 spaces under its bottom."""
+    for system in systems:
+        top, bottom = system.staves[0], system.staves[-1]
+        if top.top - 12 * top.space <= y <= bottom.bottom:
+            return system
+    for system in reversed(systems):
+        bottom = system.staves[-1]
+        if bottom.bottom < y <= bottom.bottom + 8 * bottom.space:
+            return system
+    return None
+
+
 def system_navigation(page_layout, system):
     """[(bar index, value)]: segno and coda signs and jump words over the system."""
     out = []
     top, bottom = system.staves[0], system.staves[-1]
     for s in page_layout.symbols:
-        if s.name in NAVIGATION_GLYPHS and top.top - 8 * top.space <= s.y <= bottom.bottom + 8 * top.space:
+        if s.name in NAVIGATION_GLYPHS and _sign_system(page_layout.systems, s.y) is system:
             k = lay.bar_of(system, s.x)
             if k is not None:
                 out.append((k, NAVIGATION_GLYPHS[s.name]))
