@@ -571,8 +571,15 @@ def hidden_barlines(layout, system, music_xs):
     none either.)"""
     starts = []
     for staff in system.staves:
-        xs = [s.box[0] for s in layout.on_staff(staff) if s.name in TIME_NAMES
-              and staff.top <= (s.box[1] + s.box[3]) / 2 <= staff.bottom]
+        inside = [s for s in layout.on_staff(staff) if s.name in TIME_NAMES
+                  and staff.top <= (s.box[1] + s.box[3]) / 2 <= staff.bottom]
+        middle = (staff.top + staff.bottom) / 2
+        upper = [s for s in inside if s.name.startswith("timeSig") and (s.box[1] + s.box[3]) / 2 < middle]
+        lower = [s for s in inside if s.name.startswith("timeSig") and (s.box[1] + s.box[3]) / 2 > middle]
+        # a common or cut sign, or digits stacked above and below the middle
+        # line (a lone digit is a fingering: Verovio sets them in these glyphs)
+        xs = [s.box[0] for s in inside if not s.name[-1].isdigit()]
+        xs += [u.box[0] for u in upper if any(abs(u.box[0] - d.box[0]) <= 0.6 * staff.space for d in lower)]
         if xs:
             starts.append(min(xs))
     if not starts:

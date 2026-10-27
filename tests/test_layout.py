@@ -486,3 +486,12 @@ def test_an_unnamed_bass_staff_below_a_named_braced_pair_is_its_pedal_staff():
     # a treble staff there is another instrument
     pedal_clef.name = "gClef"
     assert structure.staff_groups(system, [brace, pedal_clef], [name]) == [[0, 1], [2]]
+
+
+def test_a_lone_digit_in_the_staff_is_no_time_signature_for_a_hidden_barline():
+    # Verovio sets fingerings in time signature digits
+    staff = SimpleNamespace(top=100.0, bottom=120.0, space=5.0)
+    finger = [SimpleNamespace(name="timeSig1", box=(100.0, 104.0, 104.0, 112.0))]
+    page = SimpleNamespace(on_staff=lambda s: finger)
+    system = SimpleNamespace(staves=[staff], barlines=[layout.Barline(200.0, 200.0, [(200.0, False)])], x0=40.0, x1=300.0)
+    assert layout.hidden_barlines(page, system, [60.0, 140.0]) == []
