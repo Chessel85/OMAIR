@@ -739,7 +739,13 @@ def read_layout(page_symbols, page, staves=None, system_gap=None, lines=None):
         music = [s.x for s in symbols if (is_note(s.name) or is_rest(s.name))
                  and id(layout.staff_of(s)) in members]
         system.barlines = sorted(system.barlines + hidden_barlines(layout, system, music), key=lambda g: g.x0)
+        # grace notes alone do not make a bar: LilyPond can draw a bar's
+        # opening grace note before a double barline it repeats after it
+        sizes = [s.size for s in symbols if is_note(s.name) and id(layout.staff_of(s)) in members]
+        full = statistics.median(sizes) if sizes else 0
+        main = [s.x for s in symbols if (is_rest(s.name) or (is_note(s.name) and s.size >= 0.8 * full))
+                and id(layout.staff_of(s)) in members]
         counts = [(s.x, s.y, s.name[-1]) for s in symbols if s.name.startswith("timeSig") and s.name[-1].isdigit()
                   and id(layout.staff_of(s)) in members and s.box[3] <= layout.staff_of(s).top]
-        system.bars = make_bars(system, music, counts)
+        system.bars = make_bars(system, main, counts)
     return layout
