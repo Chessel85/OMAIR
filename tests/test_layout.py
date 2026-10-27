@@ -465,3 +465,7 @@ def test_an_octave_8_between_two_close_clefs_is_the_nearer_ones():
     page = SimpleNamespace(symbols=[upper, lower], text=[eight(283.7), eight(328.9)])
     assert structure.octave_digits(page, lower) == -1
     assert structure.octave_digits(page, upper) == -1
+
+
+def test_jump_words_after_musescore_markup_are_a_jump():
+    assert events.navigation_value('<font size="17"></font>To Coda') == "tocoda"

@@ -650,12 +650,12 @@ def system_navigation(page_layout, system):
             continue
         if lay.nearest_system(page_layout.systems, middle) is not system:
             continue   # between two systems: the nearer one has it
-        for pattern, value in NAVIGATION_TEXT:
-            if pattern.match(run.text):
-                k = jump_bar(system, run.box, top.space)
-                if k is not None:
-                    out.append((k, value))
-                break
+        # MuseScore can print its own markup before the words (<font size="17"></font>To Coda)
+        value = events.navigation_value(run.text)
+        if value is not None:
+            k = jump_bar(system, run.box, top.space)
+            if k is not None:
+                out.append((k, value))
     return out
 
 

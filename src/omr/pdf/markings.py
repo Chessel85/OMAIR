@@ -235,7 +235,7 @@ def _text_directions(add, placer, pl, system, items, dynamics, space):
             # "più p": a word set with a dynamic is part of it (MusicXML's other-dynamics)
             staff = placer.staff_below(item.box)
             add("dynamic", item.text, staff, placer.place((item.box[0] + item.box[2]) / 2, staff, "centre"))
-        elif item.kind == "words" and any(pattern.match(item.text) for pattern, _ in structure.NAVIGATION_TEXT):
+        elif item.kind == "words" and events.navigation_value(item.text) is not None:
             # jump words end a bar: in the bar the jump reader gives them, at its end
             k = structure.jump_bar(system, item.box, space)
             at = placer.place(item.box[0], item.staff, "left")

@@ -202,7 +202,7 @@ def from_root(root):
     return score
 
 
-def _navigation_value(text):
+def navigation_value(text):
     """The navigation mark that words stand for, or None."""
     text = MARKUP.sub("", text).strip()
     if text in NAVIGATION_SIGNS:
@@ -219,7 +219,7 @@ def navigation_from_words(score):
     for m in score.markings:
         if m.kind != "words":
             continue
-        value = _navigation_value(m.value)
+        value = navigation_value(m.value)
         if not value:
             continue
         if marked[(m.part, m.bar, value)]:

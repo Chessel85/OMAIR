@@ -500,8 +500,7 @@ class Writer:
             if e.kind != "navigation" or e.value not in JUMP_SOUND:
                 continue
             near = sorted((w for w in words if abs(w.bar - e.bar) <= 1 and id(w) not in out
-                           and any(value == e.value and pattern.match(w.value)
-                                   for pattern, value in events.NAVIGATION_TEXT)),
+                           and events.navigation_value(w.value) == e.value),
                           key=lambda w: (abs(w.bar - e.bar), w.part != e.part, w.part))
             if near:
                 out[id(e)] = near[0]
