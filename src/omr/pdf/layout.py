@@ -615,11 +615,12 @@ def make_bars(system, music_xs, counts=()):
             pass
         elif empty and bars and group.x0 - start_x < 2 * system.staves[0].space:
             pass    # too narrow to be a bar (a double line drawn as two groups)
-        elif (empty and bars and start_line is not None and start_line.kind != "single"
+        elif (empty and bars and start_line is not None and (start_line.kind != "single" or group.repeat_after)
               and next_has_music and not _count(counts, start_x, group.x0)):
             # LilyPond draws an empty bar after a double or end-repeat barline,
             # before a start repeat or a change; it joins the next bar, which
-            # keeps its signatures. MuseScore and Verovio draw one holding only
+            # keeps its signatures. Verovio sets a change between a barline
+            # and a start repeat. MuseScore and Verovio draw one holding only
             # a key or time change. Kept: a bar before another empty one (bars
             # of hidden rests, which a score can have), and a bar with digits
             # over the staff (MuseScore draws a multi-bar rest as lines, its

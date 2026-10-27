@@ -469,3 +469,13 @@ def test_an_octave_8_between_two_close_clefs_is_the_nearer_ones():
 
 def test_jump_words_after_musescore_markup_are_a_jump():
     assert events.navigation_value('<font size="17"></font>To Coda') == "tocoda"
+
+
+def test_a_time_change_between_a_barline_and_a_start_repeat_opens_the_next_bar():
+    # Verovio: barline, 3/2, start repeat, then the music
+    staff = SimpleNamespace(space=5.0)
+    single = layout.Barline(589.0, 589.0, [(589.0, False)])
+    repeat = layout.Barline(614.0, 619.0, [(614.0, True), (619.0, False)], repeat_after=True)
+    system = SimpleNamespace(staves=[staff], x0=20.0, x1=820.0, barlines=[single, repeat], page=1, index=5)
+    bars = layout.make_bars(system, [500.0, 650.0])
+    assert [(b.x0, b.x1) for b in bars] == [(20.0, 589.0), (619.0, 820.0)]
