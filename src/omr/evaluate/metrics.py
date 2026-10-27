@@ -28,6 +28,9 @@ def compare(truth_path, output_path, flags_path=None, flags=None):
 
 
 def compare_scores(truth, output, flags=None):
+    # An ending's closing hook is the engraver's choice (decision 16).
+    truth = events.with_ending_ends_alike(truth)
+    output = events.with_ending_ends_alike(output)
     # A first bar of hidden rests is not on the page, so it joins the next in both files (decision 17).
     truth = events.without_hidden_first_bar(truth)
     joined = events.without_hidden_first_bar(output)

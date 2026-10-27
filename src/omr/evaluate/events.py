@@ -221,6 +221,16 @@ def _hidden_first_bar(parts):
     return True
 
 
+def with_ending_ends_alike(score):
+    """`score` with each ending's end read as "stop", with or without its
+    closing hook ("discontinue"): engravers choose the hook (spec decision 16)."""
+    if not any(e.kind == "ending" and e.value.startswith("discontinue") for e in score.structure):
+        return score
+    return replace(score, structure=[
+        replace(e, value="stop" + e.value[len("discontinue"):])
+        if e.kind == "ending" and e.value.startswith("discontinue") else e for e in score.structure])
+
+
 def without_hidden_first_bar(score):
     """`score` with a first bar the page does not show joined to the next
     (spec decision 17). What was in it (clef, key, time, words, chord
@@ -671,9 +681,7 @@ def _read_barline(score, part_index, bar_index, position, element):
         score.structure.append(Marking("repeat", repeat.get("direction", ""), part_index, None, bar_index, position))
     ending = element.find("ending")
     if ending is not None:
-        # An end with or without its closing hook is the same end: engravers choose it (decision 16).
-        kind = {"discontinue": "stop"}.get(ending.get("type", ""), ending.get("type", ""))
-        value = f"{kind} {' '.join((ending.get('number') or '').replace(',', ' ').split())}"
+        value = f"{ending.get('type', '')} {' '.join((ending.get('number') or '').replace(',', ' ').split())}"
         score.structure.append(Marking("ending", value.strip(), part_index, None, bar_index, position))
     for name in ("segno", "coda"):
         if element.find(name) is not None:
