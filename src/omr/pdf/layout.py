@@ -298,7 +298,7 @@ def _sixth_line_fits_better(lines, run, gap, first):
     end line is something else, such as a dashed line one space over the
     staff (MuseScore 3). The top line is dropped when its ends match the
     middle four less well than the sixth line's do."""
-    sixth = _find_line(lines, run[-1] + 1, first.y + 5 * gap, 0.1 * gap, first)
+    sixth = _find_line(lines, run[-1] + 1, lines[run[-1]].y + gap, 0.1 * gap, first)
     if sixth is None:
         return False
     middle = [lines[k] for k in run[1:]]
