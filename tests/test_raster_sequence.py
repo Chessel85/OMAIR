@@ -4,9 +4,11 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
-import torch
+import pytest
 
-from omr.raster import sequence
+torch = pytest.importorskip("torch")
+
+from omr.raster import sequence  # noqa: E402
 
 
 def symbol(rhythm, pitch="_"):
