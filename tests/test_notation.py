@@ -313,6 +313,17 @@ def test_a_line_starting_with_no_bar_number_where_the_others_have_one_continues_
     assert len(score.bars) == 4 and score.bars[1].length == 3
 
 
+def test_a_line_with_no_bar_number_opening_with_a_time_signature_starts_a_bar():
+    score = _three_four_score([3, 1, 2, 3, 3])
+    score.structure.append(events.Marking("time", "2/4", 0, None, 2, Fraction(0)))
+    def number(text):
+        return [SimpleNamespace(text=text, box=(30.0, 85.0, 48.0, 95.0))]
+    ordered = [_system([object(), None]), _system([object(), object()]),
+               _system([object()], number("4")), _system([object()], number("5"))]
+    notation.join_split_bars(score, ordered)
+    assert len(score.bars) == 5
+
+
 def _head_event(x, step, direction, dots=0, rest=None):
     head = SimpleNamespace(step=step, box=(x, 0.0, x + 6.5, 6.0))
     return notation.Event(staff=None, x=x, right=x + 6.5, heads=[] if rest else [head], rest=rest,

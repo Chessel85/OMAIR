@@ -1439,12 +1439,14 @@ def join_split_bars(score, ordered):
         base += len(system.bars)
         if i + 1 < len(ordered) and system.bars and system.bars[-1].end is None:
             nxt = numbers[i + 1]
-            joins.append((base - 1, nxt == "bracketed" or (nxt is None and numbered)))
+            joins.append((base - 1, nxt if nxt == "bracketed" else "unnumbered" if nxt is None and numbered else None))
     # a join changes only the bars after it, and the joins run from the last
     # back, so the signatures in force at each one are those found now
     signatures = events.SignaturesInForce(score)
+    # without a bracketed number, a line opening with a time signature starts a bar
+    timed = {e.bar for e in score.structure if e.kind == "time"}
     for k, continued in reversed(joins):
-        if k + 1 >= len(score.bars):
+        if k + 1 >= len(score.bars) or (continued == "unnumbered" and k + 1 in timed):
             continue
         first, second = score.bars[k].length, score.bars[k + 1].length
         full, _ = _time_in_force(signatures, k)
