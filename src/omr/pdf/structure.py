@@ -570,7 +570,8 @@ def _continued_ending(page_layout, system, horizontals):
              and not any(abs(box[0] - h.x0) <= 1.5 * space and h.y - space <= box[1] <= h.y + 3 * space
                          for box in numbered)
              # not a line of the staff above, when systems stand close
-             and not any(st.top - 0.3 * space <= h.y <= st.bottom + 0.3 * space for st in page_layout.staves)]
+             and not any(st.top - 0.3 * space <= h.y <= st.bottom + 0.3 * space for st in page_layout.staves)
+             and not _boxes_text(page_layout, h, space)]
     if not lines:
         return None, None
     line = max(lines, key=lambda h: h.length)
@@ -580,6 +581,15 @@ def _continued_ending(page_layout, system, horizontals):
     if not hooks and line.x1 >= system.x1 - space:
         return len(system.bars) - 1, "continue"   # across the whole system, on to the next
     return (len(system.bars) - 1 if end is None else end), ("stop" if hooks else "discontinue")
+
+
+def _boxes_text(page_layout, line, space):
+    """A short line that is a side of a box round text (a rehearsal mark):
+    a text run within its length, against it above or below."""
+    return line.length < 6 * space and any(
+        line.x0 - 0.5 * space <= run.box[0] and run.box[2] <= line.x1 + 0.5 * space
+        and (abs(run.box[1] - line.y) <= space or abs(run.box[3] - line.y) <= space)
+        for run in page_layout.text)
 
 
 def jump_bar(system, box, space):

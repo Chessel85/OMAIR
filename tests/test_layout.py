@@ -423,3 +423,11 @@ def test_a_lilypond_double_barline_at_a_line_end_starts_the_repeat_that_follows(
                        events.Marking("navigation", "fine", 0, None, 3, Fraction(0))]
     structure._line_break_repeats(score, [4])
     assert not any(e.value == "forward" for e in score.structure)
+
+
+def test_a_side_of_a_rehearsal_mark_box_is_not_an_ending_line():
+    page = SimpleNamespace(text=[SimpleNamespace(text="E", box=(65.0, 37.0, 74.0, 51.0))])
+    side = SimpleNamespace(x0=64.0, x1=76.0, y=36.0, length=12.0)
+    assert structure._boxes_text(page, side, 5.0)
+    ending = SimpleNamespace(x0=64.0, x1=200.0, y=36.0, length=136.0)
+    assert not structure._boxes_text(page, ending, 5.0)
