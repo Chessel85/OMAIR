@@ -209,6 +209,20 @@ def test_lines_in_step_far_larger_than_the_page_staves_are_no_staff():
     assert [round(s.top) for s in found] == [100, 130, 160]
 
 
+def test_digits_after_a_cut_time_symbol_are_a_second_time_signature():
+    # an incipit in cut time, then the modern 2/1 by the first note (pdmx-C1P12SpiRUyB)
+    staff = SimpleNamespace(top=100.0, bottom=120.0, space=5.0)
+    sym = lambda name, x, y: SimpleNamespace(name=name, x=x, size=20.0, box=(x, y - 4, x + 4, y + 4))
+    cut, two, one = sym("timeSigCutCommon", 70.0, 110.0), sym("timeSig2", 120.0, 105.0), sym("timeSig1", 120.0, 115.0)
+    head = sym("noteheadWhole", 140.0, 110.0)
+    page = SimpleNamespace(on_staff=lambda s: [cut, two, one, head])
+    system = SimpleNamespace(x0=50.0, bars=[SimpleNamespace(x0=50.0, x1=300.0)])
+    assert structure.staff_times(page, system, staff) == [(0, "2/2"), (0, "2/1")]
+    # digits before the symbol are not read with it
+    two.x = one.x = 60.0
+    assert structure.staff_times(page, system, staff) == [(0, "2/2")]
+
+
 def test_a_bar_number_over_a_clef_is_not_its_octave_mark():
     # MuseScore 4's "15" touches the clef under it; "8" stands at an earlier line's start
     run = lambda text, y: SimpleNamespace(text=text, box=(42.0, y, 53.0, y + 10), font="Edwin-Italic", size=10.0)

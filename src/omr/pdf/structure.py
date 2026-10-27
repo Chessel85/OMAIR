@@ -531,11 +531,13 @@ def staff_times(page_layout, system, staff):
     for k in range(len(system.bars)):
         region = signature_region(page_layout, system, staff, k)
         symbols = [s for s in region if s.name in TIME_SYMBOLS]
-        if symbols:
-            out.append((k, TIME_SYMBOLS[symbols[0].name]))
-            continue
         at_clefs = {id(d) for c in region if c.name in CLEFS for d in _clef_digits(page_layout, c)}
         digits = sorted((s for s in region if s.name in TIME_DIGITS and id(s) not in at_clefs), key=lambda s: s.x)
+        if symbols:
+            out.append((k, TIME_SYMBOLS[symbols[0].name]))
+            # digits after the symbol are a second signature: an old piece's
+            # incipit in cut time, then its modern 2/1 (pdmx-C1P12SpiRUyB)
+            digits = [s for s in digits if s.x > symbols[-1].x]
         if not digits:
             continue
         # the last group, nearest the music: MuseScore can put a reminder in
