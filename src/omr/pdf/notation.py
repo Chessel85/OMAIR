@@ -1412,12 +1412,11 @@ def _system_bar_number(pl, system):
     brackets, which LilyPond prints when the system starts in the middle of
     a bar, "plain" for any other, None if there is none."""
     top, space = system.staves[0], system.staves[0].space
-    for run in pl.text:
-        text = run.text.strip()
-        if (BAR_NUMBER.match(text) and system.x0 - 3 * space <= run.box[2] <= system.x0 + 6 * space
-                and top.top - 6 * space <= run.box[3] <= top.top + space):
-            return "bracketed" if CONTINUED_BAR.match(text) else "plain"
-    return None
+    found = {"bracketed" if CONTINUED_BAR.match(run.text.strip()) else "plain" for run in pl.text
+             if BAR_NUMBER.match(run.text.strip()) and system.x0 - 3 * space <= run.box[2] <= system.x0 + 6 * space
+             and top.top - 6 * space <= run.box[3] <= top.top + space}
+    # a bracketed number wins over other digits there (a fingering, a tuplet's 3)
+    return "bracketed" if "bracketed" in found else "plain" if found else None
 
 
 def join_split_bars(score, ordered):

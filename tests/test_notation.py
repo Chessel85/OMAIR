@@ -324,6 +324,14 @@ def test_a_line_with_no_bar_number_opening_with_a_time_signature_starts_a_bar():
     assert len(score.bars) == 5
 
 
+def test_a_bracketed_bar_number_wins_over_other_digits_at_a_line_start():
+    staff = SimpleNamespace(top=100.0, space=5.0)
+    system = SimpleNamespace(staves=[staff], x0=50.0)
+    digits = [SimpleNamespace(text="3", box=(52.0, 90.0, 56.0, 96.0)),
+              SimpleNamespace(text="(9)", box=(30.0, 85.0, 48.0, 95.0))]
+    assert notation._system_bar_number(SimpleNamespace(text=digits), system) == "bracketed"
+
+
 def _head_event(x, step, direction, dots=0, rest=None):
     head = SimpleNamespace(step=step, box=(x, 0.0, x + 6.5, 6.0))
     return notation.Event(staff=None, x=x, right=x + 6.5, heads=[] if rest else [head], rest=rest,
