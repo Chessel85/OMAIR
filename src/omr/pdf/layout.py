@@ -608,7 +608,7 @@ def make_bars(system, music_xs, counts=()):
         if empty and not bars and (group.repeat_after or group.kind == "heavy-light"):
             pass    # a start repeat after the clef: it opens the first bar
         elif (empty and not bars and next_has_music and group.x1 < system.x1 - 1
-              and not (system.page == 1 and system.index == 0) and not _count(counts, start_x, group.x0)):
+              and not _count(counts, start_x, group.x0) and not (system.page == 1 and system.index == 0)):
             # LilyPond can start a line with its clef and key, then a barline
             # before a time change: nothing stands before it (a whole bar of
             # hidden rests, which only a score's first bar has, is kept there)
