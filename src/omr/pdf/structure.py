@@ -670,6 +670,8 @@ def system_navigation(page_layout, system):
         middle = (run.box[1] + run.box[3]) / 2
         if not top.top - 8 * top.space <= middle <= bottom.bottom + 8 * top.space:
             continue
+        if run.box[2] <= system.x0 + 0.5 * top.space:
+            continue   # left of the system: a part's name ("...d shake off your", cut at the margin)
         if lay.nearest_system(page_layout.systems, middle) is not system:
             continue   # between two systems: the nearer one has it
         # MuseScore can print its own markup before the words (<font size="17"></font>To Coda)

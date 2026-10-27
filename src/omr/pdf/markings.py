@@ -241,8 +241,10 @@ def _text_directions(add, placer, pl, system, items, dynamics, space):
             at = placer.place(item.box[0], item.staff, "left")
             if k is not None and at is not None and at[0] != placer.bar_base + k:
                 at = placer.end(system.bars[k].x1 - 0.01, item.staff)
-            # a jump is the whole score's: its words go with the top staff, as the jump mark does
-            add("words", " ".join(item.text.split()), system.staves[0], at)
+            # a jump is the whole score's: its words go with the top staff, as
+            # the jump mark does (words by no staff, such as a part's name, are not a jump)
+            if item.staff is not None:
+                add("words", " ".join(item.text.split()), system.staves[0], at)
         elif item.kind in ("words", "tempo"):
             add("words", " ".join(item.text.split()), item.staff, placer.place(item.box[0], item.staff, "left"))
         elif item.kind == "chord symbol":
