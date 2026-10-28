@@ -1,5 +1,6 @@
 """Tests for placing Engine 2's reading in Engine 1's parts and bars (Stage 2.6), without homr."""
 
+from dataclasses import replace
 from fractions import Fraction
 from types import SimpleNamespace
 
@@ -59,3 +60,28 @@ def test_units_cut_each_part_of_an_image_page_with_homrs_margins():
     assert [(u.part, u.numbers, u.first_bar, u.bars) for u in found] == [(0, [1], 0, 3), (1, [1, 2], 0, 3)]
     # 2 spaces each side of the staff, 4 above and below: (8, 6) to (92, 18) points
     assert found[0].image.shape == (24, 168)
+
+
+def test_a_long_system_is_cut_into_the_fewest_even_pieces():
+    assert sr.pieces([10, 10]) == [0]
+    assert sr.pieces([26, 36, 16, 26, 20]) == [0, 2]
+    assert sr.pieces([30] * 6) == [0, 2, 4]
+    assert sr.pieces([30] * 6, last_start=2) == [0, 2]   # no piece after a key change
+    assert sr.pieces([200]) == [0]
+
+
+def test_a_piece_after_a_clef_change_is_moved_to_the_clef_in_force():
+    clefs = {(0, 1): [((0, Fraction(0)), "G 2"), ((3, Fraction(0)), "F 4"), ((5, Fraction(1)), "G 2")]}
+    assert sr.clef_shifts(clefs, 0, [1], 0, 2) == {}
+    # read under the treble clef in front, a bass clef note is 12 steps lower
+    assert sr.clef_shifts(clefs, 0, [1], 0, 4) == {1: (-12, (5, Fraction(1)))}
+
+
+def test_moving_by_steps_keeps_printed_accidentals_and_follows_the_key():
+    def at(step, alter, octave):
+        return replace(note(0, 1, 0), pitch=events.Pitch(step, Fraction(alter), octave))
+
+    # 12 steps down, from a treble to a bass clef reading: B flat from the key of F becomes D
+    assert sr.moved_by_steps(at("B", -1, 4), -12, -1).pitch == events.Pitch("D", Fraction(0), 3)
+    # a sharp the key does not give was printed, and stays
+    assert sr.moved_by_steps(at("C", 1, 5), -12, -1).pitch == events.Pitch("E", Fraction(1), 3)
