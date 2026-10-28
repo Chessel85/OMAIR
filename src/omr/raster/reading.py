@@ -146,6 +146,7 @@ def read_page(page, number, detect=None, read_text=None):
     names.metronome_notes(symbols, text, level, space_pt)
     named.text = rt.read_regions(grey, place, text, space_px, read_text or rt.reader())
     raster_page = rp.RasterPage(page, rp.drawings(lines, place))
+    raster_page.grey, raster_page.place = grey, place   # for Engine 2 (omr.raster.sequence_reading)
     named.evidence = evidence.gather(raster_page, number)
     return named, raster_page
 
