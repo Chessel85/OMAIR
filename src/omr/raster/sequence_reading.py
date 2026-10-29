@@ -30,6 +30,7 @@ from omr.raster import sequence
 
 ENGINE_ENV = "OMR_ENGINE"
 MODEL_ENV = "OMR_SEQUENCE_MODEL"
+THREADS_ENV = "OMR_SEQUENCE_THREADS"   # threads for the model; evaluation runs read 3 pairs at once
 DEFAULT_MODEL = Path("runs") / "sequence" / "s26-cpu-best" / "onnx"   # s26-run1 best.pt, exported
 DECODER = "decoder-int8.onnx"   # within half a point of FP32, 1.36 times as fast (progress log, 28 October 2026)
 
@@ -51,7 +52,8 @@ def _reader(folder):
         if not (folder / name).is_file():
             raise FileNotFoundError(f"the sequence reader's model {folder / name} was not found. "
                                     f"Set {MODEL_ENV} to the folder holding encoder.onnx and {DECODER}.")
-    return sequence.OnnxReader(folder / "encoder.onnx", folder / DECODER)
+    # every processor when converting alone, or where OMR_SEQUENCE_THREADS says
+    return sequence.OnnxReader(folder / "encoder.onnx", folder / DECODER, int(os.environ.get(THREADS_ENV) or 0))
 
 
 @dataclass
