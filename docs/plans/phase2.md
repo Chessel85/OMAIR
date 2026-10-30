@@ -121,6 +121,11 @@ Done when: the sequence reader runs on every raster development pair, its accura
 **Model: Opus.**
 
 - Compare the two engines bar by bar and staff by staff. Where they agree, confidence is high. Where they differ, keep both readings as candidates and let the musical rules choose (bar fullness, the other staves, key and accidentals, range), as section 4.5 of the design describes.
+- Four checks from another project's experience correcting OMR output (the musicxml-engraving-accessibility skill in mimocomputer/hermes-skills):
+  - **Disagreement marks where to look.** Compare the engines' notes as (bar, staff, onset, duration, pitch) sets, so only the bars that differ go to the rules, and a bar both engines read the same way is not checked note by note.
+  - **Key signatures.** Both engines that project used left out the key signature when spelling notes, or gave different keys in different parts of one file. Before choosing between pitches, check each key the engines read against the notes: the right key is one in which the pitch classes that occur often are in the scale. A key that fails is a candidate to replace, and a bar flagged.
+  - **Octave shifts come in blocks.** An engine often reads a whole passage an octave out, from a missed clef change or octave line. When the engines differ by exactly an octave on most notes of a run of bars on one staff, settle it once for the run (clef, octave line, range) rather than note by note.
+  - **Bar fullness after tuplets, voice by voice.** Add up each voice with tuplet ratios applied before judging fullness, or a correct triplet bar looks over-full and gets "fixed". An inner voice that stops early at a repeat or cadence is not by itself an error, and an extra bar after the final barline is.
 - A bar where the engines still disagree after the rules is flagged, with the two readings in the report in words ("the engines disagree on the third note, F sharp 5 or G 5").
 - Measure what each part of the reconciliation adds: Engine 1 alone, Engine 2 alone, and both. If Engine 2 adds nothing on clean input, say so and keep it for Phase 4, where photos may need it more.
 - Audiveris as a third opinion stays optional. Try it only if the two engines leave a clear gap that a third reading could close.
