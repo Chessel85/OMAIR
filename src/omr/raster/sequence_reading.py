@@ -10,12 +10,21 @@ found for that system.
 
 With OMR_ENGINE=sequence, read_pdf puts Engine 2's notes and rests in place
 of Engine 1's on image pages, so the harness scores Engine 2 alone; the
-structure, markings and text stay Engine 1's. Parts of more than two staves
-are not read by it (homr's tokens have two staff positions), and their
-notes stay Engine 1's.
+structure, markings and text stay Engine 1's. With OMR_ENGINE=both, the two
+readings are combined staff bar by staff bar (omr.raster.combine, Stage
+2.7). Parts of more than two staves are not read by it (homr's tokens have
+two staff positions), nor parts under clefs with no pitch (percussion,
+tablature, which homr was not trained on); their notes stay Engine 1's.
+
+With OMR_DETECTIONS_DIR set, each staff piece's reading is saved in its
+"sequence" folder, keyed by the piece's pixels and the model files, and read
+back on later runs instead of running the model again, as the detections
+are (omr.raster.reading).
 """
 
 import functools
+import hashlib
+import json
 import os
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
@@ -26,7 +35,7 @@ import numpy as np
 from omr import paths
 from omr.corpus.sequence_units import MARGIN_ABOVE, MARGIN_SIDES, _fit
 from omr.evaluate import events
-from omr.raster import sequence
+from omr.raster import combine, reading, sequence
 
 ENGINE_ENV = "OMR_ENGINE"
 MODEL_ENV = "OMR_SEQUENCE_MODEL"
@@ -35,9 +44,16 @@ DEFAULT_MODEL = Path("runs") / "sequence" / "s26-cpu-best" / "onnx"   # s26-run1
 DECODER = "decoder-int8.onnx"   # within half a point of FP32, 1.36 times as fast (progress log, 28 October 2026)
 
 
+def mode():
+    """What OMR_ENGINE asks for: "sequence" (Engine 2's notes alone),
+    "both" (the engines combined), or "" (Engine 1 alone)."""
+    value = os.environ.get(ENGINE_ENV, "").strip().lower()
+    return value if value in ("sequence", "both") else ""
+
+
 def wanted():
-    """OMR_ENGINE asks for Engine 2's notes."""
-    return os.environ.get(ENGINE_ENV, "").strip().lower() == "sequence"
+    """OMR_ENGINE asks for Engine 2's notes, alone or combined."""
+    return bool(mode())
 
 
 def model_dir():
@@ -53,7 +69,46 @@ def _reader(folder):
             raise FileNotFoundError(f"the sequence reader's model {folder / name} was not found. "
                                     f"Set {MODEL_ENV} to the folder holding encoder.onnx and {DECODER}.")
     # every processor when converting alone, or where OMR_SEQUENCE_THREADS says
-    return sequence.OnnxReader(folder / "encoder.onnx", folder / DECODER, int(os.environ.get(THREADS_ENV) or 0))
+    reader = sequence.OnnxReader(folder / "encoder.onnx", folder / DECODER, int(os.environ.get(THREADS_ENV) or 0))
+    saved_in = os.environ.get(reading.DETECTIONS_ENV)
+    return Saving(reader, Path(saved_in) / "sequence", folder) if saved_in else reader
+
+
+FIELDS = ("rhythm", "pitch", "lift", "articulation", "slur", "position")
+
+
+class Saving:
+    """A reader whose readings are saved in `folder`, keyed by the piece's
+    pixels and the model files, and read back when the same piece is read
+    with the same model."""
+
+    def __init__(self, reader, folder, model):
+        self.reader, self.folder = reader, Path(folder)
+        self.model = "".join(reading.model_digest(str(Path(model) / name)) for name in ("encoder.onnx", DECODER))
+
+    def file(self, image):
+        key = hashlib.sha256()
+        key.update(self.model.encode())
+        key.update(f"{image.shape} {image.dtype}".encode())
+        key.update(np.ascontiguousarray(image).tobytes())
+        name = key.hexdigest()
+        return self.folder / name[:2] / f"{name}.json"
+
+    def read(self, image):
+        sequence.use_homr()
+        from homr.transformer.vocabulary import EncodedSymbol
+
+        file = self.file(image)
+        try:
+            return [EncodedSymbol(*fields) for fields in json.loads(file.read_text(encoding="utf-8"))]
+        except (OSError, ValueError, TypeError):
+            pass
+        symbols = self.reader.read(image)
+        file.parent.mkdir(parents=True, exist_ok=True)
+        part = file.with_name(f"{file.stem}.{os.getpid()}.part")   # so a reader never sees half a file
+        part.write_text(json.dumps([[getattr(s, f) for f in FIELDS] for s in symbols]), encoding="utf-8")
+        part.replace(file)
+        return symbols
 
 
 @dataclass
@@ -89,6 +144,8 @@ def units(assigned, use, score=None):
                     continue
                 staves = [st for st, _ in pairs]
                 numbers = [n for _, n in pairs]
+                if clefs and all(unpitched(clefs, p, n, base) for n in numbers):
+                    continue
                 space = staves[0].space
                 left = min(st.x0 for st in staves) - MARGIN_SIDES * space
                 right = max(st.x1 for st in staves) + MARGIN_SIDES * space
@@ -200,6 +257,12 @@ def clef_list(score):
     return clefs
 
 
+def unpitched(clefs, part, staff, bar):
+    """The clef in force at the start of `bar` has no pitch (percussion, tablature)."""
+    found = [v for at, v in clefs.get((part, staff), []) if at <= (bar, Fraction(0))]
+    return bool(found) and events.clef_bottom(found[-1]) is None
+
+
 def _printed_bottom(value):
     """The bottom line of a clef as printed, leaving out its octave change."""
     return events.clef_bottom(" ".join(value.split()[:2]))
@@ -302,18 +365,17 @@ def octave_shifts(score):
     return shift
 
 
-def replace_notes(score, assigned, use, reader=None):
-    """Put Engine 2's notes and rests in place of Engine 1's in every part
-    of every system it reads. Returns counts: units read, units whose bar
-    count differed from Engine 1's."""
+def read_notes(score, assigned, use, reader=None):
+    """Engine 2's reading of every part of every system it reads: (notes,
+    rests, {(part, staff, bar) read}, counts). Counts: units read, units
+    whose bar count differed from Engine 1's."""
     found = units(assigned, use, score)
     counts = {"units": len(found), "bar count differs": 0}
+    notes, rests = [], []
     if not found:
-        return counts
+        return notes, rests, set(), counts
     reader = reader or _reader(str(model_dir()))
     read_where = {(u.part, staff, u.first_bar + k) for u in found for staff in u.numbers for k in range(u.bars)}
-    notes = [n for n in score.notes if (n.part, n.staff, n.bar) not in read_where]
-    rests = [r for r in score.rests if (r.part, r.staff, r.bar) not in read_where]
     shift = octave_shifts(score)
     keys = events.SignaturesInForce(score)
     for unit in found:
@@ -330,5 +392,28 @@ def replace_notes(score, assigned, use, reader=None):
         counts["bar count differs"] += not same
         notes += [replace(n, pitch=replace(n.pitch, octave=n.pitch.octave + shift(n))) for n in got_notes]
         rests += got_rests
-    score.notes, score.rests = notes, rests
+    return notes, rests, read_where, counts
+
+
+def replace_notes(score, assigned, use, reader=None):
+    """Put Engine 2's notes and rests in place of Engine 1's in every part
+    of every system it reads. Returns read_notes' counts."""
+    notes, rests, read_where, counts = read_notes(score, assigned, use, reader)
+    if read_where:
+        score.notes = [n for n in score.notes if (n.part, n.staff, n.bar) not in read_where] + notes
+        score.rests = [r for r in score.rests if (r.part, r.staff, r.bar) not in read_where] + rests
+    return counts
+
+
+def combine_notes(score, assigned, use, reader=None):
+    """Combine Engine 2's reading with Engine 1's (omr.raster.combine) in
+    every staff bar Engine 2 read, and note each staff bar where they
+    differ as a doubt (rule "engines disagree") with both readings in
+    words. Returns read_notes' counts, with the staff bars that differ."""
+    notes, rests, read_where, counts = read_notes(score, assigned, use, reader)
+    if read_where:
+        combined = combine.combine(score, notes, rests, score.doubts, read_where=read_where)
+        score.notes, score.rests = combined.notes, combined.rests
+        score.doubts += combine.disagreement_flags(combined)
+        counts["engines differ"] = len(combined.disagree)
     return counts

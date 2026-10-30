@@ -32,8 +32,10 @@ def read_pdf(path, notes=False):
             notation.read_notes(score, assigned[0], use, layouts)
             if images:
                 from omr.raster import sequence_reading
-                if sequence_reading.wanted():   # Engine 2's notes in place of Engine 1's (Stage 2.6)
+                if sequence_reading.mode() == "sequence":   # Engine 2's notes in place of Engine 1's (Stage 2.6)
                     sequence_reading.replace_notes(score, assigned, use)
+                elif sequence_reading.mode() == "both":     # the two engines combined (Stage 2.7)
+                    sequence_reading.combine_notes(score, assigned, use)
             # Jump words read as text that system_navigation did not take are still jumps, as the harness reads them.
             events.navigation_from_words(score)
         return score, layouts

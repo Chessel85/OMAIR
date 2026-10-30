@@ -85,3 +85,39 @@ def test_moving_by_steps_keeps_printed_accidentals_and_follows_the_key():
     assert sr.moved_by_steps(at("B", -1, 4), -12, -1).pitch == events.Pitch("D", Fraction(0), 3)
     # a sharp the key does not give was printed, and stays
     assert sr.moved_by_steps(at("C", 1, 5), -12, -1).pitch == events.Pitch("E", Fraction(1), 3)
+
+
+def test_unpitched_clef_is_left_to_engine_1():
+    clefs = {(0, 1): [((0, Fraction(0)), "percussion")], (0, 2): [((0, Fraction(0)), "G 2")]}
+    assert sr.unpitched(clefs, 0, 1, 3)
+    assert not sr.unpitched(clefs, 0, 2, 3)
+    assert not sr.unpitched(clefs, 1, 1, 3)
+
+
+def test_readings_are_saved_and_read_back(tmp_path, monkeypatch):
+    import pytest
+
+    try:
+        sr.sequence.use_homr()
+        import homr.transformer.vocabulary  # noqa: F401
+    except Exception:
+        pytest.skip("homr's source is not on this machine")
+    model = tmp_path / "model"
+    model.mkdir()
+    for name in ("encoder.onnx", sr.DECODER):
+        (model / name).write_bytes(name.encode())
+    calls = []
+
+    class Fake:
+        def read(self, image):
+            from homr.transformer.vocabulary import EncodedSymbol
+            calls.append(image)
+            return [EncodedSymbol("note_4", "C4", "_", "_", "_", "upper")]
+
+    saving = sr.Saving(Fake(), tmp_path / "saved", model)
+    image = np.zeros((1, 4, 8), dtype=np.float32)
+    first, again = saving.read(image), saving.read(image)
+    assert len(calls) == 1
+    assert [sr.sequence.symbol_text(s) for s in again] == [sr.sequence.symbol_text(s) for s in first]
+    saving.read(image + 1)
+    assert len(calls) == 2
