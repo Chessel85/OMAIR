@@ -134,9 +134,21 @@ def _clef_bottoms(score):
     return bottom
 
 
-def faults(notes, rests, where, signatures, bottom_of, doubted):
+def time_in_force(signatures, parts, part, bar):
+    """The part's time signature at the bar, or, where the part has none (a
+    signature misread on its staff), the one most other parts have there."""
+    time = signatures.time(part, bar)
+    if time is None:
+        others = collections.Counter(signatures.time(p, bar) for p in range(parts) if p != part)
+        others.pop(None, None)
+        time = others.most_common(1)[0][0] if others else None
+    return time
+
+
+def faults(notes, rests, where, signatures, bottom_of, doubted, parts=0):
     part, staff, bar = where
-    return {"fullness": fullness_faults(notes, rests, bar_length(signatures.time(part, bar))),
+    time = time_in_force(signatures, parts, part, bar)
+    return {"fullness": fullness_faults(notes, rests, bar_length(time)),
             "key": key_faults(notes, signatures.key(part, bar)),
             "range": range_faults(notes, bottom_of(part, staff, bar)),
             "doubt": int(where in doubted)}
@@ -208,12 +220,22 @@ def with_marks(first, second):
 
 
 def chords_differ(one, two):
-    """Both readings have notes at the same onsets but not as many at each:
-    a chord read with a note more or less. Engine 2 is right about three
-    times as often as Engine 1 there (progress log, Stage 2.7)."""
-    on1 = collections.Counter(n.onset for n in one[0] if not n.grace)
-    on2 = collections.Counter(n.onset for n in two[0] if not n.grace)
-    return set(on1) == set(on2) and on1 != on2
+    """Both readings have notes at the same onsets but not as many at each,
+    and at each onset one reading's pitches are among the other's: a chord
+    read with a note more or less. Engine 2 is right about three times as
+    often as Engine 1 there (progress log, Stage 2.7). Where the pitches
+    differ as well (Engine 2 reading a B6 for an octave E5 and E6,
+    pdmx-QkFxjWipz93Z), it is not this case."""
+    at1, at2 = collections.defaultdict(collections.Counter), collections.defaultdict(collections.Counter)
+    for n in one[0]:
+        if not n.grace:
+            at1[n.onset][n.pitch] += 1
+    for n in two[0]:
+        if not n.grace:
+            at2[n.onset][n.pitch] += 1
+    if set(at1) != set(at2) or at1 == at2:
+        return False
+    return all(at1[k] <= at2[k] or at2[k] <= at1[k] for k in at1)
 
 
 def out_of_step(first_notes, two_notes):
@@ -279,7 +301,7 @@ def combine(score, second_notes, second_rests, doubts=(), weights=WEIGHTS, read_
             both = mixed(one, two)
             if both is not None and _signature(*both) != _signature(*one):
                 readings["mixed"] = both
-            found = {k: faults(*r, where, signatures, bottom_of, doubted if k == 1 else set())
+            found = {k: faults(*r, where, signatures, bottom_of, doubted if k == 1 else set(), len(score.parts))
                      for k, r in readings.items()}
             sb.faults = (found[1], found[2])
             order = chords if chords and chords_differ(one, two) else prefer

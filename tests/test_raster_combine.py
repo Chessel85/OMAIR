@@ -116,3 +116,20 @@ def test_engine_2_a_bar_out_of_step_keeps_engine_1():
     two = [note(0, 4, "B")] + [note(0, 4, s, bar=b + 1) for b, s in enumerate(steps[:-1])]   # a bar late
     combined = combine.combine(score(one), two, [], doubts)
     assert sorted(combined.notes, key=lambda n: n.bar) == one and not combined.disagree
+
+
+def test_a_part_with_no_time_signature_takes_the_other_parts():
+    # the guitar staff's 3/4 was misread, so Engine 2's second voice placed
+    # after the bass note, past the end of the bar, went unnoticed (pdmx-XKU7wW67bJ8y)
+    signatures = events.SignaturesInForce(events.Score(structure=[events.Marking("time", "3/4", 0, None, 0, Fraction(0))]))
+    assert combine.time_in_force(signatures, 2, 1, 5) == "3/4"
+    assert combine.time_in_force(signatures, 1, 0, 5) == "3/4"
+    assert combine.time_in_force(events.SignaturesInForce(events.Score()), 2, 1, 5) is None
+
+
+def test_a_chord_with_a_note_more_or_less_is_not_a_chord_read_differently():
+    octave = [note(0, 1, "E"), note(0, 1, "E")]
+    octave[1] = events.Note(0, 1, "1", 0, Fraction(0), events.Pitch("E", Fraction(0), 5), Fraction(1), "")
+    assert combine.chords_differ((octave, []), ([octave[0]], []))           # a note left out
+    other = [events.Note(0, 1, "1", 0, Fraction(0), events.Pitch("B", Fraction(0), 6), Fraction(1), "")]
+    assert not combine.chords_differ((octave, []), (other, []))             # different pitches (pdmx-QkFxjWipz93Z)

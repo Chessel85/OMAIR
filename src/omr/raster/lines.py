@@ -37,6 +37,7 @@ INK_BELOW = 170          # grey level: darker pixels are ink
 LEVEL_INK_BELOW = 200    # for level lines at low resolution: a thin staff line is a pair of light grey rows
 LOW_RESOLUTION_SPACE = 12   # pixels: a smaller staff space is low resolution (150 dpi)
 INSIDE_SHARE = 0.9       # a line this much inside a symbol box is part of the symbol
+FLAG_STEM_SIDE = 0.4     # staff spaces: a vertical line further into a flag's box than this is the flag's
 LEVEL_MAX_THICK = 0.3    # staff spaces
 VERTICAL_MAX_WIDTH = 0.7
 LEVEL_MIN_LENGTH = 0.5
@@ -309,9 +310,54 @@ def erase_verticals(ink, vertical_pixels):
     return out
 
 
-def beams(rest, space):
-    """Beams on the ink with staff lines, vertical lines and symbols taken away."""
+def fit_to_lines(cols, starts, ends, on_line, space):
+    """Column runs measured with the staff lines: a run too thin for a beam
+    that touches a staff line takes the line's rows back (a beam sitting on
+    the top line, with no ink above it, loses them when the line is taken
+    away),
+    and a run too tall for one beam is cut at the line rows inside it (two
+    beams with a line kept in the gap between them). LilyPond sets beams on
+    and astride the lines (pdmx-xsKosKgjGnpL). `on_line` marks the pixels of
+    the staff lines."""
+    if on_line is None or not len(cols):
+        return cols, starts, ends
+    h = on_line.shape[0]
+    starts, ends = starts.copy(), ends.copy()
+    # only runs too thin for a beam: a sloping beam crossing the lines would
+    # otherwise grow in some columns only and no longer fit as one
+    for k in np.nonzero((ends - starts) < BEAM_THICK[0] * space)[0]:
+        c = cols[k]
+        while starts[k] > 0 and on_line[starts[k] - 1, c]:
+            starts[k] -= 1
+        while ends[k] < h and on_line[ends[k], c]:
+            ends[k] += 1
+    tall = (ends - starts) > BEAM_THICK[1] * space
+    if not tall.any():
+        return cols, starts, ends
+    out_c, out_s, out_e = [cols[~tall]], [starts[~tall]], [ends[~tall]]
+    extra_c, extra_s, extra_e = [], [], []
+    for c, t, b in zip(cols[tall], starts[tall], ends[tall]):
+        line = on_line[t:b, c]
+        if not line.any():
+            extra_c.append(c), extra_s.append(t), extra_e.append(b)
+            continue
+        start = t
+        for y in range(t, b + 1):
+            if y == b or line[y - t]:
+                if y > start:
+                    extra_c.append(c), extra_s.append(start), extra_e.append(y)
+                start = y + 1
+    out_c.append(np.array(extra_c, dtype=cols.dtype))
+    out_s.append(np.array(extra_s, dtype=starts.dtype))
+    out_e.append(np.array(extra_e, dtype=ends.dtype))
+    return np.concatenate(out_c), np.concatenate(out_s), np.concatenate(out_e)
+
+
+def beams(rest, space, on_line=None):
+    """Beams on the ink with staff lines, vertical lines and symbols taken
+    away; `on_line` marks the staff lines' pixels (fit_to_lines)."""
     cols, starts, ends = runs(rest.T)
+    cols, starts, ends = fit_to_lines(cols, starts, ends, on_line, space)
     length = ends - starts
     keep = (length >= BEAM_THICK[0] * space) & (length <= BEAM_THICK[1] * space)
     cols, starts, ends = cols[keep], starts[keep], ends[keep]
@@ -906,7 +952,7 @@ def level(grey):
     return cv2.warpAffine(grey, m, (w, h), flags=cv2.INTER_LINEAR, borderValue=255), angle
 
 
-def find_lines(grey, symbol_boxes=(), flag_boxes=(), rest_boxes=()):
+def find_lines(grey, symbol_boxes=(), flag_boxes=(), rest_boxes=(), head_boxes=()):
     """The Lines of a greyscale page image (rows of 0 to 255). `symbol_boxes`
     are the ink boxes of the page's symbols and text, in pixels: lines
     almost wholly inside them are part of a symbol. `flag_boxes` are the
@@ -914,20 +960,32 @@ def find_lines(grey, symbol_boxes=(), flag_boxes=(), rest_boxes=()):
     test, but their ink is not a beam. `rest_boxes` are the boxes of half
     and whole rests, taken as symbols except in the search for beams: the
     detector can take a partial beam for one, and a real rest has no stem
-    at its end to make it a beam."""
+    at its end to make it a beam. `head_boxes` are the boxes of noteheads,
+    taken as symbols except in the search for level lines: a ledger line
+    through or touching a notehead lies almost wholly inside its box, and a
+    notehead's own ink is too thick to be a level line (pdmx-bEG6fz8chqsR)."""
     ink = ink_of(grey)
     space, _ = staff_space(ink)
     if space is None:
         return Lines(space=0.0)
-    boxes = list(symbol_boxes) + list(rest_boxes)
+    level_boxes = list(symbol_boxes) + list(rest_boxes)
+    symbol_boxes = list(symbol_boxes) + list(head_boxes)
+    boxes = symbol_boxes + list(rest_boxes)
     mask = box_mask(ink.shape, boxes) if boxes else None
     beam_mask = box_mask(ink.shape, symbol_boxes) if len(rest_boxes) and len(symbol_boxes) else None
+    level_mask = box_mask(ink.shape, level_boxes) if level_boxes else None
     found = Lines(space=space)
     dark = 255 - grey
     level_ink = grey < LEVEL_INK_BELOW if space < LOW_RESOLUTION_SPACE else ink
-    found.level, level_pixels = level_lines(level_ink, dark, space, mask)
+    found.level, level_pixels = level_lines(level_ink, dark, space, level_mask)
     clean = remove_staff_lines(ink, level_pixels, space)
-    found.vertical, vertical_pixels = vertical_lines(clean, dark, space, mask)
+    # a flag holds its stem at its left edge; a vertical line further in is the
+    # flag's own curl (a down flag's tail, pdmx-WEpfyNr7yQWL), not a stem
+    curls = [(x0 + FLAG_STEM_SIDE * space, y0, x1, y1) for x0, y0, x1, y1 in flag_boxes]
+    vertical_mask = mask
+    if curls:
+        vertical_mask = box_mask(ink.shape, curls, pad=0) | (mask if mask is not None else False)
+    found.vertical, vertical_pixels = vertical_lines(clean, dark, space, vertical_mask)
     rest = erase_verticals(clean, vertical_pixels)
     if len(rest_boxes):
         if beam_mask is not None:
@@ -937,7 +995,11 @@ def find_lines(grey, symbol_boxes=(), flag_boxes=(), rest_boxes=()):
     if len(flag_boxes):
         rest &= ~box_mask(ink.shape, flag_boxes)
     on = []
-    for b in join_beams(beams(rest, space), space):
+    on_line = np.zeros(ink.shape, bool)
+    for top, bottom, a, b in level_pixels:
+        if b - a >= 4 * space:
+            on_line[top:bottom + 1, a:b] = True
+    for b in join_beams(beams(rest, space, on_line), space):
         stemmed = on_stems(b, vertical_pixels, space, clean)
         if stemmed:
             on.append(stemmed)

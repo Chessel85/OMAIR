@@ -128,8 +128,10 @@ def read_page(page, number, detect=None, read_text=None):
     named = PageSymbols(number, None, symbols, text_regions=text, masked=masked)
     boxes, flags = rp.symbol_boxes(named)
     rests = [s.box for s in symbols if s.name in names.BEAM_LIKE]
-    boxes = [b for b in boxes if b not in rests]
-    lines = rl.find_lines(grey, *([place.to_pixels(b) for b in part] for part in (boxes, flags, rests)))
+    heads = [s.box for s in symbols if s.name.startswith("notehead")]
+    apart = set(rests) | set(heads)
+    boxes = [b for b in boxes if b not in apart]
+    lines = rl.find_lines(grey, *([place.to_pixels(b) for b in part] for part in (boxes, flags, rests, heads)))
     lines.tilt = angle
     digits = [place.to_pixels(s.box) for s in symbols if s.name in names.TIME_DIGITS]
     lines.vertical = [v for v in lines.vertical if not _in_digits(v, digits)]

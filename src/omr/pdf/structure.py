@@ -541,18 +541,39 @@ def staff_times(page_layout, system, staff):
         if not digits:
             continue
         # the last group, nearest the music: MuseScore can put a reminder in
-        # brackets, such as (4/4), before an end repeat, and the change after it
-        x1 = digits[-1].x
-        group = sorted((s for s in digits if s.x >= x1 - 3 * staff.space), key=lambda s: s.x)
-        # by the middle of the ink: SMuFL digits are centred on their origin,
-        # Emmentaler's stand on it
-        middle = (staff.top + staff.bottom) / 2
-        upper = "".join(TIME_DIGITS[s.name] for s in group if (s.box[1] + s.box[3]) / 2 < middle)
-        lower = "".join(TIME_DIGITS[s.name] for s in group if (s.box[1] + s.box[3]) / 2 > middle)
-        # a zero is a misread digit (a detected 0 in an image), not a metre
-        if upper and lower and int(upper) and int(lower):
-            out.append((k, f"{int(upper)}/{int(lower)}"))
+        # brackets, such as (4/4), before an end repeat, and the change after it.
+        # A last group that is not a whole signature (a stray digit detected in
+        # an image, pdmx-XKU7wW67bJ8y) gives way to the group before it.
+        for group in reversed(_digit_groups(digits, 3 * staff.space)):
+            time = _stacked_time(group, staff)
+            if time:
+                out.append((k, time))
+                break
     return out
+
+
+def _digit_groups(digits, gap):
+    """Digits sorted by x in groups from the right: each group the digits
+    within `gap` left of the last digit not yet grouped."""
+    groups, left = [], list(digits)
+    while left:
+        x1 = left[-1].x
+        groups.insert(0, [s for s in left if s.x >= x1 - gap])
+        left = [s for s in left if s.x < x1 - gap]
+    return groups
+
+
+def _stacked_time(group, staff):
+    """"beats/beat-type" from digits above and below the staff's middle, or None."""
+    # by the middle of the ink: SMuFL digits are centred on their origin,
+    # Emmentaler's stand on it
+    middle = (staff.top + staff.bottom) / 2
+    upper = "".join(TIME_DIGITS[s.name] for s in group if (s.box[1] + s.box[3]) / 2 < middle)
+    lower = "".join(TIME_DIGITS[s.name] for s in group if (s.box[1] + s.box[3]) / 2 > middle)
+    # a zero is a misread digit (a detected 0 in an image), not a metre
+    if upper and lower and int(upper) and int(lower):
+        return f"{int(upper)}/{int(lower)}"
+    return None
 
 
 # ------------------------------------------------------- endings and text

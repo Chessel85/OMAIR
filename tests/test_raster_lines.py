@@ -246,3 +246,35 @@ def test_two_arms_found_apart_are_carried_on_to_where_they_meet():
     # lines that close in too far away, or are not open at one end, are left alone
     far = [(300.0, 290.0, 600.0, 280.0, 3.0), (300.0, 310.0, 600.0, 320.0, 3.0)]
     assert rl.meet_arms(far, SPACE) == far
+
+
+def test_a_flags_curl_is_not_a_stem():
+    # a down flag's tail rises to the right of its stem (pdmx-WEpfyNr7yQWL)
+    grey = staff(blank())
+    grey[TOP:TOP + 4 * SPACE, 500:502] = 0                  # the stem, its flag at the bottom
+    grey[TOP + 2 * SPACE:TOP + 3 * SPACE + 10, 510:512] = 0 # the curl, a staff space to the right
+    flag = (499, TOP + 2 * SPACE - 2, 520, TOP + 4 * SPACE + 2)
+    found = rl.find_lines(grey, [], [flag])
+    assert [round(x) for x, *_ in found.vertical] == [501]
+
+
+def test_a_notehead_does_not_hide_its_ledger_line():
+    # the ledger line through a notehead lies almost wholly inside its box (pdmx-bEG6fz8chqsR)
+    grey = staff(blank())
+    ledger = TOP + 6 * SPACE
+    grey[ledger:ledger + LINE, 296:324] = 0
+    head = (298, ledger - SPACE // 2, 322, ledger + SPACE // 2)
+    assert not [y for y, *_ in rl.find_lines(grey, [head]).level if abs(y - ledger) < 3]
+    assert [y for y, *_ in rl.find_lines(grey, [], head_boxes=[head]).level if abs(y - ledger) < 3]
+
+
+def test_a_beam_sitting_on_the_top_line_keeps_the_lines_rows():
+    # LilyPond: two beams on the top two lines, nothing above the upper one
+    # (pdmx-xsKosKgjGnpL); the staff line taken away left it too thin
+    grey = staff(blank())
+    for x in (300, 420):
+        grey[TOP:TOP + 4 * SPACE, x:x + 2] = 0               # stems down from the beams
+    grey[TOP:TOP + 7, 300:422] = 0                           # upper beam, its top on the top line
+    grey[TOP + SPACE - 2:TOP + SPACE + 5, 300:422] = 0       # lower beam across the second line
+    found = rl.find_lines(grey)
+    assert len(found.beams) == 2

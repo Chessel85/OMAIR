@@ -364,6 +364,17 @@ def test_the_time_signature_nearest_the_music_is_read(monkeypatch):
     assert structure.staff_times(None, system, staff) == [(0, "3/4")]
 
 
+def test_a_stray_digit_after_a_time_signature_is_passed_over(monkeypatch):
+    # an image: a 4 detected at 0.33 confidence 3.4 staff spaces after the 3/4
+    # of a guitar staff left the part with no time signature (pdmx-XKU7wW67bJ8y)
+    staff = SimpleNamespace(top=100.0, bottom=120.0, space=5.0)
+    system = SimpleNamespace(bars=[None])
+    digit = lambda name, x, top: SimpleNamespace(name=name, x=x, box=(x - 2, top, x + 2, top + 9))
+    region = [digit("timeSig3", 50.0, 100.0), digit("timeSig4", 50.0, 111.0), digit("timeSig4", 67.0, 100.0)]
+    monkeypatch.setattr(structure, "signature_region", lambda *args: region)
+    assert structure.staff_times(None, system, staff) == [(0, "3/4")]
+
+
 def test_jump_words_between_two_systems_go_to_the_nearer():
     # "D.S. al Fine" over the last system, also within reach of the one
     # above (os-sq8437358, MuseScore 3)
