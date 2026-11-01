@@ -8,12 +8,15 @@ from omr.evaluate import events
 from omr.pdf import layout as lay, notation, structure, symbols
 
 
-def read_pdf(path, notes=False):
+def read_pdf(path, notes=False, selfcheck=False):
     """(Score, [PageLayout]) for a PDF: the structure, and with `notes` also
     the notes and rests (Stage 1.3, omr.pdf.notation) and the markings and
     text (Stage 1.4, omr.pdf.markings and omr.pdf.text). Pages holding a
     page image are read from it (Stage 2.4, omr.raster.reading). An image
-    file is read as a one-page image PDF."""
+    file is read as a one-page image PDF. With `notes` and `selfcheck`, the
+    music read is drawn again and compared with the page (Stage 2.8,
+    omr.selfcheck; off when OMR_SELFCHECK is 0), its flags added to the
+    score's doubts."""
     doc = open_pdf(path)
     try:
         # each page loaded once, so what PyMuPDF gives for it is fetched once
@@ -38,6 +41,10 @@ def read_pdf(path, notes=False):
                     sequence_reading.combine_notes(score, assigned, use)
             # Jump words read as text that system_navigation did not take are still jumps, as the harness reads them.
             events.navigation_from_words(score)
+            if selfcheck:
+                from omr import selfcheck as check
+                if check.enabled():
+                    score.doubts.extend(check.check(score, assigned[0]))
         return score, layouts
     finally:
         doc.close()

@@ -303,3 +303,13 @@ def test_convert_reads_raster_input(tmp_path, capsys, monkeypatch):
     out = capsys.readouterr().out
     assert out.count("the symbol detector's model") == 2
     assert "Set OMR_DETECTOR to the model file" in out
+
+
+def test_a_clef_replaced_at_the_same_point_is_written_once(tmp_path):
+    # an incipit's old clef, then the modern one the notes were read with
+    score = events.Score(parts=[events.Part("", 1)], bars=[events.Bar("1", 1, 1)], bar_counts=[1])
+    score.notes = [_note("A", 4, duration=4, value="whole")]
+    score.structure = [events.Marking("clef", "C 1", 0, 1, 0, F(0)), events.Marking("clef", "G 2", 0, 1, 0, F(0)),
+                       events.Marking("time", "4/4", 0, None, 0, F(0))]
+    clefs = events.read_root(_write(score, tmp_path)).find("part").find("measure").findall("attributes/clef")
+    assert [(c.findtext("sign"), c.findtext("line")) for c in clefs] == [("G", "2")]

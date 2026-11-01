@@ -158,6 +158,7 @@ class PageLayout:
     attached: dict = field(default_factory=dict)   # id(symbol) -> (staff, step)
     horizontals: list = field(default_factory=list)  # joined horizontal lines (_Line)
     verticals: list = field(default_factory=list)    # (x, top, bottom, width)
+    strokes: dict = field(default_factory=dict, repr=False, compare=False)  # id(head symbol) -> beams and flags on its stem
     _by_staff: dict = field(default=None, repr=False, compare=False)
 
     def on_staff(self, staff):

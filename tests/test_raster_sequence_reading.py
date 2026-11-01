@@ -121,3 +121,12 @@ def test_readings_are_saved_and_read_back(tmp_path, monkeypatch):
     assert [sr.sequence.symbol_text(s) for s in again] == [sr.sequence.symbol_text(s) for s in first]
     saving.read(image + 1)
     assert len(calls) == 2
+
+
+def test_layout_bars_map_to_the_score_bars_after_a_join():
+    from omr.raster import sequence_reading as sr
+
+    joined = [3]                      # layout bars 3 and 4 are one score bar
+    assert [sr.score_bar(b, joined) for b in range(7)] == [0, 1, 2, 3, 3, 4, 5]
+    assert [b for b in range(7) if sr.in_joined(b, joined)] == [3, 4]
+    assert sr.score_bar(5, []) == 5

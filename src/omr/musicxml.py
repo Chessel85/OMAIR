@@ -254,7 +254,13 @@ class Writer:
         part = self.score.parts[p]
         keys = [e for e in structure if e.kind == "key"]
         times = [e for e in structure if e.kind == "time"]
-        clefs = sorted((e for e in structure if e.kind == "clef" and e.onset == 0), key=lambda e: e.staff or 1)
+        # one clef a staff: where a clef is replaced at the same point (an incipit's old
+        # clef, then the modern one), the last, which the notes were read with
+        last = {}
+        for e in structure:
+            if e.kind == "clef" and e.onset == 0:
+                last[e.staff or 1] = e
+        clefs = [last[k] for k in sorted(last)]
         if not (b == 0 or keys or times or clefs):
             return
         attributes = _sub(measure, "attributes")

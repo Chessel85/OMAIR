@@ -17,7 +17,7 @@ def read_file(path):
     """The Score read with notes. Raises InspectError."""
     open_document(path).close()   # the usual message for a missing or unreadable file
     try:
-        score, _ = read_pdf(path, notes=True)
+        score, _ = read_pdf(path, notes=True, selfcheck=True)
         return score
     except InspectError:
         raise

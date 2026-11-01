@@ -1452,6 +1452,7 @@ def join_split_bars(score, ordered):
         if not (continued and 0 < first and 0 < second <= full):
             continue
         _join_bars(score, k, full - second)
+        score.joined.append(k)   # the joins run from the last back, so k is also the page layout's number
 
 
 def _join_bars(score, k, shift):
@@ -1574,6 +1575,12 @@ def _find_events(r, shapes):
     for flag in attach_flags(stems, flags, space):
         doubt(pl.staff_of(flag), flag.x, "stray symbol", "a flag is on no stem")
     chords = make_chords(heads, stems, space)
+    # the beams and flags each notehead's stem has, for the self-check (omr.selfcheck)
+    for e in chords:
+        if e.stem is not None:
+            strokes = len(_beam_levels(e.stem, space)) + e.stem.flags
+            for h in e.heads:
+                pl.strokes[id(h.symbol)] = strokes
     two_note_tremolos(chords, beam_list, space)
     rests = make_rests(mine, pl)
     evs = chords + rests

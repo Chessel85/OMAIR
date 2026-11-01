@@ -17,6 +17,10 @@ Usage:
   python scripts/check_flags.py [--set-root FOLDER] [--job NAME] [--score ID] [--limit N]
                                 [--workers N] [--out FILE] [--json FILE] [--min-recall PERCENT]
 
+Each pair waits before it starts while continue.txt in the repository's
+folder does not say yes (omr.pause); pairs already started finish. The
+self-check by re-rendering (omr.selfcheck) runs unless OMR_SELFCHECK is 0.
+
 With --min-recall the command fails (exit status 1) if the flagging recall
 on exact pairs is below that percentage, or if any pair could not be read.
 CI runs it on the regression set.
@@ -28,7 +32,7 @@ import json
 import sys
 from pathlib import Path
 
-from omr import parallel, paths
+from omr import parallel, pause, paths
 from omr.log import ProgressLog
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -36,13 +40,18 @@ import check_notes  # noqa: E402
 
 
 def check_pair(pdf, truth_path):
-    """The error places and the flags of one pair, for scoring by rule."""
+    """The error places and the flags of one pair, for scoring by rule. Each
+    pair waits first while continue.txt does not say yes (omr.pause)."""
+    import logging
+
+    from omr import pause
     from omr.evaluate import events, match, metrics
     from omr.pdf import rules
     from omr.pdf.read import read_pdf
 
+    pause.wait_while_paused(logging.getLogger("check-flags"))
     truth = events.read(truth_path)
-    found, _ = read_pdf(pdf, notes=True)
+    found, _ = read_pdf(pdf, notes=True, selfcheck=True)
     result = match.match(truth, found)
     return {"places": metrics.error_places(result),
             "flags": [(f.rule, f.part, f.staff, f.bar) for f in rules.check(found)],
@@ -102,7 +111,8 @@ def report(results):
             alone = figures(chosen, lambda r, rule=rule: r == rule)
             if in_flag_file(rule):
                 without = figures(chosen, lambda r, rule=rule: r != rule and in_flag_file(r))
-                change = f"Without it, recall is {pct(without[1], without[0])}."
+                change = (f"Without it, recall is {pct(without[1], without[0])} with "
+                          f"{pct(without[3], without[2])} of bars flagged.")
             else:
                 added = figures(chosen, lambda r, rule=rule: r == rule or in_flag_file(r))
                 change = (f"Report only, not in the flag file; with it, recall would be "
@@ -145,6 +155,7 @@ def main(argv=None):
     if not todo:
         log.error(f"No pairs found in {args.set_root}. Check the folder has an index.txt.")
         return log.finish("0 files checked")
+    pause.make_control()
     results = {}
     failed = 0
     with parallel.pool(args.workers) as executor:

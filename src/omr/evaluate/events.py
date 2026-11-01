@@ -157,6 +157,8 @@ class Score:
     text: list = field(default_factory=list)       # page text (title, composer, ...) read from a PDF; not compared
     doubts: list = field(default_factory=list)     # doubts noted while reading a PDF (Flag); not compared
     hidden_first_bar: bool = False                 # bar 1 cannot be seen on the page (decision 17)
+    joined: list = field(default_factory=list)     # bars of the page layout joined with the next (a bar split
+                                                   # across a line, notation.join_split_bars), in layout numbering
 
     def staves(self):
         """Every staff in score order, as (part, staff) pairs."""

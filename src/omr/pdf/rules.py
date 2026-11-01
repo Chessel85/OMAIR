@@ -233,7 +233,7 @@ def bar_flags(flags, rules=None):
 
 # The rules whose flags go into the flag file (they point at note errors).
 FLAG_RULES = {"rhythm", "bar fullness", "staves disagree", "unprinted tuplet", "ties", "stray symbol",
-              "hidden staves", "octave sign", "unsure symbol", "engines disagree"}
+              "hidden staves", "octave sign", "unsure symbol", "engines disagree", "self-check"}
 
 # The share of each rule's flagged bars that held a note error on the
 # exact pairs of the development set (docs/notes/confidence-spec.md).
@@ -243,11 +243,15 @@ FLAG_RULES = {"rhythm", "bar fullness", "staves disagree", "unprinted tuplet", "
 # "engines disagree" (Stage 2.7, omr.raster.combine) is the share of staff
 # bars where the engines differ whose combined reading was still wrong, on
 # every 6th development pair at 300 dpi (scripts/try_combining.py).
+# "self-check" (Stage 2.8, omr.selfcheck) is measured on the exact pairs of
+# the vector development set (scripts/check_flags.py; 0.27 on the 200 dpi
+# raster development set with both engines).
 RULE_PRECISION = {
     "rhythm": 0.64, "bar fullness": 0.58, "staves disagree": 0.49, "unprinted tuplet": 0.26,
     "ties": 0.20, "octave sign": 0.17, "stray symbol": 0.13, "hidden staves": 0.03,
     "slurs": 0.08, "key and accidentals": 0.03, "instrument range": 0.0,
     "unsure symbol": 0.53, "unsure marking": 0.05, "engines disagree": 0.30,
+    "self-check": 0.23,
 }
 
 

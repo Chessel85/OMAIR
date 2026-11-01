@@ -132,6 +132,11 @@ def units(assigned, use, score=None):
     lengths = bar_lengths(score) if score is not None else {}
     changes = signature_changes(score) if score is not None else set()
     clefs = clef_list(score) if score is not None else {}
+    joined = score.joined if score is not None else []
+
+    def sb(bar):
+        return score_bar(bar, joined)
+
     out = []
     base = 0
     for pl, system, mapping in ordered:
@@ -144,7 +149,7 @@ def units(assigned, use, score=None):
                     continue
                 staves = [st for st, _ in pairs]
                 numbers = [n for _, n in pairs]
-                if clefs and all(unpitched(clefs, p, n, base) for n in numbers):
+                if clefs and all(unpitched(clefs, p, n, sb(base)) for n in numbers):
                     continue
                 space = staves[0].space
                 left = min(st.x0 for st in staves) - MARGIN_SIDES * space
@@ -156,8 +161,8 @@ def units(assigned, use, score=None):
                     h, w = grey.shape
                     return grey[max(0, int(b)):min(h, int(d)), max(0, int(a)):min(w, int(c))]
 
-                tokens = [sum(lengths.get((p, n, base + k), 0) for n in numbers) + 1 for k in range(len(system.bars))]
-                last_change = min((k for k in range(1, len(system.bars)) if (p, base + k) in changes),
+                tokens = [sum(lengths.get((p, n, sb(base + k)), 0) for n in numbers) + 1 for k in range(len(system.bars))]
+                last_change = min((k for k in range(1, len(system.bars)) if (p, sb(base + k)) in changes),
                                   default=len(system.bars))
                 starts = pieces(tokens, last_change)
                 header = header_end(pl, system, staves) if len(starts) > 1 else None
@@ -172,7 +177,7 @@ def units(assigned, use, score=None):
                         head, body = cut(left, header + 0.5 * space), cut(system.bars[a].x0, x1)
                         crop = np.hstack([head, body]) if head.size and body.size and len(head) == len(body) else body
                     if crop.size:
-                        shifts = clef_shifts(clefs, p, numbers, base, base + a) if a else {}
+                        shifts = clef_shifts(clefs, p, numbers, sb(base), sb(base + a)) if a else {}
                         out.append(Unit(p, numbers, base + a, end - a, _fit(crop), shifts))
         base += len(system.bars)
     return out
@@ -333,6 +338,17 @@ def tokens_to_score(symbols):
     return events.from_root(generate_xml(XmlGeneratorArguments(), [symbols], ""))
 
 
+def score_bar(bar, joined):
+    """The score's bar for a bar of the page layout, where bars split across
+    a line were joined (Score.joined): the bars after a join move down one."""
+    return bar - sum(1 for k in joined if k < bar)
+
+
+def in_joined(bar, joined):
+    """Whether a page layout bar is one of the two pieces of a joined bar."""
+    return bar in joined or bar - 1 in joined
+
+
 def place(read, unit):
     """(notes, rests) of `read` (tokens_to_score's Score) moved into the
     unit's part, staves and bars, and whether its bar count matched the
@@ -375,7 +391,11 @@ def read_notes(score, assigned, use, reader=None):
     if not found:
         return notes, rests, set(), counts
     reader = reader or _reader(str(model_dir()))
-    read_where = {(u.part, staff, u.first_bar + k) for u in found for staff in u.numbers for k in range(u.bars)}
+    # Units count bars as the page layout does; the score has joined the two
+    # pieces of a bar split across a line, which Engine 1's reading keeps
+    joined = score.joined
+    read_where = {(u.part, staff, score_bar(u.first_bar + k, joined)) for u in found for staff in u.numbers
+                  for k in range(u.bars) if not in_joined(u.first_bar + k, joined)}
     shift = octave_shifts(score)
     keys = events.SignaturesInForce(score)
     for unit in found:
@@ -385,6 +405,9 @@ def read_notes(score, assigned, use, reader=None):
             counts["bar count differs"] += 1
             continue
         got_notes, got_rests, same = place(read, unit)
+        if joined:
+            got_notes = [replace(n, bar=score_bar(n.bar, joined)) for n in got_notes if not in_joined(n.bar, joined)]
+            got_rests = [replace(r, bar=score_bar(r.bar, joined)) for r in got_rests if not in_joined(r.bar, joined)]
         for i, n in enumerate(got_notes):
             steps, until = unit.shifts.get(n.staff, (0, None))
             if steps and (until is None or (n.bar, n.onset) < until):
