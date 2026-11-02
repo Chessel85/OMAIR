@@ -20,7 +20,17 @@ The rules (each counts faults; `weights` says how much each counts):
   bar, and the bar's music stopping short of the time signature.
 - key: notes whose alteration is not the key's for their letter (weight 0:
   on the development set the right reading had more such notes more often).
-- range: notes more than RANGE staff steps outside the staff.
+- range (Engine 2's reading only): notes more than RANGE staff steps
+  outside the staff, or REACH steps or more above the part's top staff or
+  below its bottom one, beyond the crop it reads, where it puts notes it
+  cannot see at the edge (a run of D5s for high notes on a bass staff,
+  pdmx-QkFxjWipz93Z). Engine 1 reads ledger lines from the image, so its
+  notes far out are there (octaves nine ledger lines over a bass staff,
+  the same pair); Engine 1's pitches, mixed's too, are not judged by range.
+- silent: the reading has no notes where the other has some (rests only:
+  Engine 2 saw an eighth rest and missed the twelve 32nd notes after it,
+  pdmx-AcZ5nsmxvJxs; where only Engine 1 has a note at an onset, it is
+  right five times in six).
 - doubt: Engine 1 noted a doubt or broke a rule in the bar (its flags).
 """
 
@@ -31,7 +41,8 @@ from fractions import Fraction
 from omr.evaluate import events
 
 RANGE = 12          # staff steps beyond the outer line: six ledger lines
-WEIGHTS = {"fullness": 1.0, "key": 0, "range": 1.0, "doubt": 1.0}   # key: see the progress log
+REACH = 9           # staff steps past a part's outer staff line beyond Engine 2's crop (4 spaces, 8 steps)
+WEIGHTS = {"fullness": 1.0, "key": 0, "range": 1.0, "silent": 1.0, "doubt": 1.0}   # key: see the progress log
 
 
 @dataclass
@@ -107,31 +118,53 @@ def key_faults(notes, fifths):
     return sum(1 for n in notes if n.pitch.alter != events.key_alter(fifths, n.pitch.step))
 
 
-def range_faults(notes, bottom):
-    if bottom is None:
+def range_faults(notes, bottom, reach=None):
+    """Notes more than RANGE steps outside the staff whose bottom line is
+    `bottom` (or, given several, the bottom lines of the clefs in force in
+    the bar: outside under every one); with `reach` (above, below), True
+    where the staff is the part's top or bottom one, also notes REACH steps
+    or more outside it on that side (Engine 2's)."""
+    bottoms = [b for b in (bottom if isinstance(bottom, (tuple, list)) else (bottom,)) if b is not None]
+    if not bottoms:
         return 0
+    limits = []
+    for b in bottoms:
+        low, high = b - RANGE, b + 8 + RANGE
+        if reach is not None:
+            above, below = reach
+            if above:
+                high = min(high, b + 8 + REACH - 1)
+            if below:
+                low = max(low, b - REACH + 1)
+        limits.append((low, high))
     out = 0
     for n in notes:
         d = events.STEPS.index(n.pitch.step) + 7 * n.pitch.octave
-        if d < bottom - RANGE or d > bottom + 8 + RANGE:
+        if all(d < low or d > high for low, high in limits):
             out += 1
     return out
 
 
 def _clef_bottoms(score):
-    """A function (part, staff, bar) -> bottom line of the clef in force at the bar's start."""
+    """A function (part, staff, bar) -> the bottom lines of the clefs in
+    force in the bar: the one at its start (None for a clef with no pitch)
+    and those of clef changes inside it (a bass staff turning treble
+    halfway, pdmx-KbWx8rTYY93p)."""
     clefs = collections.defaultdict(list)
     for m in sorted((m for m in score.structure if m.kind == "clef"), key=lambda m: (m.bar, m.onset)):
-        clefs[(m.part, m.staff)].append((m.bar, events.clef_bottom(m.value)))
+        clefs[(m.part, m.staff)].append((m.bar, m.onset, events.clef_bottom(m.value)))
 
-    def bottom(part, staff, bar):
-        found = None
-        for b, value in clefs.get((part, staff), []):
+    def bottoms(part, staff, bar):
+        start, inside = None, []
+        for b, onset, value in clefs.get((part, staff), []):
             if b > bar:
                 break
-            found = value
-        return found
-    return bottom
+            if b < bar or onset == 0:
+                start = value
+            else:
+                inside.append(value)
+        return (start, *inside)
+    return bottoms
 
 
 def time_in_force(signatures, parts, part, bar):
@@ -145,12 +178,17 @@ def time_in_force(signatures, parts, part, bar):
     return time
 
 
-def faults(notes, rests, where, signatures, bottom_of, doubted, parts=0):
+def _no_bottoms(part, staff, bar):
+    """No staff to judge a reading's range by (Engine 1's pitches)."""
+    return ()
+
+
+def faults(notes, rests, where, signatures, bottom_of, doubted, parts=0, reach=None):
     part, staff, bar = where
     time = time_in_force(signatures, parts, part, bar)
     return {"fullness": fullness_faults(notes, rests, bar_length(time)),
             "key": key_faults(notes, signatures.key(part, bar)),
-            "range": range_faults(notes, bottom_of(part, staff, bar)),
+            "range": range_faults(notes, bottom_of(part, staff, bar), reach),
             "doubt": int(where in doubted)}
 
 
@@ -287,11 +325,12 @@ def combine(score, second_notes, second_rests, doubts=(), weights=WEIGHTS, read_
     rests = [r for r in score.rests if (r.part, r.staff, r.bar) not in read_where]
     out = Combined(notes, rests)
     misplaced = out_of_step(first_notes, two_notes)
+    staves = {k: p.staves for k, p in enumerate(score.parts)}
     for where in sorted(read_where):
         one = (first_notes.get(where, []), first_rests.get(where, []))
         two = (two_notes.get(where, []), two_rests.get(where, []))
         chosen = one
-        unpitched = where[:2] in with_clef and bottom_of(*where) is None
+        unpitched = where[:2] in with_clef and bottom_of(*where)[0] is None
         unjudged = not (one[0] or one[1]) or not (two[0] or two[1]) or where in misplaced
         if unjudged and not (one[0] or one[1]):
             chosen = two          # an engine that wrote nothing here missed the bar
@@ -301,8 +340,12 @@ def combine(score, second_notes, second_rests, doubts=(), weights=WEIGHTS, read_
             both = mixed(one, two)
             if both is not None and _signature(*both) != _signature(*one):
                 readings["mixed"] = both
-            found = {k: faults(*r, where, signatures, bottom_of, doubted if k == 1 else set(), len(score.parts))
+            outer = (where[1] == 1, where[1] == staves.get(where[0], 1))
+            found = {k: faults(*r, where, signatures, bottom_of if k == 2 else _no_bottoms,
+                               doubted if k == 1 else set(), len(score.parts), outer if k == 2 else None)
                      for k, r in readings.items()}
+            for k, r in readings.items():
+                found[k]["silent"] = int(not r[0])
             sb.faults = (found[1], found[2])
             order = chords if chords and chords_differ(one, two) else prefer
             sb.chosen = min((k for k in order if k in readings), key=lambda k: penalty(found[k], weights))

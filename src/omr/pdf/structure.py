@@ -26,6 +26,7 @@ CLEFS = {
     "unpitchedPercussionClef2": ("percussion", 0), "6stringTabClef": ("TAB", 0),
 }
 SHARP, FLAT, NATURAL = "accidentalSharp", "accidentalFlat", "accidentalNatural"
+KEY_SURE = 0.5      # the least confidence of a detected accidental in a key signature
 TIME_DIGITS = {f"timeSig{i}": str(i) for i in range(10)}
 TIME_SYMBOLS = {"timeSigCommon": "4/4", "timeSigCutCommon": "2/2"}
 NAVIGATION_GLYPHS = {"segno": "segno", "segnoSerpent1": "segno", "coda": "coda", "codaSquare": "coda"}
@@ -459,7 +460,10 @@ def staff_keys(page_layout, system, staff):
     notes = [(min(ox for ox, _, width in heads if 0 <= x - ox <= 1.15 * width), step) for x, step, _ in heads]
     for k in range(len(system.bars)):
         region = signature_region(page_layout, system, staff, k)
-        every = sorted((s for s in region if s.name in (SHARP, FLAT, NATURAL)), key=lambda s: s.x)
+        # a detection from a page image under KEY_SURE is no key signature (a
+        # sharp found at 35 percent on a tremolo stroke, os-lc6117552)
+        every = sorted((s for s in region if s.name in (SHARP, FLAT, NATURAL)
+                        and (s.confidence is None or s.confidence >= KEY_SURE)), key=lambda s: s.x)
         if not every:
             if k == 0:
                 # A system that starts with no key signature has no sharps or

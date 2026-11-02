@@ -35,6 +35,7 @@ import numpy as np
 from omr import paths
 from omr.corpus.sequence_units import MARGIN_ABOVE, MARGIN_SIDES, _fit
 from omr.evaluate import events
+from omr.pdf import rules
 from omr.raster import combine, reading, sequence
 
 ENGINE_ENV = "OMR_ENGINE"
@@ -381,6 +382,24 @@ def octave_shifts(score):
     return shift
 
 
+def octave_signs(score):
+    """A function (note) -> octaves an octave sign moves it: homr does not
+    read octave signs, so each of Engine 2's notes takes the shift of
+    Engine 1's note nearest it in time in the same staff bar (none where
+    Engine 1 has no note there). Under an 8va line Engine 2 read an octave
+    low, and won the bars where Engine 1 had a doubt (os-lc5057804)."""
+    shifts = {}
+    for n in score.notes:
+        shifts.setdefault((n.part, n.staff, n.bar), []).append((n.onset, n.shifted))
+
+    def shift(note):
+        near = shifts.get((note.part, note.staff, note.bar))
+        if not near:
+            return 0
+        return min(near, key=lambda o: (abs(o[0] - note.onset), o[0]))[1]
+    return shift
+
+
 def read_notes(score, assigned, use, reader=None):
     """Engine 2's reading of every part of every system it reads: (notes,
     rests, {(part, staff, bar) read}, counts). Counts: units read, units
@@ -396,7 +415,7 @@ def read_notes(score, assigned, use, reader=None):
     joined = score.joined
     read_where = {(u.part, staff, score_bar(u.first_bar + k, joined)) for u in found for staff in u.numbers
                   for k in range(u.bars) if not in_joined(u.first_bar + k, joined)}
-    shift = octave_shifts(score)
+    clef_shift, sign_shift = octave_shifts(score), octave_signs(score)
     keys = events.SignaturesInForce(score)
     for unit in found:
         try:
@@ -413,7 +432,8 @@ def read_notes(score, assigned, use, reader=None):
             if steps and (until is None or (n.bar, n.onset) < until):
                 got_notes[i] = moved_by_steps(n, steps, keys.key(n.part, n.bar))
         counts["bar count differs"] += not same
-        notes += [replace(n, pitch=replace(n.pitch, octave=n.pitch.octave + shift(n))) for n in got_notes]
+        notes += [replace(n, pitch=replace(n.pitch, octave=n.pitch.octave + clef_shift(n) + sign_shift(n)))
+                  for n in got_notes]
         rests += got_rests
     return notes, rests, read_where, counts
 
@@ -432,10 +452,14 @@ def combine_notes(score, assigned, use, reader=None):
     """Combine Engine 2's reading with Engine 1's (omr.raster.combine) in
     every staff bar Engine 2 read, and note each staff bar where they
     differ as a doubt (rule "engines disagree") with both readings in
-    words. Returns read_notes' counts, with the staff bars that differ."""
+    words. Engine 1's doubts that count are those of the flag file
+    (rules.FLAG_RULES), on which the combining's weights were set: an
+    unsure staccato says nothing of the notes. Returns read_notes' counts,
+    with the staff bars that differ."""
     notes, rests, read_where, counts = read_notes(score, assigned, use, reader)
     if read_where:
-        combined = combine.combine(score, notes, rests, score.doubts, read_where=read_where)
+        doubts = [f for f in score.doubts if f.rule in rules.FLAG_RULES]
+        combined = combine.combine(score, notes, rests, doubts, read_where=read_where)
         score.notes, score.rests = combined.notes, combined.rests
         score.doubts += combine.disagreement_flags(combined)
         counts["engines differ"] = len(combined.disagree)

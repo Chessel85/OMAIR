@@ -18,7 +18,10 @@ import functools
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
+
+import numpy as np
 
 from omr import paths
 from omr.pdf import classify, evidence
@@ -30,6 +33,11 @@ CONFIDENCE = 0.25     # the detector's lowest confidence kept
 MODEL_ENV = "OMR_DETECTOR"
 DETECTIONS_ENV = "OMR_DETECTIONS_DIR"
 DEFAULT_MODEL = Path("runs") / "detector" / "full" / "weights" / "best.onnx"
+BRACKET_GAP = (0.8, 3.0)   # staff spaces: the gap a tuplet number leaves in its bracket
+BRACKET_HALF = (1.0, 30.0)  # staff spaces: the length of one half of a tuplet bracket
+BRACKET_DIGIT_SCORE = 0.9   # OCR's lowest score for a number read in a bracket's gap
+LEDGER_MORE = 1.5          # staff spaces: how much wider than its notehead a ledger line can be
+HOOK_LENGTH = (0.4, 1.8)    # staff spaces: the length of a tuplet bracket's hook
 
 
 def model_path():
@@ -125,6 +133,7 @@ def read_page(page, number, detect=None, read_text=None):
     grey, angle, place, space_px, found = seen
     space_pt = space_px * place.sy
     symbols, text, masked = names.to_symbols(found, space_pt)
+    symbols = names.trim_to_ink(symbols, rl.ink_of(grey), place)
     named = PageSymbols(number, None, symbols, text_regions=text, masked=masked)
     boxes, flags = rp.symbol_boxes(named)
     rests = [s.box for s in symbols if s.name in names.BEAM_LIKE]
@@ -146,11 +155,160 @@ def read_page(page, number, detect=None, read_text=None):
              for y, x0, x1, t in lines.level]
     names.snap_clefs(symbols, level, space_pt)
     names.metronome_notes(symbols, text, level, space_pt)
-    named.text = rt.read_regions(grey, place, text, space_px, read_text or rt.reader())
+    read_text = read_text or rt.reader()
+    named.text = rt.read_regions(grey, place, text, space_px, read_text)
+    symbols = named.symbols = symbols + bracket_numbers(grey, lines, symbols, place, space_pt, read_text)
+    bracket_hooks(lines, rl.ink_of(grey), [place.to_pixels(s.box) for s in symbols if s.name.startswith("tuplet")])
     raster_page = rp.RasterPage(page, rp.drawings(lines, place))
     raster_page.grey, raster_page.place = grey, place   # for Engine 2 (omr.raster.sequence_reading)
     named.evidence = evidence.gather(raster_page, number)
     return named, raster_page
+
+
+def _bracket_halves(lines, space):
+    """(x0, y0, x1, y1, curve) in pixels, left to right, of lines that may
+    be half a tuplet bracket: level lines, nearly level thin lines (a
+    sloping bracket), and the spans of curves (a half traced with its hook),
+    `curve` being the curve's index in lines.curves, else None."""
+    lo, hi = BRACKET_HALF[0] * space, BRACKET_HALF[1] * space
+    out = [(x0, y, x1, y, None) for y, x0, x1, _ in lines.level if lo <= x1 - x0 <= hi]
+    for x0, y0, x1, y1, _ in lines.thin:
+        if x1 < x0:
+            x0, y0, x1, y1 = x1, y1, x0, y0
+        if lo <= x1 - x0 <= hi and abs(y1 - y0) <= 0.3 * (x1 - x0):
+            out.append((x0, y0, x1, y1, None))
+    for k, curve in enumerate(lines.curves):
+        pts = np.asarray(curve, float)
+        left, right = pts[pts[:, 0].argmin()], pts[pts[:, 0].argmax()]
+        if lo <= right[0] - left[0] <= hi:
+            out.append((left[0], left[1], right[0], right[1], k))
+    return out
+
+
+def _ledger(half, heads, space):
+    """Whether a would-be bracket half is a ledger line: centred on a
+    notehead (or one of a stack of ledger lines under it) and no more than
+    LEDGER_MORE staff spaces wider. Ledger lines of neighbouring notes look
+    like the halves of a bracket, and a stem with ledger stubs in the gap
+    between them reads as a 4 (pdmx-QkFxjWipz93Z)."""
+    x0, _, x1, _, _ = half
+    return any(x0 <= (t[0] + t[2]) / 2 <= x1 and x1 - x0 <= t[2] - t[0] + LEDGER_MORE * space
+               for t in heads)
+
+
+def bracket_gaps(lines, ink, taken, space):
+    """(ink box, (left half, right half)) in pixels for the gaps of tuplet
+    brackets: a half ending and another starting 0.8 to 3 staff spaces on at
+    the same height, with ink between them and no notehead or tuplet number
+    already there (`taken`, pixel boxes). The halves are as _bracket_halves
+    gives them, less ledger lines (_ledger)."""
+    halves = [h for h in _bracket_halves(lines, space) if not _ledger(h, taken, space)]
+    out = []
+    for a in halves:
+        right = [b for b in halves if abs(b[1] - a[3]) <= 0.5 * space
+                 and BRACKET_GAP[0] * space <= b[0] - a[2] <= BRACKET_GAP[1] * space]
+        if not right:
+            continue
+        b = min(right, key=lambda h: h[0])
+        y = (a[3] + b[1]) / 2
+        gx0, gx1 = int(a[2]) + 1, int(b[0])
+        gy0, gy1 = max(int(y - 1.1 * space), 0), int(y + 1.1 * space) + 1
+        if any(t[0] < gx1 and t[2] > gx0 and t[1] < gy1 and t[3] > gy0 for t in taken):
+            continue
+        sub = ink[gy0:gy1, gx0:gx1]
+        if sub.sum() < 0.3 * space:
+            continue
+        rows, cols = np.nonzero(sub)
+        box = (gx0 + cols.min(), gy0 + rows.min(), gx0 + cols.max() + 1, gy0 + rows.max() + 1)
+        if all(box != g[0] for g in out):
+            out.append((box, (a, b)))
+    return out
+
+
+def _straighten(lines, used):
+    """Bracket halves traced as curves (with their hooks) become level thin
+    lines at the height of their end by the number, which the vector reader
+    finds as the bracket (notation._bracket_span); it does not look at
+    curves. `used` are (half, is the left half) pairs."""
+    gone = set()
+    for (x0, y0, x1, y1, k), left in used:
+        if k is None or k in gone:
+            continue
+        y = y1 if left else y0
+        lines.thin.append((x0, y, x1, y, 1.0))
+        gone.add(k)
+    if gone:
+        lines.curves = [c for k, c in enumerate(lines.curves) if k not in gone]
+
+
+def _hook(ink, x, y, space):
+    """(top, bottom) of the hook at a bracket's outer end (x, y), pixels:
+    ink running straight up or down from the line for HOOK_LENGTH staff
+    spaces, or None."""
+    h, w = ink.shape
+    x, y = int(round(x)), int(round(y))
+    if not (0 <= x < w and 0 <= y < h):
+        return None
+    cols = ink[:, max(x - 1, 0):x + 2].any(axis=1)
+    thick = max(2, round(0.15 * space))
+    for way in (1, -1):
+        r = y + way * thick
+        n = 0
+        while 0 <= r < h and cols[r]:
+            r += way
+            n += 1
+        if HOOK_LENGTH[0] * space <= n <= HOOK_LENGTH[1] * space:
+            return (y, r) if way > 0 else (r, y)
+    return None
+
+
+def bracket_hooks(lines, ink, numbers):
+    """Vertical lines for the hooks of tuplet brackets, which tell the reader
+    the side of the bracket's notes (notation._bracket_span): a hook is
+    about a staff space long, under the vertical lines' least length, so a
+    bracket between two staves went to the wrong one (pdmx-TQZXkjDhLjeG).
+    For each tuplet number (`numbers`, pixel boxes) with a bracket half
+    ending just before it and another starting just after it, the ink at
+    the halves' outer ends is followed up or down."""
+    space = lines.space
+    halves = _bracket_halves(lines, space)
+    for x0, y0, x1, y1 in numbers:
+        cy = (y0 + y1) / 2
+        left = [h for h in halves if 0 <= x0 - h[2] <= 1.5 * space and abs(h[3] - cy) <= 1.5 * space]
+        right = [h for h in halves if 0 <= h[0] - x1 <= 1.5 * space and abs(h[1] - cy) <= 1.5 * space]
+        if not left or not right:
+            continue
+        a, b = max(left, key=lambda h: h[2]), min(right, key=lambda h: h[0])
+        for x, y in ((a[0], a[1]), (b[2], b[3])):
+            hook = _hook(ink, x, y, space)
+            if hook and not any(abs(v[0] - x) <= 1 and v[1] <= hook[1] and v[2] >= hook[0] for v in lines.vertical):
+                lines.vertical.append((float(x), float(hook[0]), float(hook[1]), 1.0))
+
+
+def bracket_numbers(grey, lines, symbols, place, space_pt, read):
+    """Tuplet number symbols read by OCR in the gaps of tuplet brackets
+    where the detector found none (MuseScore 4's italic 4 over a quadruplet,
+    pdmx-jiVBTaknDNuh): a single digit 2 to 9, read with a score of at
+    least BRACKET_DIGIT_SCORE (the bracket's ends either side of it rule out
+    an octave line's 8 and a volta's number). Their bracket halves traced
+    as curves are made straight lines in `lines` (_straighten)."""
+    taken = [place.to_pixels(s.box) for s in symbols if s.name.startswith(("notehead", "tuplet"))]
+    gaps = bracket_gaps(lines, rl.ink_of(grey), taken, lines.space)
+    if not gaps:
+        return []
+    pad = 3
+    crops = [grey[max(b[1] - pad, 0):b[3] + pad, max(b[0] - pad, 0):b[2] + pad] for b, _ in gaps]
+    out, used = [], []
+    for (b, (left, right)), (text, score) in zip(gaps, read(crops)):
+        digit = re.fullmatch(r"[-_ ]*([2-9])[-_ ]*", text)
+        if digit and score >= BRACKET_DIGIT_SCORE:
+            box = (place.x0 + b[0] * place.sx, place.y0 + b[1] * place.sy,
+                   place.x0 + b[2] * place.sx, place.y0 + b[3] * place.sy)
+            name = f"tuplet{digit.group(1)}"
+            out.append(names.make(name, name, box, score, None, space_pt))
+            used += [(left, True), (right, False)]
+    _straighten(lines, used)
+    return out
 
 
 DIGIT_SHARE = 0.4   # a vertical line this much inside time signature digits is part of them

@@ -262,10 +262,23 @@ def test_a_notehead_does_not_hide_its_ledger_line():
     # the ledger line through a notehead lies almost wholly inside its box (pdmx-bEG6fz8chqsR)
     grey = staff(blank())
     ledger = TOP + 6 * SPACE
-    grey[ledger:ledger + LINE, 296:324] = 0
+    grey[ledger:ledger + LINE, 291:329] = 0   # 0.35 spaces past the head on each side, as engraved
     head = (298, ledger - SPACE // 2, 322, ledger + SPACE // 2)
-    assert not [y for y, *_ in rl.find_lines(grey, [head]).level if abs(y - ledger) < 3]
     assert [y for y, *_ in rl.find_lines(grey, [], head_boxes=[head]).level if abs(y - ledger) < 3]
+
+
+def test_the_flat_rim_of_a_hollow_notehead_is_not_a_ledger_line():
+    # a half notehead's flat top and bottom are thin level runs inside its box
+    # (os-lc6189616); a ledger line runs past the head on both sides
+    grey = staff(blank())
+    y0 = TOP + 6 * SPACE
+    grey[y0:y0 + LINE, 302:318] = 0                    # top rim
+    grey[y0 + SPACE - LINE:y0 + SPACE, 302:318] = 0    # bottom rim
+    grey[y0:y0 + SPACE, 298:302] = 0                   # thick sides
+    grey[y0:y0 + SPACE, 318:322] = 0
+    head = (298, y0, 322, y0 + SPACE)
+    level = rl.find_lines(grey, [], head_boxes=[head]).level
+    assert not [y for y, *_ in level if y0 - 3 < y < y0 + SPACE + 3]
 
 
 def test_a_beam_sitting_on_the_top_line_keeps_the_lines_rows():
@@ -278,3 +291,55 @@ def test_a_beam_sitting_on_the_top_line_keeps_the_lines_rows():
     grey[TOP + SPACE - 2:TOP + SPACE + 5, 300:422] = 0       # lower beam across the second line
     found = rl.find_lines(grey)
     assert len(found.beams) == 2
+
+
+def test_a_notehead_is_cleared_for_the_level_search_but_its_ledger_line_kept():
+    # a ledger line through a notehead joins the head's ink, a run too thick
+    # for a line (pdmx-bEG6fz8chqsR); inside the head's box only the rows
+    # with ink just outside it on both sides are kept
+    ink = np.zeros((40, 60), bool)
+    ink[20:22, 10:50] = True              # the ledger line
+    ink[15:27, 17:43] = True              # the head on it
+    ink[5:27, 42:44] = True               # its stem at the right
+    out = rl.through_heads(ink, [(17, 15, 43, 27)])
+    assert out[15:27, 17:43].sum(axis=1).tolist() == [0] * 5 + [26, 26] + [0] * 5
+    assert out[20:22, 10:50].all()
+
+
+def test_a_ledger_line_touched_by_a_flat_is_found():
+    # a flat's bowl touching one row of the ledger line at its left made the
+    # two rows start apart, and each read as a slice of something thicker
+    grey = staff(blank())
+    ledger = TOP + 6 * SPACE
+    grey[ledger:ledger + LINE, 296:329] = 0
+    grey[ledger:ledger + 1, 290:296] = 0
+    assert [y for y, *_ in rl.find_lines(grey).level if abs(y - ledger) < 3]
+
+
+def test_rows_sharing_one_end_and_most_of_their_span_join():
+    rows, starts, ends = np.array([10, 11]), np.array([100, 104]), np.array([129, 129])
+    assert len(rl.join_runs(rows, starts, ends, 2, one_end=30)) == 1
+    assert len(rl.join_runs(rows, starts, ends, 2)) == 2
+    # only short runs (ledger lines): the rows of a long shallow beam stay apart
+    assert len(rl.join_runs(rows, starts, ends, 2, one_end=20)) == 2
+    rows, starts, ends = np.array([10, 11]), np.array([100, 110]), np.array([129, 129])
+    assert len(rl.join_runs(rows, starts, ends, 2)) == 2
+    # the lower row ends a pixel further on (pdmx-bEG6fz8chqsR)
+    rows, starts, ends = np.array([10, 11]), np.array([100, 104]), np.array([128, 129])
+    assert len(rl.join_runs(rows, starts, ends, 2, one_end=30)) == 1
+    # a natural touching the middle row of three, 0.8 spaces of 11 pixels (the same pair)
+    rows, starts, ends = np.array([10, 11, 12]), np.array([314, 305, 314]), np.array([338, 338, 338])
+    assert len(rl.join_runs(rows, starts, ends, 2, one_end=33)) == 1
+
+
+def test_a_dashed_octave_line_with_one_pixel_gaps_is_found():
+    # MuseScore 3's octave line at 200 dpi: dashes half a space long, gaps of a
+    # pixel (pdmx-AcZ5nsmxvJxs)
+    ink = np.zeros((30, 200), bool)
+    for x in range(10, 180, 8):
+        ink[10:12, x:x + 7] = True
+    found = rl.dashed_lines(ink, 14.0)
+    assert len(found) == 1 and found[0][1] == 10
+    solid = np.zeros((30, 200), bool)
+    solid[10:12, 10:180] = True
+    assert not rl.dashed_lines(solid, 14.0)

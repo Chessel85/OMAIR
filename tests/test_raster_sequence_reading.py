@@ -46,6 +46,18 @@ def test_octave_clef_moves_notes_from_where_it_stands():
     assert shift(note(0, 2, 1)) == 0
 
 
+def test_engine_2s_notes_take_the_octave_sign_of_engine_1s_nearest_note():
+    # an 8va line from the bar's second beat: homr reads the notes as printed
+    score = events.Score(notes=[note(0, 1, 5, 4, Fraction(0)),
+                                replace(note(0, 1, 5, 6, Fraction(1)), shifted=1),
+                                replace(note(0, 1, 5, 6, Fraction(2)), shifted=1)])
+    shift = sr.octave_signs(score)
+    assert shift(note(0, 1, 5, 5, Fraction(2))) == 1
+    assert shift(note(0, 1, 5, 4, Fraction(1, 4))) == 0
+    assert shift(note(0, 1, 6, 5)) == 0          # no note of Engine 1's in the bar
+    assert shift(note(0, 2, 5, 5, Fraction(2))) == 0
+
+
 def test_units_cut_each_part_of_an_image_page_with_homrs_margins():
     def staff(top):
         return SimpleNamespace(top=top, bottom=top + 4, space=1.0, x0=10.0, x1=90.0)

@@ -85,6 +85,7 @@ class Note:
     lyrics: tuple = ()               # (number, text) pairs
     syllables: tuple = ()            # (number, syllabic, extend) for each lyric; not compared
     fingering: tuple = ()            # ("fingering" or "pluck", text) pairs; not compared
+    shifted: int = 0                 # octaves an octave sign moved it (read from a PDF); not compared
 
     @property
     def key(self):

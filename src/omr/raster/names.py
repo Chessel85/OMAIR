@@ -11,11 +11,14 @@ detection carries a doubt that the reader turns into a flag.
 The rules are in docs/notes/raster-reading-spec.md.
 """
 
+import dataclasses
 import functools
 import json
 import re
 import statistics
 from pathlib import Path
+
+import numpy as np
 
 from omr.corpus import raster_labels as rl
 from omr.pdf import shapes
@@ -259,6 +262,44 @@ def to_symbols(detections, space):
         symbols.append(make(cls, name, box, conf, doubt, space, typical))
     symbols += _bracket_ends(brackets, space)
     return symbols, text, masked
+
+
+LINE_ROW_SHARE = 0.8   # a row of a box this much ink across is a line through it, not the symbol's
+
+
+def trim_to_ink(symbols, ink, place, prefix="noteheadX"):
+    """Cross noteheads with their boxes cut to the ink inside them. The
+    detector draws them about 0.3 staff spaces wider than their ink on each
+    side (LilyPond drums, pdmx-7BVm2bkhL5Go), so the stem at a head's tip lies
+    inside its box, away from the edge where the reader looks for it. Rows
+    inked most of the way across the box are lines through it (staff, ledger)
+    and are left out. `ink` is the page image's ink (rows of booleans) and
+    `place` its page.Placement; a box is only ever made narrower."""
+    out = []
+    for s in symbols:
+        if not s.name.startswith(prefix):
+            out.append(s)
+            continue
+        x0, y0, x1, y1 = place.to_pixels(s.box)
+        c0, r0 = max(int(x0), 0), max(int(y0), 0)
+        c1, r1 = min(int(np.ceil(x1)), ink.shape[1]), min(int(np.ceil(y1)), ink.shape[0])
+        part = ink[r0:r1, c0:c1]
+        if not part.size:
+            out.append(s)
+            continue
+        part = part[part.mean(axis=1) < LINE_ROW_SHARE]
+        cols = np.nonzero(part.any(axis=0))[0] if len(part) else []
+        if len(cols) < 2:
+            out.append(s)
+            continue
+        left, right = place.x0 + (c0 + cols[0]) * place.sx, place.x0 + (c0 + cols[-1] + 1) * place.sx
+        box = (max(s.box[0], left), s.box[1], min(s.box[2], right), s.box[3])
+        if box[:1] + box[2:3] == s.box[:1] + s.box[2:3]:
+            out.append(s)
+            continue
+        x, _ = anchor(s.name, box, s.size / 4)
+        out.append(dataclasses.replace(s, x=x, box=box))
+    return out
 
 
 def _bracket_ends(brackets, space):

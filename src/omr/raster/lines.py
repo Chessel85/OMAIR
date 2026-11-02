@@ -38,6 +38,8 @@ LEVEL_INK_BELOW = 200    # for level lines at low resolution: a thin staff line 
 LOW_RESOLUTION_SPACE = 12   # pixels: a smaller staff space is low resolution (150 dpi)
 INSIDE_SHARE = 0.9       # a line this much inside a symbol box is part of the symbol
 FLAG_STEM_SIDE = 0.4     # staff spaces: a vertical line further into a flag's box than this is the flag's
+ONE_END_JOIN = 3         # staff spaces: level runs up to this long may join by one end (a ledger line touched by a flat)
+HEAD_RIM_OVERHANG = 0.05 # staff spaces: a level line inside a notehead's box, sticking out no further, is its rim
 LEVEL_MAX_THICK = 0.3    # staff spaces
 VERTICAL_MAX_WIDTH = 0.7
 LEVEL_MIN_LENGTH = 0.5
@@ -101,10 +103,11 @@ def staff_space(ink):
     return float(gap + thick), float(thick)
 
 
-def join_runs(rows, starts, ends, tol, gap=0):
+def join_runs(rows, starts, ends, tol, gap=0, one_end=0):
     """Join runs on neighbouring rows whose start and end are each within
     `tol` of the last run joined, or which overlap it along 90 percent of the
-    longer of the two. Returns (first row, last row, start, end)
+    longer of the two (or, for runs no longer than `one_end` pixels, 80
+    percent when one lies inside the other with an end within `tol`). Returns (first row, last row, start, end)
     per joined line: the start and end are the medians of the runs."""
     order = np.lexsort((starts, rows))
     open_lines = []   # [last row, last start, last end, first row, starts, ends]
@@ -124,8 +127,20 @@ def join_runs(rows, starts, ends, tol, gap=0):
                 continue
             same_ends = abs(line[1] - s) <= tol and abs(line[2] - e) <= tol
             # or nearly the same span: a break of a pixel or two near one end
-            same_span = min(line[2], e) - max(line[1], s) >= 0.9 * max(line[2] - line[1], e - s)
-            if same_ends or same_span:
+            overlap = min(line[2], e) - max(line[1], s)
+            same_span = overlap >= 0.9 * max(line[2] - line[1], e - s)
+            # or one end the same and 80 percent of the span: a symbol touching
+            # one row of a short line at its other end (a flat beside a
+            # ledger line, pdmx-bEG6fz8chqsR)
+            # (inside to within `tol`: the rows of one ledger line end a pixel apart)
+            nested = line[1] - tol <= s and e <= line[2] + tol or s <= line[1] + tol and line[2] <= e + tol
+            # (the other end up to a staff space, one_end / ONE_END_JOIN, further
+            # on, if no more than 35 percent: a natural touching one row,
+            # pdmx-bEG6fz8chqsR)
+            longest = max(line[2] - line[1], e - s)
+            near_end = longest <= one_end and nested and ((abs(line[1] - s) <= tol or abs(line[2] - e) <= tol)
+                                                          and overlap >= max(0.65 * longest, min(0.8 * longest, longest - one_end / ONE_END_JOIN)))
+            if same_ends or same_span or near_end:
                 if best is None or abs(line[1] - s) + abs(line[2] - e) < abs(best[1] - s) + abs(best[2] - e):
                     best = line
         if best is None:
@@ -220,13 +235,44 @@ def _tapers(ink, top, bottom, x0, x1):
     return any(ink[row, x0:x1].mean() < 0.75 for row in range(top, bottom + 1))
 
 
-def level_lines(ink, dark, space, mask):
-    """(level lines, their pixels as (top row, bottom row, x0, x1))."""
+def _head_rim(y, x0, x1, heads, space):
+    """The level line at row y from x0 to x1 lies within one notehead's box,
+    sticking out of it by no more than HEAD_RIM_OVERHANG on either side: the
+    flat top or bottom of a hollow notehead, not a ledger line, which runs
+    past the head on both sides."""
+    out = HEAD_RIM_OVERHANG * space
+    return any(hy0 - out <= y <= hy1 + out and x0 >= hx0 - out and x1 <= hx1 + out for hx0, hy0, hx1, hy1 in heads)
+
+
+def through_heads(ink, heads):
+    """The ink for the level-line search with each notehead's box cleared
+    and a row drawn across it wherever ink lies just outside the box on
+    both sides: a ledger line through a notehead, or touching its top or
+    bottom, joins the head's ink in a run too thick to be a line, and is
+    lost (the lowest ledger lines of notes far below the staff,
+    pdmx-bEG6fz8chqsR); a ledger line runs past the head on both sides."""
+    out = ink.copy()
+    h, w = ink.shape
+    for x0, y0, x1, y1 in heads:
+        c0, c1 = int(x0) - 1, int(np.ceil(x1))
+        r0, r1 = max(int(y0), 0), min(int(np.ceil(y1)), h)
+        if c0 < 0 or c1 >= w or r0 >= r1:
+            continue
+        rows = ink[r0:r1, c0] & ink[r0:r1, c1]
+        out[r0:r1, c0 + 1:c1] = rows[:, None]
+    return out
+
+
+def level_lines(ink, dark, space, mask, heads=()):
+    """(level lines, their pixels as (top row, bottom row, x0, x1)). `heads`
+    are notehead boxes, which do not mask level lines (a ledger line lies
+    almost wholly inside the box of a notehead on it), but whose rims are
+    not lines (_head_rim)."""
     rows, starts, ends = runs(ink)
     keep = ends - starts >= LEVEL_MIN_LENGTH * space
     tol = max(2, round(0.1 * space))
     out, pixels = [], []
-    for top, bottom, x0, x1 in join_runs(rows[keep], starts[keep], ends[keep], tol):
+    for top, bottom, x0, x1 in join_runs(rows[keep], starts[keep], ends[keep], tol, one_end=ONE_END_JOIN * space):
         thick = bottom - top + 1
         if thick > max(LEVEL_MAX_THICK * space, 2):
             continue
@@ -237,6 +283,8 @@ def level_lines(ink, dark, space, mask):
         y = (top + bottom) // 2
         xs = np.arange(x0, x1)
         if mask is not None and _inside(mask, np.full(len(xs), y), xs) >= INSIDE_SHARE:
+            continue
+        if heads and _head_rim(y, x0, x1, heads, space):
             continue
         centre, thickness = _centre(dark, top, bottom, _along(x0, x1))
         out.append((centre, float(x0), float(x1), thickness))
@@ -871,8 +919,9 @@ def _along_thin(line, thin, space):
 
 def dashed_lines(ink, space):
     """Level dashed lines (octave and pedal lines): at least four thin dashes
-    0.2 to 1.5 staff spaces long on one row, evenly spaced with gaps of 0.2
-    to 1.5 staff spaces."""
+    0.2 to 1.5 staff spaces long on one row, evenly spaced with gaps of a
+    pixel to 1.5 staff spaces (MuseScore 3's octave line at 200 dpi has
+    gaps of a pixel, pdmx-AcZ5nsmxvJxs)."""
     rows, starts, ends = runs(ink)
     length = ends - starts
     keep = (length >= 0.2 * space) & (length <= 1.5 * space)
@@ -889,7 +938,7 @@ def dashed_lines(ink, space):
         for d in line + [None]:
             if d is not None and run:
                 gap = d[2] - run[-1][3]
-                if 0.2 * space <= gap <= 1.5 * space and (len(run) < 2 or abs(gap - (run[1][2] - run[0][3])) <= 0.25 * space):
+                if 1 <= gap <= 1.5 * space and (len(run) < 2 or abs(gap - (run[1][2] - run[0][3])) <= 0.25 * space):
                     run.append(d)
                     continue
             if len(run) >= 4:
@@ -904,6 +953,23 @@ def dashed_lines(ink, space):
 def _in_dashed(line, dashed, space):
     y, x0, x1, _ = line
     return any(abs(y - dy) <= 0.2 * space and dx0 - 1 <= x0 and x1 <= dx1 + 1 for dy, dx0, dx1, _ in dashed)
+
+
+def _in_beam(line, beams):
+    """A level line lying within a beam along INSIDE_SHARE of its length: rows
+    of the beam itself (a sloping beam's steps joined into a short thick
+    line, which the reader would take for a second beam at a stem,
+    pdmx-TTzehLqU5izw)."""
+    y, x0, x1, _ = line
+    for bx0, bx1, t0, b0, t1, b1 in beams:
+        if bx1 <= bx0:
+            continue
+        xs = np.arange(int(x0), int(np.ceil(x1)) + 1)
+        f = np.clip((xs - bx0) / (bx1 - bx0), 0, 1)
+        inside = (xs >= bx0 - 1) & (xs <= bx1 + 1) & (t0 + f * (t1 - t0) - 1 <= y) & (y <= b0 + f * (b1 - b0) + 1)
+        if inside.mean() >= INSIDE_SHARE:
+            return True
+    return False
 
 
 def _on_staff_line(thin, level, space):
@@ -962,8 +1028,9 @@ def find_lines(grey, symbol_boxes=(), flag_boxes=(), rest_boxes=(), head_boxes=(
     detector can take a partial beam for one, and a real rest has no stem
     at its end to make it a beam. `head_boxes` are the boxes of noteheads,
     taken as symbols except in the search for level lines: a ledger line
-    through or touching a notehead lies almost wholly inside its box, and a
-    notehead's own ink is too thick to be a level line (pdmx-bEG6fz8chqsR)."""
+    through or touching a notehead lies almost wholly inside its box
+    (pdmx-bEG6fz8chqsR), but the flat rims of hollow noteheads are not
+    lines (os-lc6189616)."""
     ink = ink_of(grey)
     space, _ = staff_space(ink)
     if space is None:
@@ -977,7 +1044,9 @@ def find_lines(grey, symbol_boxes=(), flag_boxes=(), rest_boxes=(), head_boxes=(
     found = Lines(space=space)
     dark = 255 - grey
     level_ink = grey < LEVEL_INK_BELOW if space < LOW_RESOLUTION_SPACE else ink
-    found.level, level_pixels = level_lines(level_ink, dark, space, level_mask)
+    if len(head_boxes):
+        level_ink = through_heads(level_ink, head_boxes)
+    found.level, level_pixels = level_lines(level_ink, dark, space, level_mask, list(head_boxes))
     clean = remove_staff_lines(ink, level_pixels, space)
     # a flag holds its stem at its left edge; a vertical line further in is the
     # flag's own curl (a down flag's tail, pdmx-WEpfyNr7yQWL), not a stem
@@ -1021,4 +1090,5 @@ def find_lines(grey, symbol_boxes=(), flag_boxes=(), rest_boxes=(), head_boxes=(
     found.level = [l for l in found.level if not _along_thin(l, found.thin, space)]
     found.dashed = dashed_lines(clean & ~mask if mask is not None else clean, space)
     found.level = [l for l in found.level if not _in_dashed(l, found.dashed, space)]
+    found.level = [l for l in found.level if not _in_beam(l, found.beams)]
     return found

@@ -582,3 +582,18 @@ def test_a_key_between_parenthesis_shapes_is_a_courtesy():
     sides = [SimpleNamespace(name="parenthesis", box=(427.1, 644.8, 428.8, 654.9)),
              SimpleNamespace(name="parenthesis", box=(435.9, 644.8, 437.6, 654.9))]
     assert structure.in_parentheses(SimpleNamespace(symbols=sides), staff, 430.0, 434.0)
+
+
+def test_an_unsure_detected_sharp_is_no_key_signature(monkeypatch):
+    # a sharp found at 35 percent on a tremolo stroke made a key of one sharp (os-lc6117552)
+    def sharp(confidence):
+        return SimpleNamespace(name=structure.SHARP, x=10.0, box=(10, 0, 12, 4), size=20.0, confidence=confidence)
+
+    staff = SimpleNamespace(space=1.0)
+    system = SimpleNamespace(bars=[None, None])
+    pl = SimpleNamespace(on_staff=lambda st: [], step_of=lambda s: 8, symbols=[])
+    monkeypatch.setattr(structure, "_clef_before", lambda *a: None)
+    for confidence, keys in ((0.35, [(0, 0)]), (0.9, [(0, 0), (1, 1)]), (None, [(0, 0), (1, 1)])):
+        found = [sharp(confidence)]
+        monkeypatch.setattr(structure, "signature_region", lambda pl, sy, st, k: found if k == 1 else [])
+        assert structure.staff_keys(pl, system, staff) == keys

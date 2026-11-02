@@ -858,6 +858,7 @@ def _bracket_span(m, lines, verticals, space):
     # the halves meet across the number (a staff line in pieces is not one)
     if left is None or right is None or abs(left[3] - right[1]) > space:
         return None
+    left, right = _continued(left, lines, space, -1), _continued(right, lines, space, 1)
     side = 0
     for x, y in ((left[0], left[1]), (right[2], right[3])):
         for vx, top, bottom, _ in verticals:
@@ -867,6 +868,28 @@ def _bracket_span(m, lines, verticals, space):
                 elif abs(bottom - y) <= 0.3 * space:
                     side -= 1
     return left[0], right[2], (side > 0) - (side < 0)
+
+
+def _continued(half, lines, space, way):
+    """A bracket half followed outwards (way -1 to the left, 1 to the right)
+    through lines that carry on from its end: a gently sloping half read
+    from a page image comes in pieces, a level one and a sloping one
+    (pdmx-jiVBTaknDNuh), and its outer end is where the bracket starts."""
+    x0, y0, x1, y1 = half
+    for _ in range(len(lines)):
+        if way < 0:
+            nxt = [(a, b, c, d) for a, b, c, d in lines
+                   if a < x0 and abs(c - x0) <= 0.5 * space and abs(d - y0) <= 0.3 * space]
+            if not nxt:
+                break
+            x0, y0 = min((a, b) for a, b, _, _ in nxt)
+        else:
+            nxt = [(a, b, c, d) for a, b, c, d in lines
+                   if c > x1 and abs(a - x1) <= 0.5 * space and abs(b - y1) <= 0.3 * space]
+            if not nxt:
+                break
+            x1, y1 = max((c, d) for _, _, c, d in nxt)
+    return x0, y0, x1, y1
 
 
 def _beam_group(m, evs, space):
@@ -1793,7 +1816,7 @@ def _emit_notes(r, found, state, extras, head_marks, head_texts):
                                                cue=e.small and not e.grace,
                                                marks=frozenset(marks), slurs=slurs, lyrics=lyrics,
                                                syllables=syllables,
-                                               fingering=tuple(head_texts.get(id(h), ()))))
+                                               fingering=tuple(head_texts.get(id(h), ())), shifted=shift))
         if clef_values:
             state.clefs[(part, number)] = clef_values[-1][1]
         # onsets of clefs within bars, by the rank structure.staff_clefs gives them
@@ -1952,6 +1975,8 @@ def octave_marks(page_layout, system, dashed, space, doubts=None):
                 if abs(d[0] - y) < 0.5 * space and end - 0.5 <= d[1] <= end + 1.5 * space:
                     end = max(end, d[2])
         middle = (box[1] + box[3]) / 2
+        if page_layout.systems and lay.nearest_system(page_layout.systems, middle) is not system:
+            continue    # between two systems, nearer the other: an 8 over its top staff (pdmx-bUDYXQtSaaJi)
         staff = min(system.staves, key=lambda st: min(abs(middle - st.top), abs(middle - st.bottom)))
         if way == 0:
             way = 1 if middle < staff.middle else -1

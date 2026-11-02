@@ -394,6 +394,10 @@ def test_a_bracket_hook_tells_which_side_its_notes_are():
     # a bracket over a whole bar: halves longer than 30 spaces
     long = [(20.0, 100.0, 46.0, 100.0), (54.0, 100.0, 300.0, 100.0)]
     assert notation._bracket_span(mark, long, [], 5.0) == (20.0, 300.0, 0)
+    # halves read from an image in pieces, a level one and a sloping one
+    # (pdmx-jiVBTaknDNuh): the bracket starts at the outer piece's end
+    pieces = [(5.0, 99.0, 25.0, 99.0), (25.5, 99.2, 46.0, 100.0), (54.0, 100.0, 70.0, 100.4), (70.0, 100.5, 90.0, 100.5)]
+    assert notation._bracket_span(mark, pieces, [], 5.0) == (5.0, 90.0, 0)
 
 
 def test_strokes_between_two_stems_are_a_two_note_tremolo():
@@ -420,3 +424,19 @@ def test_the_notehead_of_a_metronome_mark_is_not_a_note():
     mark = SimpleNamespace(text="= 100", box=(109.7, 78.9, 134.0, 88.7))
     assert notation._tempo_head(head, [mark], SPACE)
     assert not notation._tempo_head(head, [SimpleNamespace(text="Allegro", box=mark.box)], SPACE)
+
+
+def test_an_octave_8_between_systems_belongs_to_the_nearer_one():
+    from types import SimpleNamespace as NS
+
+    def staff(top):
+        return NS(top=top, bottom=top + 20, middle=top + 10)
+
+    upper = NS(staves=[staff(100), staff(150)], x0=50, x1=500)   # bottom staff ends at 170
+    lower = NS(staves=[staff(250), staff(300)], x0=50, x1=500)   # top staff starts at 250
+    eight = NS(text="8", box=(200, 228, 206, 236))               # 58 below one, 14 above the other
+    pl = NS(symbols=[], text=[eight], systems=[upper, lower])
+    dashed = [(237, 208, 400)]
+    assert notation.octave_marks(pl, upper, dashed, 10) == []
+    [(on, *_, shift)] = notation.octave_marks(pl, lower, dashed, 10)
+    assert on is lower.staves[0] and shift == 1                  # 8va over the lower system's top staff

@@ -3,10 +3,11 @@ and omr.raster.reading)."""
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from omr.corpus import raster_labels as rl
-from omr.raster import names
+from omr.raster import lines, names, reading
 
 DATA = Path(__file__).parent / "data" / "inspect"
 SPACE = 5.0   # points a staff space
@@ -249,3 +250,74 @@ def test_a_part_box_over_time_digits_found_is_dropped():
     assert sorted((cls, box) for cls, box, _, _ in kept) == [
         ("timeSig1", (40.0, 20.0, 44.0, 30.0)), ("timeSig1", (45.0, 20.0, 49.0, 30.0)),
         ("timeSig2", (10.0, 20.0, 16.0, 30.0))]
+
+
+def test_a_cross_notehead_box_is_cut_to_its_ink():
+    """The detector draws cross noteheads wider than their ink (LilyPond
+    drums, pdmx-7BVm2bkhL5Go); the staff line through the box does not count."""
+    import numpy as np
+    import pymupdf
+
+    from omr.raster import page as rp
+
+    ink = np.zeros((100, 100), bool)
+    ink[40, :] = True                      # a staff line right across
+    for k in range(10):                    # a cross from column 30 to 39
+        ink[35 + k, 30 + k] = ink[35 + k, 39 - k] = True
+    place = rp.Placement(ink.shape, pymupdf.Rect(0, 0, 100, 100))   # a pixel a point
+    cross = rl.CLASS_INDEX["noteheadX"]
+    symbols, _, _ = names.to_symbols([(cross, (25.0, 35.0, 45.0, 45.0), 0.9), (HEAD, (60.0, 35.0, 72.0, 45.0), 0.9)],
+                                     10.0)
+    trimmed = names.trim_to_ink(symbols, ink, place)
+    by_name = {s.name: s.box for s in trimmed}
+    assert by_name["noteheadXBlack"] == (30.0, 35.0, 40.0, 45.0)
+    assert by_name["noteheadBlack"] == (60.0, 35.0, 72.0, 45.0)
+
+
+def test_a_number_in_a_brackets_gap_is_found_and_a_lone_line_is_not():
+    # MuseScore 4's quadruplet bracket: two halves 5 spaces long either side
+    # of an italic 4 (pdmx-jiVBTaknDNuh); an octave line's 8 has a line on
+    # one side only
+    space = 12
+    found = lines.Lines(space=space)
+    found.level = [(100.0, 50.0, 110.0, 1.2), (100.0, 130.0, 190.0, 1.2),     # the bracket
+                   (300.0, 130.0, 190.0, 1.2)]                                # a line with a digit before it only
+    ink = np.zeros((400, 300), bool)
+    ink[92:108, 115:125] = True     # the 4
+    ink[292:308, 115:125] = True    # the 8
+    assert [box for box, _ in reading.bracket_gaps(found, ink, [], space)] == [(115, 92, 125, 108)]
+    assert reading.bracket_gaps(found, ink, [(114, 90, 126, 110)], space) == []       # a tuplet number already there
+
+
+def test_a_bracket_half_traced_with_its_hook_becomes_a_straight_line():
+    # the vector reader finds brackets among straight lines only
+    found = lines.Lines(space=12)
+    found.curves = [[(50, 112), (50, 100), (80, 100), (110, 100)], [(0, 0), (5, 5)]]
+    half = (50.0, 112.0, 110.0, 100.0, 0)
+    reading._straighten(found, [(half, True)])
+    assert found.thin[-1] == (50.0, 100.0, 110.0, 100.0, 1.0)
+    assert found.curves == [[(0, 0), (5, 5)]]
+
+
+
+def test_a_ledger_line_is_not_half_a_bracket():
+    head = (100, 50, 114, 62)                                     # 14 px wide, space 10
+    assert reading._ledger((96, 70, 118, 70, None), [head], 10)    # a ledger line under it
+    assert not reading._ledger((60, 20, 130, 20, None), [head], 10)  # a long line over it
+    assert not reading._ledger((120, 70, 140, 70, None), [head], 10)  # beside it
+
+
+def test_a_brackets_hooks_are_found_below_its_outer_ends():
+    space = 10
+    ink = np.zeros((200, 400), bool)
+    ink[100:102, 50:180] = True        # left half
+    ink[100:102, 210:340] = True       # right half
+    ink[100:110, 50:52] = True         # hooks, a space down
+    ink[100:110, 338:340] = True
+    found = lines.Lines(space=space, level=[(100.5, 50.0, 180.0, 2.0), (100.5, 210.0, 340.0, 2.0)])
+    reading.bracket_hooks(found, ink, [(185, 92, 205, 108)])
+    assert sorted(round(v[0]) for v in found.vertical) == [50, 340]
+    assert all(v[1] <= 101 and v[2] >= 108 for v in found.vertical)
+    found.vertical = []
+    reading.bracket_hooks(found, ink, [])                       # no number: not a bracket
+    assert found.vertical == []

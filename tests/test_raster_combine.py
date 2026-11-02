@@ -133,3 +133,64 @@ def test_a_chord_with_a_note_more_or_less_is_not_a_chord_read_differently():
     assert combine.chords_differ((octave, []), ([octave[0]], []))           # a note left out
     other = [events.Note(0, 1, "1", 0, Fraction(0), events.Pitch("B", Fraction(0), 6), Fraction(1), "")]
     assert not combine.chords_differ((octave, []), (other, []))             # different pitches (pdmx-QkFxjWipz93Z)
+
+
+def test_engine_2s_notes_at_the_edge_of_its_crop_count_as_out_of_range():
+    # high octaves on a bass staff, up to nine ledger lines: Engine 2 reads a
+    # run of D5s at the edge of its crop (pdmx-QkFxjWipz93Z)
+    def at(step, octave, onset):
+        return events.Note(0, 1, "1", 0, Fraction(onset), events.Pitch(step, Fraction(0), octave), Fraction(1), "")
+
+    one = [at("E", 5, k) for k in range(4)] + [at("E", 6, k) for k in range(4)]
+    two = [at("D", 5, k) for k in range(4)]
+    bass = events.Score(parts=[events.Part("", 1)], notes=one,
+                        structure=[events.Marking("time", "4/4", 0, None, 0, Fraction(0)),
+                                   events.Marking("clef", "F 4", 0, 1, 0, Fraction(0))])
+    bottom = events.clef_bottom("F 4")
+    assert combine.range_faults(two, bottom) == 0
+    assert combine.range_faults(two, bottom, (True, True)) == 4
+    assert combine.range_faults(two, bottom, (False, True)) == 0        # a lower staff: the crop goes on above
+    assert combine.range_faults(one, bottom) == 4                        # the E6s, past six ledger lines
+    combined = combine.combine(bass, two, [])
+    assert combined.disagree[0].chosen == 1
+    octaves = [at(step, 6, k) for k in range(4) for step in "EG"]         # more notes far out than Engine 2 has
+    bass.notes = octaves
+    assert combine.combine(bass, two, []).disagree[0].chosen == 1        # Engine 1's range is not judged
+
+
+def test_a_clef_change_inside_a_bar_keeps_the_notes_before_it_in_range():
+    # a bass staff turning treble halfway through the bar: its C3s are in range
+    # under the bass clef, though nine steps below the treble staff
+    # (pdmx-KbWx8rTYY93p)
+    notes = [events.Note(0, 2, "1", 0, Fraction(k, 2), events.Pitch("C", Fraction(0), 3), Fraction(1, 2), "")
+             for k in range(4)]
+    score = events.Score(parts=[events.Part("", 2)], notes=notes,
+                         structure=[events.Marking("clef", "F 4", 0, 2, 0, Fraction(0)),
+                                    events.Marking("clef", "G 2", 0, 2, 0, Fraction(2))])
+    bottoms = combine._clef_bottoms(score)(0, 2, 0)
+    assert bottoms == (events.clef_bottom("F 4"), events.clef_bottom("G 2"))
+    assert combine.range_faults(notes, bottoms, (False, True)) == 0
+    assert combine.range_faults(notes, bottoms[1], (False, True)) == 4
+
+
+def test_only_engine_1s_doubts_about_notes_count_against_it(monkeypatch):
+    from omr.raster import sequence_reading
+
+    def run(rule):
+        s = score([note(0, 4, "C")])
+        s.doubts = [events.Flag(0, 1, 0, rule, "")]
+        monkeypatch.setattr(sequence_reading, "read_notes",
+                            lambda *a: ([note(0, 4, "D")], [], {(0, 1, 0)}, {}))
+        sequence_reading.combine_notes(s, None, None)
+        return [n.pitch.step for n in s.notes]
+
+    assert run("unsure marking") == ["C"]     # an unsure staccato says nothing of the notes
+    assert run("unsure symbol") == ["D"]
+
+
+def test_a_reading_of_rests_only_loses_to_notes_even_with_a_doubt():
+    # Engine 2 saw an eighth rest and missed the notes after it (pdmx-AcZ5nsmxvJxs)
+    one = [note(0, 1), note(1, 1), note(2, 2)]
+    rest = events.Rest(0, 1, "1", 0, Fraction(0), events.WHOLE_BAR)
+    doubt = events.Flag(0, 1, 0, "rhythm", "")
+    assert combine.combine(score(one), [], [rest], doubts=[doubt]).notes == one
