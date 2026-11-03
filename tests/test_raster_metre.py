@@ -52,8 +52,43 @@ def test_a_time_signature_the_notes_fill_is_read_once(monkeypatch):
 
 
 def test_a_value_that_does_not_halve_the_unfilled_bars_is_not_kept(monkeypatch):
-    # two bars short of a note: no other time fits better
-    read, calls = fake_reader([4, 3, 4, 3, 4, 4])
+    # every other bar short of a note: no other time fits better
+    read, calls = fake_reader([4, 3, 4, 3, 4, 3])
     monkeypatch.setattr(notation, "read_notes", read)
     s = metre.read_notes(score([(0, "4/4")], 6), [], [])
     assert times(s) == [(0, "4/4")] and len(calls) > 1
+
+
+def test_a_digit_the_detector_confuses_is_tried_first(monkeypatch):
+    # 9/8 read as 6/8 (os-lc6007571): after the value read, 9/8 is tried next
+    read, calls = fake_reader([Fraction(9, 2)] * 6)
+    monkeypatch.setattr(notation, "read_notes", read)
+    s = metre.read_notes(score([(0, "6/8"), (1, "6/8")], 6), [], [])
+    assert times(s) == [(0, "9/8"), (1, "9/8")]
+    assert calls[2] == [(0, "9/8"), (1, "9/8")]
+
+
+def test_a_few_unfilled_bars_do_not_change_the_time(monkeypatch):
+    # 3 of 8 bars misread for other reasons (pdmx-a9ydR5bAeJrn: 4/4 became 4/2)
+    read, calls = fake_reader([4, 4, 4, 5, 4, 4, 5, 5])
+    monkeypatch.setattr(notation, "read_notes", read)
+    s = metre.read_notes(score([(0, "4/4")], 8), [], [])
+    assert times(s) == [(0, "4/4")] and len(calls) == 1
+
+
+def test_between_values_that_fill_alike_the_shorter_bar_is_kept(monkeypatch):
+    # a reader that spreads notes out fills any bar of 4 quarters or more
+    calls = []
+
+    def read(score, ordered, pages, layouts=()):
+        value = next(e.value for e in score.structure if e.kind == "time")
+        length = metre._length(value)
+        calls.append(value)
+        for k in range(6):
+            score.notes.append(events.Note(0, 1, "1", k, Fraction(0), events.Pitch("C", Fraction(0), 4),
+                                           length if length >= 4 else Fraction(4), ""))
+        return score
+
+    monkeypatch.setattr(notation, "read_notes", read)
+    s = metre.read_notes(score([(0, "2/4")], 6), [], [])
+    assert times(s) == [(0, "2/2")]

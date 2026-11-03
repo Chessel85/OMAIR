@@ -43,3 +43,20 @@ def test_a_paused_run_waits_until_the_file_says_yes(tmp_path):
     waiting.join(5)
     assert not waiting.is_alive()
     assert log.lines[0].startswith("paused") and log.lines[1].startswith("carrying on")
+
+
+def test_a_checkpoint_does_nothing_until_a_run_asks_to_pause_within_pieces(tmp_path, monkeypatch):
+    control = tmp_path / "continue.txt"
+    control.write_text("no\n", encoding="utf-8")
+    monkeypatch.setattr(pause, "_within", None)
+    pause.checkpoint(control, 0.01)              # returns at once: the run did not ask
+    log = Log()
+    pause.within_pieces(log)
+    waiting = threading.Thread(target=pause.checkpoint, args=(control, 0.01))
+    waiting.start()
+    waiting.join(0.1)
+    assert waiting.is_alive()
+    control.write_text("yes\n", encoding="utf-8")
+    waiting.join(5)
+    assert not waiting.is_alive()
+    assert log.lines[0].startswith("paused")

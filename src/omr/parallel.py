@@ -57,14 +57,14 @@ def pool(workers):
     executor.shutdown(wait=True)
 
 
-def finished(running, block):
+def finished(running, block, timeout=None):
     """Remove and return the finished items of `running` (a dict of future to
     job details), as (future, details) pairs. With block true, wait until at
-    least one has finished."""
+    least one has finished, or `timeout` seconds have gone (None: no limit)."""
     if not running:
         return []
     if block:
-        done, _ = cf.wait(running, return_when=cf.FIRST_COMPLETED)
+        done, _ = cf.wait(running, timeout=timeout, return_when=cf.FIRST_COMPLETED)
     else:
         done = [f for f in running if f.done()]
     # in the order they were submitted: `done` is a set, whose order changes from run to run

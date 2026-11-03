@@ -23,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
-from omr import paths
+from omr import paths, pause
 from omr.pdf import classify, evidence
 from omr.pdf.symbols import PageSymbols
 from omr.raster import lines as rl, names, page as rp, text as rt
@@ -359,6 +359,7 @@ def read_document(doc, pages, detect=None, read_text=None):
     for ps in pages:
         page = doc[ps.page - 1]
         if is_image_page(ps):
+            pause.checkpoint()   # a run paused by hand waits here, not at the end of the score
             if detect is None:
                 detect = detector()
             if read_text is None:

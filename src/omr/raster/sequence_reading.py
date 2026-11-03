@@ -32,7 +32,7 @@ from pathlib import Path
 
 import numpy as np
 
-from omr import paths
+from omr import paths, pause
 from omr.corpus.sequence_units import MARGIN_ABOVE, MARGIN_SIDES, _fit
 from omr.evaluate import events
 from omr.pdf import rules
@@ -418,6 +418,7 @@ def read_notes(score, assigned, use, reader=None):
     clef_shift, sign_shift = octave_shifts(score), octave_signs(score)
     keys = events.SignaturesInForce(score)
     for unit in found:
+        pause.checkpoint()   # a run paused by hand waits here, not at the end of the score
         try:
             read = tokens_to_score(reader.read(unit_pixels(unit.image)))
         except (events.MusicXMLError, ValueError, KeyError, IndexError, ZeroDivisionError):

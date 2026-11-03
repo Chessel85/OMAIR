@@ -15,11 +15,19 @@ recall without it, so each rule's worth can be seen.
 
 Usage:
   python scripts/check_flags.py [--set-root FOLDER] [--job NAME] [--score ID] [--limit N]
-                                [--workers N] [--out FILE] [--json FILE] [--min-recall PERCENT]
+                                [--workers N] [--out FILE] [--json FILE] [--log FILE]
+                                [--min-recall PERCENT]
 
-Each pair waits before it starts while continue.txt in the repository's
-folder does not say yes (omr.pause); pairs already started finish. The
-self-check by re-rendering (omr.selfcheck) runs unless OMR_SELFCHECK is 0.
+A line is logged as each pair finishes: how many are done, how long the pair
+took, and about when the run will end. With --json each pair's result is also
+kept as it finishes, in a file beside it ending .pairs.jsonl; a run started
+again with the same --json goes on from there, reading only the pairs not yet
+done (delete that file to start afresh).
+
+While continue.txt in the repository's folder does not say yes (omr.pause),
+the run pauses: pairs not started wait, and a pair being read waits at its
+next image page or Engine 2 system. The self-check by re-rendering
+(omr.selfcheck) runs unless OMR_SELFCHECK is 0.
 
 With --min-recall the command fails (exit status 1) if the flagging recall
 on exact pairs is below that percentage, or if any pair could not be read.
@@ -28,8 +36,10 @@ CI runs it on the regression set.
 
 import argparse
 import collections
+import itertools
 import json
 import sys
+import time
 from pathlib import Path
 
 from omr import parallel, pause, paths
@@ -40,22 +50,131 @@ import check_notes  # noqa: E402
 
 
 def check_pair(pdf, truth_path):
-    """The error places and the flags of one pair, for scoring by rule. Each
-    pair waits first while continue.txt does not say yes (omr.pause)."""
+    """The error places and the flags of one pair, for scoring by rule, and
+    the seconds it took to read. Each pair waits first, and at each image
+    page and Engine 2 system, while continue.txt does not say yes (omr.pause)."""
     import logging
+    import time
 
     from omr import pause
     from omr.evaluate import events, match, metrics
     from omr.pdf import rules
     from omr.pdf.read import read_pdf
 
-    pause.wait_while_paused(logging.getLogger("check-flags"))
+    log = logging.getLogger("check-flags")
+    pause.within_pieces(log)
+    pause.wait_while_paused(log)
+    start = time.monotonic()
     truth = events.read(truth_path)
     found, _ = read_pdf(pdf, notes=True, selfcheck=True)
     result = match.match(truth, found)
     return {"places": metrics.error_places(result),
             "flags": [(f.rule, f.part, f.staff, f.bar) for f in rules.check(found)],
-            "bars": sum(found.bar_counts) if found.bar_counts else 0}
+            "bars": sum(found.bar_counts) if found.bar_counts else 0,
+            "seconds": round(time.monotonic() - start, 1)}
+
+
+def kept_file(json_path):
+    """The file each pair's result is kept in as it finishes, beside --json."""
+    path = Path(json_path)
+    return path.with_name(path.stem + ".pairs.jsonl")
+
+
+def read_kept(path):
+    """{(score, job): result} kept by an earlier start of the run. A last line
+    cut short when the run was stopped is left out (that pair is read again)."""
+    out = {}
+    if not path.is_file():
+        return out
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            entry = json.loads(line)
+            out[(entry["score"], entry["job"])] = entry["result"]
+        except (ValueError, KeyError, TypeError):
+            continue
+    return out
+
+
+def duration(seconds):
+    """Seconds in words: "3 hours 5 minutes", "12 minutes", "under a minute"."""
+    minutes = round(seconds / 60)
+    if minutes < 1:
+        return "under a minute"
+    hours, minutes = divmod(minutes, 60)
+    words = []
+    if hours:
+        words.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    if minutes:
+        words.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    return " ".join(words)
+
+
+def progress_line(done, total, score, job, seconds, rate, now):
+    """The line logged as a pair finishes. `rate` is the seconds of running
+    (pauses left out) a pair has taken on average in this start of the run,
+    or None before there is enough to go on; `now` is time.time()."""
+    line = f"{done} of {total} done. {score} {job} took {duration(seconds)}."
+    left = total - done
+    if not left:
+        return line
+    if rate is None:
+        return line + " Too early to say when the run will end."
+    rest = rate * left
+    then, today = time.localtime(now + rest), time.localtime(now)
+    day = "" if (then.tm_year, then.tm_yday) == (today.tm_year, today.tm_yday) else " on a later day"
+    left_words = "Under a minute" if rest < 30 else f"About {duration(rest)}"
+    return line + f" {left_words} left, ending about {time.strftime('%H:%M', then)}{day}."
+
+
+class _NoFile:
+    """Stands in for the kept file when there is no --json."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def write(self, text):
+        pass
+
+    def flush(self):
+        pass
+
+
+class _Clock:
+    """Running time with pauses left out, for the estimate of the end, and
+    the log lines when a pause by continue.txt starts and ends."""
+
+    def __init__(self, clock=time.time):
+        self.time = clock
+        self.start = clock()
+        self.paused_since = None
+        self.paused = 0.0
+        self.finished = 0
+
+    def now(self):
+        return self.time()
+
+    def look(self, log, running):
+        now = self.time()
+        if self.paused_since is None and not pause.may_continue():
+            self.paused_since = now
+            log.info(f"Pausing: {pause.CONTROL} does not say yes. Pairs not started wait; each pair being "
+                     f"read ({running} in the pool) waits at its next image page or Engine 2 system. "
+                     f"Write yes in it to carry on.")
+        elif self.paused_since is not None and pause.may_continue():
+            self.paused += now - self.paused_since
+            log.info(f"Carrying on after {duration(now - self.paused_since)} paused.")
+            self.paused_since = None
+
+    def rate(self, workers):
+        """Seconds of running a pair, as the pool goes, or None for now."""
+        if self.finished < max(3, workers):
+            return None
+        now = self.time()
+        paused = self.paused + (now - self.paused_since if self.paused_since is not None else 0)
+        return (now - self.start - paused) / self.finished
 
 
 def in_flag_file(rule):
@@ -144,29 +263,54 @@ def main(argv=None):
     parser.add_argument("--limit", type=int)
     parser.add_argument("--workers", type=int, default=parallel.DEFAULT_WORKERS)
     parser.add_argument("--out", help="Also write the report to this file.")
-    parser.add_argument("--json", help="Also write every pair's error places and flags to this file.")
+    parser.add_argument("--json", help="Also write every pair's error places and flags to this file "
+                        "(and keep each as it finishes, to go on from there if the run is stopped).")
+    parser.add_argument("--log", help="The progress log (default logs/check-flags.log in the repository).")
     parser.add_argument("--min-recall", type=float, metavar="PERCENT",
                         help="Fail if the flagging recall on exact pairs is below this.")
     args = parser.parse_args(argv)
-    logs = paths.REPO_ROOT / "logs"
-    logs.mkdir(exist_ok=True)
-    log = ProgressLog("check-flags", path=str(logs / "check-flags.log"))
+    log_path = Path(args.log) if args.log else paths.REPO_ROOT / "logs" / "check-flags.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log = ProgressLog("check-flags", path=str(log_path))
     todo = check_notes.pairs(args.set_root, args.job, args.limit, args.score)
     if not todo:
         log.error(f"No pairs found in {args.set_root}. Check the folder has an index.txt.")
         return log.finish("0 files checked")
     pause.make_control()
-    results = {}
+    kept = kept_file(args.json) if args.json else None
+    wanted = {(s, j) for s, j, *_ in todo}
+    results = {k: r for k, r in (read_kept(kept) if kept else {}).items() if k in wanted}
+    left = [(s, j, pdf, truth) for s, j, pdf, truth in todo if (s, j) not in results]
+    if results:
+        log.info(f"Going on from {kept}: {len(results)} of {len(todo)} pairs already done, {len(left)} to read.")
+    else:
+        log.info(f"{len(todo)} pairs to read with {args.workers} workers.")
     failed = 0
-    with parallel.pool(args.workers) as executor:
-        running = {executor.submit(check_pair, pdf, truth): (score, job) for score, job, pdf, truth in todo}
-        while running:
-            for future, (score, job) in parallel.finished(running, block=True):
+    with parallel.pool(args.workers) as executor, (open(kept, "a", encoding="utf-8") if kept else _NoFile()) as keep:
+        # pairs handed out a few at a time, not all at once: with one worker
+        # each is read as it is handed out, and its line logged before the next
+        waiting, running = iter(left), {}
+        ahead = 1 if args.workers == 1 else 2 * args.workers
+        clock = _Clock()
+        while True:
+            clock.look(log, len(running))
+            for score, job, pdf, truth in itertools.islice(waiting, max(0, ahead - len(running))):
+                running[executor.submit(check_pair, pdf, truth)] = (score, job)
+            if not running:
+                break
+            for future, (score, job) in parallel.finished(running, block=True, timeout=60):
                 try:
-                    results[(score, job)] = future.result()
+                    result = future.result()
                 except Exception as error:   # report and go on with the rest
                     failed += 1
                     log.error(f"{score} {job}: {type(error).__name__}: {error}")
+                    continue
+                results[(score, job)] = result
+                keep.write(json.dumps({"score": score, "job": job, "result": result}) + "\n")
+                keep.flush()
+                clock.finished += 1
+                log.info(progress_line(len(results) + failed, len(todo), score, job, result.get("seconds", 0),
+                                       clock.rate(args.workers), clock.now()))
     # in the set's order, not the order the workers finished in
     results = {(s, j): results[(s, j)] for s, j, *_ in todo if (s, j) in results}
     text = report(results)
