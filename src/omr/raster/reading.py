@@ -144,6 +144,7 @@ def read_page(page, number, detect=None, read_text=None):
     lines.tilt = angle
     digits = [place.to_pixels(s.box) for s in symbols if s.name in names.TIME_DIGITS]
     lines.vertical = [v for v in lines.vertical if not _in_digits(v, digits)]
+    lines.vertical = rl.across_text(lines.vertical, [place.to_pixels(b) for b in text], lines.space, rl.ink_of(grey))
     beams = [(place.x0 + x0 * place.sx, place.x0 + x1 * place.sx,
               place.y0 + min(t0, t1) * place.sy, place.y0 + max(b0, b1) * place.sy)
              for x0, x1, t0, b0, t1, b1 in lines.beams]

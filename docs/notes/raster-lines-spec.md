@@ -18,7 +18,8 @@ How the staff lines and the other lines of a clean page image are found and hand
 ## Tilt
 
 - Before anything else the page is turned level. The tilt is the angle whose row sums are sharpest (the sum of their squares, largest when the staff lines lie along rows), searched within 2 degrees each way in steps of 0.2 degrees on a quarter-size image, then of 0.02 degrees on a half-size one. About 0.1 to 0.3 seconds a page.
-- A tilt under 0.04 degrees is left alone. Every rendered page checked measures 0.
+- Only thin ink counts (Stage 2.9): ink in runs down a column longer than 0.3 staff spaces is left out, so beams, noteheads and stems do not count, and staff lines, which stay thin at any tilt, decide. With all the ink, two level pages of a cadenza whose long beams all rise one way measured 1.4 degrees, and the symbols read from the turned image lay half a staff space off (pdmx-1ju9j9N3tc1a). Real tilts of 0.3 to 1.9 degrees are found to 0.02 degrees either way. A ratio test against level, as the inspector uses, does not separate them here: real tilts of 0.5 to 1 degree score only 1.2 to 1.8 times level, the false one 1.1.
+- A tilt under 0.04 degrees is left alone.
 - The lines are those of the level page, so the symbols must come from the same level image: in Engine 1 the detector reads the image after this turn.
 
 ## Level lines
@@ -46,6 +47,7 @@ How the staff lines and the other lines of a clean page image are found and hand
 - **Side by side.** Lines whose columns touch and whose lengths overlap by at least 80 percent of the longer are one line. The edge columns of a stem can end a pixel or two away from its middle ones; as a separate line the reader took it for a second stem and split the chord. The columns of a notehead beside a stem are much shorter than it and stay apart.
 - **Not inside a symbol**, as for level lines, but flags are left out of that test: a stem with a flag lies inside the flag's box at one end and the notehead's at the other, and would otherwise be lost.
 - Centre and width to a fraction of a pixel, as for level lines.
+- **Cut by text** (Stage 2.9, `lines.across_text`, called by `reading.read_page` with the detector's text boxes): MuseScore draws words such as "a tempo" on a white ground, which cuts a barline through them in the image; the pieces stop between the staves and are not barlines, so a whole bar was lost in every part (pdmx-dNVu4Bv7QyDP). Two pieces at the same x, each at least 2 staff spaces long (a stem is shorter), with a text box over a gap of up to 3 spaces, mostly white (at most half ink) down the line's column, are one line. The lines keep the order they came in: the reader's choices downstream depend on it (pdmx-ygdcXBBw6fje read worse with them sorted).
 - Given to the reader as stroked lines. Barlines, stems, the upright parts of brackets and the hooks of tuplet brackets and endings are all vertical lines; the reader tells them apart.
 
 ## Beams

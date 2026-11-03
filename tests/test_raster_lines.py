@@ -196,6 +196,16 @@ def test_a_tilted_page_is_turned_level():
     assert rl.level(grey) == (grey, 0.0)
 
 
+def test_long_sloping_beams_do_not_tilt_a_level_page():
+    # beams all rising one way across a cadenza (pdmx-1ju9j9N3tc1a)
+    grey = staff(blank(600, 800), top=150)
+    for y in (300, 360, 420, 480):
+        for x in range(60, 740):
+            top = int(y - (x - 60) * np.tan(np.radians(1.4)))
+            grey[top:top + 9, x] = 0
+    assert abs(rl.tilt(grey)) <= 0.04
+
+
 def test_drawings_are_in_page_points():
     found = rl.Lines(space=20.0, level=[(100.0, 50.0, 750.0, 2.0)], vertical=[(400.0, 100.0, 182.0, 3.0)],
                      beams=[(300.0, 400.0, 250.0, 260.0, 260.0, 270.0)])
@@ -343,3 +353,25 @@ def test_a_dashed_octave_line_with_one_pixel_gaps_is_found():
     solid = np.zeros((30, 200), bool)
     solid[10:12, 10:180] = True
     assert not rl.dashed_lines(solid, 14.0)
+
+
+def test_a_barline_cut_by_text_on_a_white_ground_is_joined():
+    # MuseScore's "a tempo" over a staff cuts the barline in the image (pdmx-dNVu4Bv7QyDP)
+    space = 10
+    pieces = [(100.0, 0.0, 200.0, 2.0), (100.5, 225.0, 330.0, 2.0)]
+    text = [(80, 198, 140, 226)]
+    assert rl.across_text(pieces, text, space) == [(100.25, 0.0, 330.0, 2.0)]
+    # no text over the gap, a gap too long, or a stem-length piece: left apart
+    assert rl.across_text(pieces, [(80, 260, 140, 280)], space) == pieces
+    assert rl.across_text([(100.0, 0.0, 200.0, 2.0), (100.0, 240.0, 330.0, 2.0)], [(80, 198, 140, 241)], space) == \
+        [(100.0, 0.0, 200.0, 2.0), (100.0, 240.0, 330.0, 2.0)]
+    assert rl.across_text([(100.0, 185.0, 200.0, 2.0), (100.0, 225.0, 330.0, 2.0)], text, space) == \
+        [(100.0, 185.0, 200.0, 2.0), (100.0, 225.0, 330.0, 2.0)]
+    # the lines keep their order (the reader downstream depends on it, pdmx-ygdcXBBw6fje)
+    others = [(300.0, 50.0, 90.0, 2.0), (50.0, 10.0, 40.0, 2.0)]
+    assert rl.across_text(others + pieces, text, space) == others + [(100.25, 0.0, 330.0, 2.0)]
+    # a gap full of ink is a notehead between an up and a down stem, not text on a white ground
+    ink = np.zeros((400, 200), bool)
+    assert rl.across_text(pieces, text, space, ink) == [(100.25, 0.0, 330.0, 2.0)]
+    ink[200:225, 100] = True
+    assert rl.across_text(pieces, text, space, ink) == pieces

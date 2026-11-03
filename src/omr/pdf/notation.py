@@ -331,7 +331,9 @@ def find_stems(verticals, heads, space, barline_xs):
     seen = set()
     stems = []
     by_x = sorted(heads, key=lambda h: h.box[0])
-    for x, top, bottom, width in verticals:
+    # left to right, so that the reading does not hang on the order the
+    # lines were found in (a shared notehead is settled by stem order)
+    for x, top, bottom, width in sorted(verticals, key=lambda v: (v[0], v[1], v[2])):
         if width > 0.3 * space or bottom - top < 1.0 * space:
             continue
         key = (round(x, 1), round(top, 1), round(bottom, 1))
@@ -686,7 +688,11 @@ def attach_dots(evs, dots, space, repeat_zones):
                 level = e.rest.box[1] - 0.3 * space <= cy <= e.rest.box[3] + 0.3 * space
             else:
                 level = any(abs(cy - h.y) <= 0.65 * space for h in e.heads)
-            if level and (best_dx is None or dx < best_dx):
+            # a notehead two voices share is in two events at one place: the
+            # dot goes to the longer note (a dotted quarter over an eighth),
+            # not to whichever event came first
+            if level and (best_dx is None or dx < best_dx - 1e-6
+                          or (abs(dx - best_dx) <= 1e-6 and e.base > best.base)):
                 best, best_dx = e, dx
         # (a rest has no voice to tell by its stem: a dot over or under any
         # note beside it is that note's staccato)

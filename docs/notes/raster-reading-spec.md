@@ -84,6 +84,12 @@ How a clean page image (Type C) is turned into the page the vector reader expect
 - **Saved readings:** with `OMR_DETECTIONS_DIR` set, Engine 2's reading of each staff piece is saved in its `sequence` folder, `<2 characters>/<key>.json`, the key a SHA-256 of the encoder and decoder files' contents and the piece's pixels as the model takes them; the file holds each symbol's six fields (rhythm, pitch, lift, articulation, slur, staff position). Checked: a regression pair converted twice with both engines gives the same MusicXML, 44 seconds then 10.
 - Figures: `phase2-progress.md`, Stage 2.7.
 
+## Time signatures checked against the notes (Stage 2.9)
+
+- The detector can miss a time signature digit or read it as another (an old piece's 2/1 whose 1 sits inside the treble clef read as 2 alone or as 2/4, pdmx-C1P12SpiRUyB). The notes are then fitted to the wrong bar length, and nearly every bar from there on is over- or underfull.
+- So on page images (`omr.raster.metre`, called by `read_pdf` in place of `notation.read_notes`) the notes are read, and each time signature whose stretch of bars, up to the next one, has at least a quarter of its part bars unfilled (`notation.unfilled_bars`), and at least 2, is tried with other values, the notes read again for each: the values read in any part at that bar, most often first; each numerator read there over 1, 2, 4, 8 and 16; each beat type read there with the bar length the notes most often reach. A value goes to every part at that bar, and is kept only if it at least halves the unfilled part bars there and saves at least 2. At most 12 extra readings a score.
+- Not caught: a time signature lasting one bar in a one-part score (pdmx-SxQW82buWPXe, a 5/8 read as 8/8 in a run of changing metres): one bar is too little to go on.
+
 ## The detector model
 
 - `OMR_DETECTOR` names the model file; with it unset, `runs/detector/full/weights/best.onnx` in the corpus folder. ONNX on the CPU is what `omr convert` uses (OP-2); a `.pt` file runs on the GPU for evaluation passes and gives the same boxes (Stage 2.3).

@@ -32,7 +32,11 @@ def read_pdf(path, notes=False, selfcheck=False):
         assigned = structure.assign_parts(layouts)
         score = structure.read_structure(layouts, assigned)
         if notes:
-            notation.read_notes(score, assigned[0], use, layouts)
+            if images:   # time signatures checked against the notes (omr.raster.metre)
+                from omr.raster import metre
+                metre.read_notes(score, assigned[0], use, layouts)
+            else:
+                notation.read_notes(score, assigned[0], use, layouts)
             if images:
                 from omr.raster import sequence_reading
                 if sequence_reading.mode() == "sequence":   # Engine 2's notes in place of Engine 1's (Stage 2.6)

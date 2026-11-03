@@ -44,6 +44,9 @@ LEVEL_MAX_THICK = 0.3    # staff spaces
 VERTICAL_MAX_WIDTH = 0.7
 LEVEL_MIN_LENGTH = 0.5
 VERTICAL_MIN_LENGTH = 0.8
+TEXT_JOIN_GAP = 3        # staff spaces: the longest gap text can cut in a vertical line (across_text)
+TEXT_JOIN_INK = 0.5      # the most ink down the gap a line joined across text may have
+TEXT_JOIN_PIECE = 2      # staff spaces: the shortest piece joined across text (a stem is not)
 BEAM_THICK = (0.3, 0.95)
 BEAM_MIN_LENGTH = 0.6
 TRACE_MIN_WIDTH = 0.8    # staff spaces: the narrowest curve the reader takes
@@ -332,6 +335,51 @@ def vertical_lines(ink, dark, space, mask):
         out.append((centre, float(top), float(bottom), width))
         pixels.append((left, right, top, bottom))
     return out, pixels
+
+
+def across_text(vertical, text_boxes, space, ink=None):
+    """Vertical lines (x, top, bottom, width) with the pieces of one line
+    broken by text joined: MuseScore draws words such as "a tempo" on a
+    white ground, which cuts a barline through them in the image, and pieces
+    that stop between the staves are not barlines (pdmx-dNVu4Bv7QyDP). Two
+    pieces join when they stand one over the other at the same x, each at
+    least TEXT_JOIN_PIECE staff spaces long, and a text box covers the gap
+    between them, up to TEXT_JOIN_GAP spaces. With `ink` (the page's ink,
+    rows by columns), the gap must be mostly white down the line's column,
+    as the white ground leaves it: an up stem and a down stem on one
+    notehead have the notehead between them (pdmx-ygdcXBBw6fje). Boxes are
+    (x0, y0, x1, y1)."""
+    if not text_boxes:
+        return list(vertical)
+    near, tol = max(1.0, 0.15 * space), 0.5 * space
+    # top down, so a line cut twice joins piece by piece; the lines keep the
+    # order they came in (each joined line at its upper piece's place), as
+    # the reader's choices downstream can depend on it
+    order = sorted(range(len(vertical)), key=lambda i: (vertical[i][1], vertical[i][0]))
+    out = []   # [first index, line]
+    for i in order:
+        v = vertical[i]
+        for item in out:
+            u = item[1]
+            gap = v[1] - u[2]
+            if (abs(u[0] - v[0]) <= near and 0 < gap <= TEXT_JOIN_GAP * space
+                    and min(u[2] - u[1], v[2] - v[1]) >= TEXT_JOIN_PIECE * space
+                    and any(b[0] <= v[0] <= b[2] and b[1] <= u[2] + tol and b[3] >= v[1] - tol for b in text_boxes)
+                    and (ink is None or _gap_ink(ink, (u[0] + v[0]) / 2, u[2], v[1]) <= TEXT_JOIN_INK)):
+                item[1] = ((u[0] + v[0]) / 2, u[1], v[2], max(u[3], v[3]))
+                break
+        else:
+            out.append([i, v])
+    return [line for _, line in sorted(out)]
+
+
+def _gap_ink(ink, x, top, bottom):
+    """The share of ink down column x between rows top and bottom."""
+    col = int(round(x))
+    a, b = int(np.ceil(top)), int(bottom)
+    if not 0 <= col < ink.shape[1] or b <= a:
+        return 0.0
+    return float(ink[max(a, 0):min(b, ink.shape[0]), col].mean())
 
 
 def remove_staff_lines(ink, level_pixels, space):
@@ -985,6 +1033,7 @@ def _on_staff_line(thin, level, space):
 
 TILT_LIMIT = 2.0        # degrees searched each way
 TILT_MIN = 0.04         # degrees: smaller tilts are left alone
+TILT_THIN = 0.3         # staff spaces: ink in longer runs down a column is left out of the tilt search
 
 
 def _sharpness(dark, angle):
@@ -998,8 +1047,18 @@ def tilt(grey):
     """Degrees to turn the page by (counterclockwise) to level it: the angle
     whose row sums are sharpest, which is when the staff lines lie along
     rows. Searched in steps of 0.2 degrees on a quarter-size image, then of
-    0.02 degrees on a half-size one."""
-    dark = (255 - grey).astype(np.float32)
+    0.02 degrees on a half-size one. Only thin ink counts (runs down a
+    column up to TILT_THIN staff spaces): long beams sloping one way across
+    a level page made it look tilted by 1.4 degrees, and the symbols read
+    from the turned image were half a staff space off (pdmx-1ju9j9N3tc1a);
+    staff lines stay thin at any tilt, while beams, noteheads and stems
+    are thick."""
+    ink = ink_of(grey)
+    space, _ = staff_space(ink)
+    longest = max(3, round(TILT_THIN * space)) if space else 3
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, longest + 1))
+    thick = cv2.morphologyEx(ink.astype(np.uint8), cv2.MORPH_OPEN, kernel).astype(bool)
+    dark = np.where(ink & ~thick, 255, 0).astype(np.float32)
     h, w = dark.shape
     quarter = cv2.resize(dark, (max(w // 4, 1), max(h // 4, 1)), interpolation=cv2.INTER_AREA)
     coarse = max(np.arange(-TILT_LIMIT, TILT_LIMIT + 1e-9, 0.2), key=lambda a: _sharpness(quarter, a))

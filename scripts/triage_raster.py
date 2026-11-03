@@ -65,7 +65,11 @@ def read_with(pages, use, engines=False):
     layouts = lay.read_document(use, pages)
     assigned = structure.assign_parts(layouts)
     score = structure.read_structure(layouts, assigned)
-    notation.read_notes(score, assigned[0], use, layouts)
+    if any(s.source == "detector" for p in pages for s in p.symbols):
+        from omr.raster import metre   # as read_pdf reads page images
+        metre.read_notes(score, assigned[0], use, layouts)
+    else:
+        notation.read_notes(score, assigned[0], use, layouts)
     if engines:
         from omr.raster import sequence_reading
         sequence_reading.combine_notes(score, assigned, use)

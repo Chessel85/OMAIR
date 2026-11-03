@@ -370,6 +370,36 @@ def test_a_staccato_under_the_next_note_is_not_a_dot_of_this_one():
     assert d_note.dots == 1
 
 
+def test_a_dot_on_a_shared_notehead_goes_to_the_longer_note():
+    # one notehead, two voices: a dotted quarter stem up and a beamed eighth
+    # stem down (pdmx-wrbTBKxwZW9M); the dot is the quarter's in either order
+    head = SimpleNamespace(step=0, y=102.5, box=(100.0, 100.0, 106.5, 105.0))
+    dot = SimpleNamespace(box=(108.0, 101.0, 110.0, 103.0))
+    for order in (0, 1):
+        quarter = notation.Event(staff=None, x=100.0, right=106.5, heads=[head], direction=1,
+                                 base=Fraction(1, 4))
+        eighth = notation.Event(staff=None, x=100.0, right=106.5, heads=[head], direction=-1,
+                                base=Fraction(1, 8))
+        evs = [eighth, quarter] if order == 0 else [quarter, eighth]
+        notation.attach_dots(evs, [dot], 5.0, [])
+        assert (quarter.dots, eighth.dots) == (1, 0)
+
+
+def test_stems_do_not_hang_on_the_order_of_the_lines():
+    # a notehead at the end of a stem up and of a stem down (two voices)
+    def heads():
+        return [notation.Head(SimpleNamespace(name="noteheadBlack", x=103.25, y=102.5, box=(100.0, 100.0, 106.5, 105.0)),
+                              None, 0, False)]
+    up = (106.3, 80.0, 102.0, 0.5)
+    down = (100.2, 103.0, 125.0, 0.5)
+    found = []
+    for verticals in ([up, down], [down, up]):
+        hs = heads()
+        notation.find_stems(verticals, hs, 5.0, [])
+        found.append((hs[0].stem.x, hs[0].stem.up))
+    assert found[0] == found[1]
+
+
 def test_a_staccato_beside_a_rest_is_not_its_dot():
     # a sixteenth rest inside a beam, then a chord stem up with a staccato
     # under it, level with the rest (Verovio)
