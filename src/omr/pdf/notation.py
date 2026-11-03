@@ -331,9 +331,10 @@ def find_stems(verticals, heads, space, barline_xs):
     seen = set()
     stems = []
     by_x = sorted(heads, key=lambda h: h.box[0])
-    # left to right, so that the reading does not hang on the order the
-    # lines were found in (a shared notehead is settled by stem order)
-    for x, top, bottom, width in sorted(verticals, key=lambda v: (v[0], v[1], v[2])):
+    # in the order given: the two copies of a unison drawn twice go to the
+    # stems in stem order, and a PDF's drawing order reads better than left
+    # to right (the ties and accidentals found later go with one copy)
+    for x, top, bottom, width in verticals:
         if width > 0.3 * space or bottom - top < 1.0 * space:
             continue
         key = (round(x, 1), round(top, 1), round(bottom, 1))

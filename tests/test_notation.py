@@ -385,19 +385,16 @@ def test_a_dot_on_a_shared_notehead_goes_to_the_longer_note():
         assert (quarter.dots, eighth.dots) == (1, 0)
 
 
-def test_stems_do_not_hang_on_the_order_of_the_lines():
+def test_a_notehead_shared_by_two_voices_is_on_both_stems_in_either_order():
     # a notehead at the end of a stem up and of a stem down (two voices)
-    def heads():
-        return [notation.Head(SimpleNamespace(name="noteheadBlack", x=103.25, y=102.5, box=(100.0, 100.0, 106.5, 105.0)),
-                              None, 0, False)]
     up = (106.3, 80.0, 102.0, 0.5)
     down = (100.2, 103.0, 125.0, 0.5)
-    found = []
     for verticals in ([up, down], [down, up]):
-        hs = heads()
-        notation.find_stems(verticals, hs, 5.0, [])
-        found.append((hs[0].stem.x, hs[0].stem.up))
-    assert found[0] == found[1]
+        hs = [notation.Head(SimpleNamespace(name="noteheadBlack", x=103.25, y=102.5, box=(100.0, 100.0, 106.5, 105.0)),
+                            None, 0, False)]
+        stems = notation.find_stems(verticals, hs, 5.0, [])
+        assert sorted(s.up for s in stems) == [False, True]
+        assert all(s.heads == hs for s in stems)
 
 
 def test_a_staccato_beside_a_rest_is_not_its_dot():
