@@ -4,7 +4,7 @@ Gate review for `docs/plans/phase2.md` (Stage 2.10), 8 November 2026. Plain head
 
 ## Decision
 
-Waiting for the owner's sign-off. On 6 November 2026 the owner stopped Stage 2.9 and asked to close Phase 2 with any shortfall recorded as a known limit, then move on to correcting distorted images (Phase 4) for real-world testing, with a full sweep of every step from the start later, earliest steps first.
+**Signed off by the owner on 8 November 2026.** Phase 2 is closed, with the shortfalls below recorded as known limits. Next is Phase 4 (`docs/plans/phase4.md`); Phase 3 (braille) is parked until after it. On 6 November 2026 the owner stopped Stage 2.9 and asked to close Phase 2 with any shortfall recorded as a known limit, then move on to correcting distorted images (Phase 4) for real-world testing, with a full sweep of every step from the start later, earliest steps first.
 
 ## Summary
 
