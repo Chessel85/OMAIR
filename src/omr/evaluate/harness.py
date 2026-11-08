@@ -205,10 +205,13 @@ def musicdiff_figures(truth, output):
 
 
 def run(set_name, recogniser, log, out_dir=None, predictions=None, workers=parallel.DEFAULT_WORKERS,
-        timeout=DEFAULT_TIMEOUT_S, cpu_only=False, with_musicdiff=True, set_root=None, pausable=False, **filters):
+        timeout=DEFAULT_TIMEOUT_S, cpu_only=False, with_musicdiff=True, set_root=None, pausable=False,
+        resume=False, **filters):
     """Evaluate a set. Returns (results, path of the text report). With
     `pausable`, the run waits before each pair while continue.txt does not
-    say yes (omr.pause); pairs already started finish."""
+    say yes (omr.pause); pairs already started finish. With `resume`, a pair
+    whose figures.json is already in `out_dir` is taken from it, not read
+    again, so a stopped run carries on where it was."""
     pairs, export_failures = read_pairs(set_name, set_root)
     pairs = select_pairs(pairs, **filters)
     label = "predictions" if predictions else recogniser
@@ -238,7 +241,16 @@ def run(set_name, recogniser, log, out_dir=None, predictions=None, workers=paral
 
         if pausable:
             pause.make_control()
+        kept = 0
         for pair in pairs:
+            saved = out_dir / pair.id / pair.job / "figures.json"
+            if resume and saved.is_file():
+                try:
+                    results.append(json.loads(saved.read_text(encoding="utf-8")))
+                    kept += 1
+                    continue
+                except ValueError:
+                    pass   # half written when the run stopped: read the pair again
             while len(running) >= 2 * workers:
                 collect(block=True)
             if pausable and not pause.may_continue():
@@ -250,6 +262,8 @@ def run(set_name, recogniser, log, out_dir=None, predictions=None, workers=paral
             running[future] = pair
         while running:
             collect(block=True)
+    if kept:
+        log.info(f"{kept} pairs were taken from an earlier run's figures in {out_dir}.")
     results.sort(key=lambda r: (r["id"], r["job"]))
     text = report.overall(results, set_name, label, export_failures)
     (out_dir / "report.txt").write_text(text, encoding="utf-8")

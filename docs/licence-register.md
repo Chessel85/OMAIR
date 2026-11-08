@@ -131,6 +131,16 @@ These were settled by a default rule so that work is not blocked. Change any you
 - Source: github.com/ultralytics/ultralytics, licence section, checked 17 October 2026.
 - Status: ok
 
+### The project's symbol detector weights (Engine 1)
+
+- Kind: model (made by this project)
+- Version: the Stage 2.3 full run (`runs/detector/full/weights/best.onnx` on the corpus drive, exported 23 October 2026), YOLO11 nano fine-tuned on the project's own labels.
+- Licence: AGPL-3.0, as the YOLO11 weights it starts from and the project.
+- Training data: pages rendered from the training pool (PDMX and OpenScore scores, both ok above) by MuseScore 3 and 4, LilyPond and Verovio, in fonts all marked ok in this register.
+- Use: CI's raster job downloads it from a GitHub release (`detector-weights-1`, asset `detector.onnx`), as `phase2.md` Stage 2.10 asks.
+- Source: the Ultralytics YOLO11 entry above and the dataset and font entries in this register, 8 November 2026.
+- Status: ok to release. Publishing the release is the owner's call.
+
 ### homr
 
 - Kind: model

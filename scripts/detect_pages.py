@@ -16,7 +16,11 @@ Pausing: before each pair, the pass looks at continue.txt in the
 repository's folder, as training does (omr.pause).
 
 usage: python scripts/detect_pages.py SET VERSION [VERSION ...] [--model FILE] [--out FOLDER]
-           [--sample N] [--workers N]
+           [--sample N] [--workers N] [--unseal]
+
+SET is regression, development, check (only with --unseal, at a milestone
+such as the gate) or commercial (the commercial PDFs' raster versions, listed
+in each version's files.txt, with no ground truth).
 
 e.g.   python scripts/detect_pages.py regression g300 g200 g150
 """
@@ -57,16 +61,24 @@ def prepare_job(pdf):
         doc.close()
 
 
+class Named:
+    """A commercial file in place of a pair: only its name is used."""
+
+    def __init__(self, name):
+        self.name = name
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("set", help="regression or development")
+    parser.add_argument("set", help="regression, development, check (with --unseal) or commercial")
     parser.add_argument("versions", nargs="+", help="g300, g200, g150 or bw300")
     parser.add_argument("--model", type=Path, help=f"the detector's model (default {DEFAULT_MODEL} in the corpus folder)")
     parser.add_argument("--out", type=Path, help=f"the detections folder (default {DEFAULT_OUT} in the corpus folder)")
     parser.add_argument("--sample", type=int, help="only N pairs, a fixed draw from the set")
     parser.add_argument("--workers", type=int, default=parallel.DEFAULT_WORKERS)
+    parser.add_argument("--unseal", action="store_true", help="allow the sealed check set (gate runs only)")
     args = parser.parse_args()
-    if args.set == "check":
+    if args.set == "check" and not args.unseal:
         print("The check set stays sealed until a milestone; it is not read here.")
         return 2
     from omr.raster import reading
@@ -77,11 +89,18 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     log = ProgressLog("detect_pages", out / "progress.log")
     raster = corpus / "generated" / "raster"
-    pairs, _ = harness.read_pairs(args.set, raster / f"{args.set}-{args.versions[0]}")
-    if args.sample and args.sample < len(pairs):
-        pairs = sorted(pairs, key=lambda p: rl.page_seed("detector check", p.name))[:args.sample]
-    jobs = [(pair, version, raster / f"{args.set}-{version}" / pair.id / pair.job / "score.pdf")
-            for pair in pairs for version in args.versions]
+    if args.set == "commercial":
+        jobs = [(Named(Path(line).parent.name), version, Path(line))
+                for version in args.versions
+                for line in (raster / f"commercial-{version}" / "files.txt").read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.startswith("#")]
+        pairs = sorted({job[0].name for job in jobs})
+    else:
+        pairs, _ = harness.read_pairs(args.set, raster / f"{args.set}-{args.versions[0]}")
+        if args.sample and args.sample < len(pairs):
+            pairs = sorted(pairs, key=lambda p: rl.page_seed("detector check", p.name))[:args.sample]
+        jobs = [(pair, version, raster / f"{args.set}-{version}" / pair.id / pair.job / "score.pdf")
+                for pair in pairs for version in args.versions]
     run = reading.detector(model, saved_in=False)
     counts = {"detected": 0}
 

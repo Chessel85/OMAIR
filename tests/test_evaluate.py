@@ -629,6 +629,27 @@ def test_a_pausable_run_waits_while_continue_txt_does_not_say_yes(tmp_path, monk
     assert len(looks) == 1    # not pausable: the file is not looked at
 
 
+def test_a_resumed_run_takes_pairs_already_scored_from_their_figures(tmp_path):
+    root = corpus_set(tmp_path, [score(("Flute", [four_quarters()]))])
+    predictions = tmp_path / "pred" / "s0" / "musescore4-base"
+    predictions.mkdir(parents=True)
+    (predictions / "score.musicxml").write_text("not xml", encoding="utf-8")
+    log = ProgressLog("t", stream=io.StringIO())
+    out = tmp_path / "eval"
+    first, _ = harness.run("development", None, log, out_dir=out, predictions=tmp_path / "pred",
+                           workers=1, with_musicdiff=False, set_root=root)
+    saved = out / "s0" / "musescore4-base" / "figures.json"
+    marked = json.loads(saved.read_text(encoding="utf-8"))
+    marked["marker"] = "kept"
+    saved.write_text(json.dumps(marked), encoding="utf-8")
+    resumed, _ = harness.run("development", None, log, out_dir=out, predictions=tmp_path / "pred",
+                             workers=1, with_musicdiff=False, set_root=root, resume=True)
+    assert resumed[0]["marker"] == "kept" and resumed[0]["failed"] == first[0]["failed"]
+    again, _ = harness.run("development", None, log, out_dir=out, predictions=tmp_path / "pred",
+                           workers=1, with_musicdiff=False, set_root=root)
+    assert "marker" not in again[0]   # without resume every pair is read again
+
+
 def test_percent_never_rounds_a_shortfall_up_to_100():
     assert report.percent(9999, 10000) == "99.9 percent"
     assert report.percent(5, 5) == "100 percent"

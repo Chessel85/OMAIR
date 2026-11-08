@@ -18,10 +18,17 @@ Every page written is checked with the inspector, which must call it Type C;
 the types are recorded in the pair's metadata.txt and summed in the log.
 A pair already written is skipped, so a stopped run can be started again.
 
+With --source-root the set is read from that folder instead (CI renders the
+regression set in the repository this way), and with --out the versions are
+written under that folder; --versions makes only the versions named:
+
+    python scripts/make_raster_set.py regression --source-root regression --out raster --versions g300
+
 The set "commercial" takes the PDFs in <corpus>/sources/other/imslp, which
 have no ground truth; its folders hold files.txt instead of index.txt.
 
 usage: python scripts/make_raster_set.py SET [SET ...] [--workers N] [--limit N]
+                                     [--source-root FOLDER] [--out FOLDER] [--versions NAME ...]
 """
 
 import argparse
@@ -128,9 +135,8 @@ def pair_job(source, meta_path, out_dirs, source_set):
     return types
 
 
-def corpus_jobs(set_name, base, root):
+def corpus_jobs(set_name, base, source_root):
     """(jobs, index lines by version). A job is (key, source pdf, metadata, output folders)."""
-    source_root = root / "generated" / set_name
     index = source_root / "index.txt"
     if not index.is_file():
         raise FileNotFoundError(f"there is no index for the {set_name} set at {index}")
@@ -163,13 +169,15 @@ def commercial_jobs(base, root):
     return jobs, lines
 
 
-def make_set(set_name, root, log, workers, limit):
-    base = root / "generated" / "raster"
+def make_set(set_name, root, log, workers, limit, source_root=None, base=None):
+    """Render one set. root is the corpus folder (None with both source_root
+    and base given, as in CI, where the free-space check is left out)."""
+    base = base or root / "generated" / "raster"
     if set_name == "commercial":
         jobs, lines = commercial_jobs(base, root)
         list_name = "files.txt"
     else:
-        jobs, lines = corpus_jobs(set_name, base, root)
+        jobs, lines = corpus_jobs(set_name, base, source_root or root / "generated" / set_name)
         list_name = "index.txt"
     if limit:
         jobs = jobs[:limit]
@@ -179,7 +187,7 @@ def make_set(set_name, root, log, workers, limit):
     with parallel.pool(workers) as executor:
         running = {}
         for number, (key, pdf, meta, out_dirs) in enumerate(jobs, 1):
-            if number % 50 == 1:
+            if number % 50 == 1 and root:
                 paths.check_free_space(base.parent, MIN_FREE_GB)
             running[executor.submit(pair_job, pdf, meta, out_dirs, set_name)] = (number, key)
             while len(running) >= workers * 2:
@@ -219,14 +227,26 @@ def main():
     parser.add_argument("sets", nargs="+", help="corpus sets (regression, development, check) or commercial")
     parser.add_argument("--workers", type=int, default=parallel.DEFAULT_WORKERS)
     parser.add_argument("--limit", type=int, help="only the first N files of each set, for a trial")
+    parser.add_argument("--source-root", type=Path,
+                        help="read the set from this folder (one set only), not the corpus's generated folder")
+    parser.add_argument("--out", type=Path, help="write the versions under this folder, not generated/raster")
+    parser.add_argument("--versions", nargs="+", choices=sorted(VERSIONS), help="only these versions")
     args = parser.parse_args()
-    root = paths.require_corpus_dir()
-    log_dir = root / "generated" / "raster"
+    if args.source_root and len(args.sets) != 1:
+        parser.error("--source-root takes one set")
+    args.source_root = args.source_root and args.source_root.resolve()   # the index lists full paths
+    args.out = args.out and args.out.resolve()
+    if args.versions:
+        for name in set(VERSIONS) - set(args.versions):
+            del VERSIONS[name]
+    standalone = args.source_root and args.out and "commercial" not in args.sets
+    root = None if standalone else paths.require_corpus_dir()
+    log_dir = args.out or root / "generated" / "raster"
     log_dir.mkdir(parents=True, exist_ok=True)
     log = ProgressLog("make_raster_set", log_dir / "make_raster_set.log")
     failed = 0
     for set_name in args.sets:
-        failed += make_set(set_name, root, log, args.workers, args.limit)
+        failed += make_set(set_name, root, log, args.workers, args.limit, args.source_root, args.out)
     return log.finish(f"{len(args.sets)} set(s) rendered, {failed} file(s) failed")
 
 

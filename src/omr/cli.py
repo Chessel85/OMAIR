@@ -86,6 +86,9 @@ def add_evaluate_arguments(p):
     p.add_argument("--out", metavar="FOLDER", help="Where the reports go (default: evaluations/ under the corpus folder).")
     p.add_argument("--pausable", action="store_true",
                    help="Before each file, wait while continue.txt in the repository's folder does not say yes.")
+    p.add_argument("--resume", action="store_true",
+                   help="Take pairs already scored in the --out folder (their figures.json) from there, "
+                        "so a stopped run carries on.")
 
 
 def run_evaluate(args):
@@ -102,7 +105,8 @@ def run_evaluate(args):
         results, report = harness.run(
             args.set, args.recogniser, log, out_dir=args.out, predictions=args.predictions,
             workers=args.workers, timeout=args.timeout, cpu_only=args.cpu_only,
-            with_musicdiff=not args.no_musicdiff, set_root=args.set_root, pausable=args.pausable, **filters)
+            with_musicdiff=not args.no_musicdiff, set_root=args.set_root, pausable=args.pausable,
+            resume=args.resume, **filters)
     except (ValueError, FileNotFoundError, paths.CorpusDirError) as error:
         log.error(str(error))
         return log.finish("evaluation stopped")
