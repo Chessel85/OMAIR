@@ -88,7 +88,7 @@ The 21 commercial PDFs, each rendered as page images at 300 dpi, converted with 
 A new job, `raster` in `.github/workflows/tests.yml`, renders the regression set in the repository (254 pairs, 444 pages) as greyscale page images at 300 dpi (`scripts/make_raster_set.py` with `--source-root`, `--out` and `--versions`, new), reads their notes with `scripts/check_notes.py`, and fails below 96.0 percent.
 
 - **Engine 1 alone.** The sequence reader's weights cannot be published until the homr licence question is settled (licence register), so CI runs the detector path without Engine 2, as the plan allows. A trial on the laptop, without the corpus drive, gave 96.8 percent (97.6 on exact pairs; LilyPond 93.6, Verovio 98.0) in 31 minutes on 2 workers, against 97.3 with both engines. Both engines are run at milestones, as here.
-- **The detector's weights** come from a GitHub release, `detector-weights-1`, asset `detector.onnx` (10.7 MB, AGPL, in the licence register). The release is not yet published: publishing it is the owner's call, and the job is added to CI once it is.
+- **The detector's weights** come from a GitHub release, `detector-weights-1`, asset `detector.onnx` (10.7 MB, AGPL, in the licence register). The release is not yet published: the owner chose on 8 November 2026 not to publish it yet. The job is ready in `docs/notes/ci-raster-job.yml`, to be added to `tests.yml` once the release is published.
 
 ## Known limits carried forward
 

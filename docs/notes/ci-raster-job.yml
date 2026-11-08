@@ -1,0 +1,34 @@
+# Ready-made CI job for the raster regression set (Stage 2.10), kept out of
+# .github/workflows until the owner agrees to publish the release detector-weights-1.
+# To use it, add it under jobs: in .github/workflows/tests.yml.
+  raster:
+    name: Regression set as page images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      # PyTorch for the CPU only (Ultralytics loads the detector through it).
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install PyMuPDF fonttools opencv-python-headless numpy scipy verovio music21 musicdiff lxml pillow ultralytics onnxruntime rapidocr
+          python -m pip install -e .
+      # The symbol detector's released weights (AGPL, in docs/licence-register.md).
+      - name: Detector weights
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download detector-weights-1 --pattern detector.onnx --dir weights
+      # Every regression PDF rendered as greyscale page images at 300 dpi (Stage 2.10).
+      - name: Render the pages
+        run: python scripts/make_raster_set.py regression --source-root regression --out raster --versions g300 --workers 2
+      # Reads the notes from the images with Engine 1 (the detector) alone, as the
+      # sequence reader's weights are not released, and fails below the floor.
+      - name: Notes read from the images
+        env:
+          OMR_DETECTOR: weights/detector.onnx
+          YOLO_OFFLINE: "true"
+          YOLO_AUTOINSTALL: "false"
+        run: python scripts/check_notes.py --set-root raster/regression-g300 --workers 2 --min-accuracy 96.0
